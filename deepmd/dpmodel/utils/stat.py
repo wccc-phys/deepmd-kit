@@ -214,11 +214,18 @@ def _compute_model_predict(
         atype = to_numpy_array(system["atype"])
         box = to_numpy_array(system["box"])
         fparam = to_numpy_array(system.get("fparam", None))
+        uparam = to_numpy_array(system.get("uparam", None))
         aparam = to_numpy_array(system.get("aparam", None))
         charge_spin = to_numpy_array(system.get("charge_spin", None))
 
         sample_predict = model_forward(
-            coord, atype, box, fparam=fparam, aparam=aparam, charge_spin=charge_spin
+            coord,
+            atype,
+            box,
+            fparam=fparam,
+            uparam=uparam,
+            aparam=aparam,
+            charge_spin=charge_spin,
         )
         for kk in keys:
             model_predict[kk].append(

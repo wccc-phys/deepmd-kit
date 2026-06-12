@@ -151,6 +151,7 @@ class PolarFitting(GeneralFitting):
         type_map: list[str] | None = None,
         seed: int | list[int] | None = None,
         default_fparam: list[float] | None = None,
+        default_uparam: float | None = None,
     ) -> None:
         if tot_ener_zero:
             raise NotImplementedError("tot_ener_zero is not implemented")
@@ -199,6 +200,7 @@ class PolarFitting(GeneralFitting):
             type_map=type_map,
             seed=seed,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
         )
 
     def _net_out_dim(self) -> int:
@@ -296,6 +298,7 @@ class PolarFitting(GeneralFitting):
         g2: Array | None = None,
         h2: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
     ) -> dict[str, Array]:
         """Calculate the fitting.
@@ -317,6 +320,8 @@ class PolarFitting(GeneralFitting):
             shape: nf x nloc x nnei x 3
         fparam
             The frame parameter. shape: nf x nfp. nfp being `numb_fparam`
+        uparam
+            The DFT+U parameter. shape: nf x nup. nup being `numb_uparam`
         aparam
             The atomic parameter. shape: nf x nloc x nap. nap being `numb_aparam`
 
@@ -327,7 +332,9 @@ class PolarFitting(GeneralFitting):
             "Must provide the rotation matrix for polarizability fitting."
         )
         # (nframes, nloc, _net_out_dim)
-        results = self._call_common(descriptor, atype, gr, g2, h2, fparam, aparam)
+        results = self._call_common(
+            descriptor, atype, gr, g2, h2, fparam, uparam, aparam
+        )
         out = results.pop(self.var_name)
         # out = out * self.scale[atype, ...]
         scale_atype = xp.reshape(

@@ -104,6 +104,9 @@ void DeepPotPTExpt::init(const std::string& model,
                : static_cast<int>(metadata["type_map"].as_array().size());
   dfparam = metadata["dim_fparam"].as_int();
   daparam = metadata["dim_aparam"].as_int();
+  duparam = metadata.obj_val.count("dim_uparam")
+                ? metadata["dim_uparam"].as_int()
+                : 0;
   dim_chg_spin = metadata.obj_val.count("dim_chg_spin")
                      ? metadata["dim_chg_spin"].as_int()
                      : 0;
@@ -130,6 +133,17 @@ void DeepPotPTExpt::init(const std::string& model,
                    "Empty fparam will not be substituted. Please regenerate "
                    "the .pt2 model with an updated version of deepmd-kit."
                 << std::endl;
+    }
+  }
+  if (metadata.obj_val.count("has_default_uparam")) {
+    has_default_uparam_ = metadata["has_default_uparam"].as_bool();
+  } else {
+    has_default_uparam_ = false;
+  }
+  if (has_default_uparam_ && metadata.obj_val.count("default_uparam")) {
+    default_uparam_.clear();
+    for (const auto& v : metadata["default_uparam"].as_array()) {
+      default_uparam_.push_back(v.as_double());
     }
   }
   default_chg_spin_ = read_default_chg_spin(metadata, dim_chg_spin);
@@ -249,6 +263,28 @@ std::vector<torch::Tensor> DeepPotPTExpt::run_model(
   if (dfparam > 0) {
     inputs.push_back(fparam);
   }
+  if (duparam > 0) {
+    auto uparam_default =
+        has_default_uparam_
+            ? torch::from_blob(
+                  const_cast<double*>(default_uparam_.data()),
+                  {1, static_cast<std::int64_t>(default_uparam_.size())},
+                  torch::TensorOptions().dtype(torch::kFloat64))
+                  .clone()
+                  .to(coord.device())
+            : torch::zeros({1, 1}, torch::TensorOptions()
+                                       .dtype(torch::kFloat64)
+                                       .device(coord.device()));
+    auto uparam_input =
+        uparam_.empty()
+            ? uparam_default
+            : torch::from_blob(const_cast<double*>(uparam_.data()),
+                               {1, static_cast<std::int64_t>(uparam_.size())},
+                               torch::TensorOptions().dtype(torch::kFloat64))
+                  .clone()
+                  .to(coord.device());
+    inputs.push_back(uparam_input);
+  }
   if (daparam > 0) {
     inputs.push_back(aparam);
   }
@@ -289,6 +325,28 @@ std::vector<torch::Tensor> DeepPotPTExpt::run_model_with_comm(
   std::vector<torch::Tensor> inputs = {coord, atype, nlist, mapping};
   if (dfparam > 0) {
     inputs.push_back(fparam);
+  }
+  if (duparam > 0) {
+    auto uparam_default =
+        has_default_uparam_
+            ? torch::from_blob(
+                  const_cast<double*>(default_uparam_.data()),
+                  {1, static_cast<std::int64_t>(default_uparam_.size())},
+                  torch::TensorOptions().dtype(torch::kFloat64))
+                  .clone()
+                  .to(coord.device())
+            : torch::zeros({1, 1}, torch::TensorOptions()
+                                       .dtype(torch::kFloat64)
+                                       .device(coord.device()));
+    auto uparam_input =
+        uparam_.empty()
+            ? uparam_default
+            : torch::from_blob(const_cast<double*>(uparam_.data()),
+                               {1, static_cast<std::int64_t>(uparam_.size())},
+                               torch::TensorOptions().dtype(torch::kFloat64))
+                  .clone()
+                  .to(coord.device());
+    inputs.push_back(uparam_input);
   }
   if (daparam > 0) {
     inputs.push_back(aparam);

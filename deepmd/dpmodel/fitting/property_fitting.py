@@ -90,6 +90,7 @@ class PropertyFittingNet(InvarFitting):
         exclude_types: list[int] = [],
         type_map: list[str] | None = None,
         default_fparam: list | None = None,
+        default_uparam: float | None = None,
         distinguish_types: bool = True,
         # not used
         seed: int | None = None,
@@ -116,6 +117,7 @@ class PropertyFittingNet(InvarFitting):
             exclude_types=exclude_types,
             type_map=type_map,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
         )
 
     def output_def(self) -> FittingOutputDef:

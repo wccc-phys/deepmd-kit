@@ -100,6 +100,12 @@ def deserialize_to_file(model_file: str, data: dict) -> None:
                 [None],
                 name="t_aparam",
             )
+        if model.get_numb_uparam() > 0:
+            inputs["uparam"] = tf.placeholder(
+                GLOBAL_TF_FLOAT_PRECISION,
+                [None],
+                name="t_uparam",
+            )
         model.build(
             place_holders["coord"],
             place_holders["type"],

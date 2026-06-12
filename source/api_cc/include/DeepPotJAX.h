@@ -102,6 +102,8 @@ class DeepPotJAX : public DeepPotBackend {
     assert(inited);
     return has_default_fparam_;
   };
+  int dim_uparam() const { return duparam; };
+  bool has_default_uparam() const { return false; };
 
   // forward to template class
   void computew(std::vector<double>& ener,
@@ -189,6 +191,7 @@ class DeepPotJAX : public DeepPotBackend {
   int ntypes;
   // the dimension of the frame parameter
   int dfparam;
+  int duparam{0};
   // the dimension of the atomic parameter
   int daparam;
   // type map

@@ -215,6 +215,9 @@ class DeepPotTF : public DeepPotBackend {
    * @return Always false for TF backend.
    **/
   bool has_default_fparam() const { return false; };
+  int dim_uparam() const { return duparam; };
+  bool has_default_uparam() const { return false; };
+  void set_uparam(const std::vector<double>& uparam) { uparam_ = uparam; };
 
   // forward to template class
   void computew(std::vector<double>& ener,
@@ -307,8 +310,10 @@ class DeepPotTF : public DeepPotBackend {
   int ntypes;
   int ntypes_spin;
   int dfparam;
+  int duparam{0};
   int daparam;
   bool aparam_nall;
+  std::vector<double> uparam_;
   /**
    * @brief Validate the size of frame and atomic parameters.
    * @param[in] nframes The number of frames.

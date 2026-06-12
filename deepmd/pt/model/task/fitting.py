@@ -113,6 +113,35 @@ class Fitting(torch.nn.Module, BaseFitting):
                 self.fparam_avg = base_class.fparam_avg
                 self.fparam_inv_std = base_class.fparam_inv_std
 
+            # link uparam buffers
+            if self.numb_uparam > 0:
+                if not resume:
+                    base_uparam = base_class.stats["uparam"]
+                    assert len(base_uparam) == self.numb_uparam
+                    for ii in range(self.numb_uparam):
+                        base_uparam[ii] += self.get_stats()["uparam"][ii] * model_prob
+                    uparam_avg = np.array([ii.compute_avg() for ii in base_uparam])
+                    uparam_std = np.array(
+                        [ii.compute_std(protection=protection) for ii in base_uparam]
+                    )
+                    uparam_inv_std = 1.0 / uparam_std
+                    base_class.uparam_avg.copy_(
+                        torch.tensor(
+                            uparam_avg,
+                            device=env.DEVICE,
+                            dtype=base_class.uparam_avg.dtype,
+                        )
+                    )
+                    base_class.uparam_inv_std.copy_(
+                        torch.tensor(
+                            uparam_inv_std,
+                            device=env.DEVICE,
+                            dtype=base_class.uparam_inv_std.dtype,
+                        )
+                    )
+                self.uparam_avg = base_class.uparam_avg
+                self.uparam_inv_std = base_class.uparam_inv_std
+
             # link aparam buffers
             if self.numb_aparam > 0:
                 if not resume:
@@ -237,6 +266,51 @@ class Fitting(torch.nn.Module, BaseFitting):
         self.stats["aparam"] = _aparam_stat
         log.info(f"Load aparam stats from {fp}.")
 
+    def save_to_file_uparam(
+        self,
+        stat_file_path: DPPath,
+    ) -> None:
+        """Save the statistics of uparam.
+
+        Parameters
+        ----------
+        stat_file_path : DPPath
+            The path to save the statistics of uparam.
+        """
+        assert stat_file_path is not None
+        stat_file_path.mkdir(exist_ok=True, parents=True)
+        if len(self.stats) == 0:
+            raise ValueError("The statistics hasn't been computed.")
+        fp = stat_file_path / "uparam"
+        _uparam_stat = []
+        for ii in range(self.numb_uparam):
+            _tmp_stat = self.stats["uparam"][ii]
+            _uparam_stat.append(
+                [_tmp_stat.number, _tmp_stat.sum, _tmp_stat.squared_sum]
+            )
+        _uparam_stat = np.array(_uparam_stat)
+        fp.save_numpy(_uparam_stat)
+        log.info(f"Save uparam stats to {fp}.")
+
+    def restore_uparam_from_file(self, stat_file_path: DPPath) -> None:
+        """Load the statistics of uparam.
+
+        Parameters
+        ----------
+        stat_file_path : DPPath
+            The path to load the statistics of uparam.
+        """
+        fp = stat_file_path / "uparam"
+        arr = fp.load_numpy()
+        assert arr.shape == (self.numb_uparam, 3)
+        _uparam_stat = []
+        for ii in range(self.numb_uparam):
+            _uparam_stat.append(
+                StatItem(number=arr[ii][0], sum=arr[ii][1], squared_sum=arr[ii][2])
+            )
+        self.stats["uparam"] = _uparam_stat
+        log.info(f"Load uparam stats from {fp}.")
+
     def compute_input_stats(
         self,
         merged: Callable[[], list[dict]] | list[dict],
@@ -260,14 +334,14 @@ class Fitting(torch.nn.Module, BaseFitting):
         stat_file_path : Optional[DPPath]
             The path to the stat file.
         """
-        if self.numb_fparam == 0 and self.numb_aparam == 0:
+        if self.numb_fparam == 0 and self.numb_aparam == 0 and self.numb_uparam == 0:
             # skip data statistics
             self.stats = None
             return
 
         self.stats = {}
 
-        # stat fparam
+        # stat fparam (optimized: streaming accumulation, no concat)
         if self.numb_fparam > 0:
             if (
                 stat_file_path is not None
@@ -278,13 +352,20 @@ class Fitting(torch.nn.Module, BaseFitting):
             else:
                 sampled = merged() if callable(merged) else merged
                 self.stats["fparam"] = []
-                cat_data = to_numpy_array(
-                    torch.cat([frame["fparam"] for frame in sampled], dim=0)
-                )
-                cat_data = np.reshape(cat_data, [-1, self.numb_fparam])
-                sumv = np.sum(cat_data, axis=0)
-                sumv2 = np.sum(cat_data * cat_data, axis=0)
-                sumn = cat_data.shape[0]
+                sumv = None
+                sumv2 = None
+                sumn = 0
+                for frame in sampled:
+                    data = to_numpy_array(frame["fparam"]).reshape(-1, self.numb_fparam)
+                    frame_sum = np.sum(data, axis=0)
+                    frame_sum2 = np.sum(data * data, axis=0)
+                    sumn += data.shape[0]
+                    if sumv is None:
+                        sumv = frame_sum
+                        sumv2 = frame_sum2
+                    else:
+                        sumv += frame_sum
+                        sumv2 += frame_sum2
                 for ii in range(self.numb_fparam):
                     self.stats["fparam"].append(
                         StatItem(
@@ -305,7 +386,7 @@ class Fitting(torch.nn.Module, BaseFitting):
             self.fparam_avg.copy_(to_torch_tensor(fparam_avg))
             self.fparam_inv_std.copy_(to_torch_tensor(fparam_inv_std))
 
-        # stat aparam
+        # stat aparam (optimized: streaming accumulation, no stack)
         if self.numb_aparam > 0:
             if (
                 stat_file_path is not None
@@ -316,17 +397,22 @@ class Fitting(torch.nn.Module, BaseFitting):
             else:
                 sampled = merged() if callable(merged) else merged
                 self.stats["aparam"] = []
-                sys_sumv = []
-                sys_sumv2 = []
-                sys_sumn = []
-                for ss_ in [frame["aparam"] for frame in sampled]:
-                    ss = np.reshape(to_numpy_array(ss_), [-1, self.numb_aparam])
-                    sys_sumv.append(np.sum(ss, axis=0))
-                    sys_sumv2.append(np.sum(ss * ss, axis=0))
-                    sys_sumn.append(ss.shape[0])
-                sumv = np.sum(np.stack(sys_sumv), axis=0)
-                sumv2 = np.sum(np.stack(sys_sumv2), axis=0)
-                sumn = sum(sys_sumn)
+                sumv = None
+                sumv2 = None
+                sumn = 0
+                for frame in sampled:
+                    ss = np.reshape(
+                        to_numpy_array(frame["aparam"]), [-1, self.numb_aparam]
+                    )
+                    frame_sum = np.sum(ss, axis=0)
+                    frame_sum2 = np.sum(ss * ss, axis=0)
+                    sumn += ss.shape[0]
+                    if sumv is None:
+                        sumv = frame_sum
+                        sumv2 = frame_sum2
+                    else:
+                        sumv += frame_sum
+                        sumv2 += frame_sum2
                 for ii in range(self.numb_aparam):
                     self.stats["aparam"].append(
                         StatItem(
@@ -346,6 +432,51 @@ class Fitting(torch.nn.Module, BaseFitting):
             log.info(f"aparam_avg is {aparam_avg}, aparam_inv_std is {aparam_inv_std}")
             self.aparam_avg.copy_(to_torch_tensor(aparam_avg))
             self.aparam_inv_std.copy_(to_torch_tensor(aparam_inv_std))
+
+        # stat uparam (optimized: streaming accumulation, no concat)
+        if self.numb_uparam > 0:
+            if (
+                stat_file_path is not None
+                and stat_file_path.is_dir()
+                and (stat_file_path / "uparam").is_file()
+            ):
+                self.restore_uparam_from_file(stat_file_path)
+            else:
+                sampled = merged() if callable(merged) else merged
+                self.stats["uparam"] = []
+                sumv = None
+                sumv2 = None
+                sumn = 0
+                for frame in sampled:
+                    data = to_numpy_array(frame["uparam"]).reshape(-1, self.numb_uparam)
+                    frame_sum = np.sum(data, axis=0)
+                    frame_sum2 = np.sum(data * data, axis=0)
+                    sumn += data.shape[0]
+                    if sumv is None:
+                        sumv = frame_sum
+                        sumv2 = frame_sum2
+                    else:
+                        sumv += frame_sum
+                        sumv2 += frame_sum2
+                for ii in range(self.numb_uparam):
+                    self.stats["uparam"].append(
+                        StatItem(
+                            number=sumn,
+                            sum=sumv[ii],
+                            squared_sum=sumv2[ii],
+                        )
+                    )
+                if stat_file_path is not None:
+                    self.save_to_file_uparam(stat_file_path)
+
+            uparam_avg = np.array([ii.compute_avg() for ii in self.stats["uparam"]])
+            uparam_std = np.array(
+                [ii.compute_std(protection=protection) for ii in self.stats["uparam"]]
+            )
+            uparam_inv_std = 1.0 / uparam_std
+            log.info(f"uparam_avg is {uparam_avg}, uparam_inv_std is {uparam_inv_std}")
+            self.uparam_avg.copy_(to_torch_tensor(uparam_avg))
+            self.uparam_inv_std.copy_(to_torch_tensor(uparam_inv_std))
 
     def get_stats(self) -> dict[str, list[StatItem]]:
         """Get the statistics of the fitting_net."""
@@ -431,6 +562,7 @@ class GeneralFitting(Fitting):
         type_map: list[str] | None = None,
         use_aparam_as_mask: bool = False,
         default_fparam: list[float] | None = None,
+        default_uparam: float | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -443,6 +575,8 @@ class GeneralFitting(Fitting):
         self.numb_fparam = numb_fparam
         self.numb_aparam = numb_aparam
         self.default_fparam = default_fparam
+        self.default_uparam = default_uparam
+        self.numb_uparam = int(self.default_uparam is not None)
         self.dim_case_embd = dim_case_embd
         self.activation_function = activation_function
         self.precision = precision
@@ -494,6 +628,17 @@ class GeneralFitting(Fitting):
             )
         else:
             self.aparam_avg, self.aparam_inv_std = None, None
+        if self.numb_uparam > 0:
+            self.register_buffer(
+                "uparam_avg",
+                torch.zeros(self.numb_uparam, dtype=self.prec, device=device),
+            )
+            self.register_buffer(
+                "uparam_inv_std",
+                torch.ones(self.numb_uparam, dtype=self.prec, device=device),
+            )
+        else:
+            self.uparam_avg, self.uparam_inv_std = None, None
 
         if self.dim_case_embd > 0:
             self.register_buffer(
@@ -517,10 +662,20 @@ class GeneralFitting(Fitting):
             )
         else:
             self.default_fparam_tensor = None
+        if self.default_uparam is not None:
+            self.register_buffer(
+                "default_uparam_tensor",
+                torch.tensor(self.default_uparam, dtype=self.prec, device=device).view(
+                    [1]
+                ),
+            )
+        else:
+            self.default_uparam_tensor = None
 
         in_dim = (
             self.dim_descrpt
             + self.numb_fparam
+            + self.numb_uparam
             + (0 if self.use_aparam_as_mask else self.numb_aparam)
             + self.dim_case_embd
         )
@@ -597,6 +752,8 @@ class GeneralFitting(Fitting):
             "numb_aparam": self.numb_aparam,
             "dim_case_embd": self.dim_case_embd,
             "default_fparam": self.default_fparam,
+            "numb_uparam": self.numb_uparam,
+            "default_uparam": self.default_uparam,
             "activation_function": self.activation_function,
             "precision": self.precision,
             "mixed_types": self.mixed_types,
@@ -610,6 +767,8 @@ class GeneralFitting(Fitting):
                 "fparam_inv_std": to_numpy_array(self.fparam_inv_std),
                 "aparam_avg": to_numpy_array(self.aparam_avg),
                 "aparam_inv_std": to_numpy_array(self.aparam_inv_std),
+                "uparam_avg": to_numpy_array(self.uparam_avg),
+                "uparam_inv_std": to_numpy_array(self.uparam_inv_std),
             },
             "type_map": self.type_map,
             # "tot_ener_zero": self.tot_ener_zero ,
@@ -646,6 +805,17 @@ class GeneralFitting(Fitting):
 
     def get_default_fparam(self) -> torch.Tensor | None:
         return self.default_fparam_tensor
+
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return self.numb_uparam
+
+    def has_default_uparam(self) -> bool:
+        """Check if the fitting has default DFT+U parameters."""
+        return self.default_uparam is not None
+
+    def get_default_uparam(self) -> torch.Tensor | None:
+        return self.default_uparam_tensor
 
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""
@@ -702,6 +872,12 @@ class GeneralFitting(Fitting):
             self.scale = value
         elif key in ["default_fparam_tensor"]:
             self.default_fparam_tensor = value
+        elif key in ["uparam_avg"]:
+            self.uparam_avg = value
+        elif key in ["uparam_inv_std"]:
+            self.uparam_inv_std = value
+        elif key in ["default_uparam_tensor"]:
+            self.default_uparam_tensor = value
         else:
             raise KeyError(key)
 
@@ -722,6 +898,12 @@ class GeneralFitting(Fitting):
             return self.scale
         elif key in ["default_fparam_tensor"]:
             return self.default_fparam_tensor
+        elif key in ["uparam_avg"]:
+            return self.uparam_avg
+        elif key in ["uparam_inv_std"]:
+            return self.uparam_inv_std
+        elif key in ["default_uparam_tensor"]:
+            return self.default_uparam_tensor
         else:
             raise KeyError(key)
 
@@ -736,6 +918,9 @@ class GeneralFitting(Fitting):
     def _extend_a_avg_std(self, xx: torch.Tensor, nb: int, nloc: int) -> torch.Tensor:
         return torch.tile(xx.view([1, 1, self.numb_aparam]), [nb, nloc, 1])
 
+    def _extend_u_avg_std(self, xx: torch.Tensor, nb: int) -> torch.Tensor:
+        return torch.tile(xx.view([1, self.numb_uparam]), [nb, 1])
+
     def _forward_common(
         self,
         descriptor: torch.Tensor,
@@ -744,6 +929,7 @@ class GeneralFitting(Fitting):
         g2: torch.Tensor | None = None,
         h2: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
         # cast the input to internal precsion
@@ -797,6 +983,35 @@ class GeneralFitting(Fitting):
             if xx_zeros is not None:
                 xx_zeros = torch.cat(
                     [xx_zeros, fparam],
+                    dim=-1,
+                )
+        # check uparam dim, concate to input descriptor
+        if self.numb_uparam > 0:
+            if uparam is None:
+                # use default uparam
+                assert self.default_uparam_tensor is not None
+                uparam = torch.tile(self.default_uparam_tensor.unsqueeze(0), [nf, 1])
+            uparam = uparam.to(self.prec)
+            assert self.uparam_avg is not None
+            assert self.uparam_inv_std is not None
+            if uparam.numel() != nf * self.numb_uparam:
+                raise ValueError(
+                    f"input uparam: cannot reshape {list(uparam.shape)} "
+                    f"into ({nf}, {self.numb_uparam})."
+                )
+            uparam = uparam.view([nf, self.numb_uparam])
+            nb, _ = uparam.shape
+            t_uparam_avg = self._extend_u_avg_std(self.uparam_avg, nb)
+            t_uparam_inv_std = self._extend_u_avg_std(self.uparam_inv_std, nb)
+            uparam = (uparam - t_uparam_avg) * t_uparam_inv_std
+            uparam = torch.tile(uparam.reshape([nf, 1, -1]), [1, nloc, 1])
+            xx = torch.cat(
+                [xx, uparam],
+                dim=-1,
+            )
+            if xx_zeros is not None:
+                xx_zeros = torch.cat(
+                    [xx_zeros, uparam],
                     dim=-1,
                 )
         # check aparam dim, concate to input descriptor

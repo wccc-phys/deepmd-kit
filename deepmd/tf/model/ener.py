@@ -106,6 +106,7 @@ class EnerModel(StandardModel):
         )
         self.numb_fparam = self.fitting.get_numb_fparam()
         self.numb_aparam = self.fitting.get_numb_aparam()
+        self.numb_uparam = self.fitting.get_numb_uparam()
 
         self.srtab_name = use_srtab
         if self.srtab_name is not None:
@@ -133,6 +134,10 @@ class EnerModel(StandardModel):
     def get_numb_aparam(self) -> int:
         """Get the number of atomic parameters."""
         return self.numb_aparam
+
+    def get_numb_uparam(self) -> int:
+        """Get the number of DFT+U parameters."""
+        return self.numb_uparam
 
     def data_stat(self, data: DeepmdDataSystem) -> None:
         all_stat = make_stat_input(data, self.data_stat_nbatch, merge_sys=False)

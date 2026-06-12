@@ -476,6 +476,10 @@ class FullValidator:
             if self.model.get_dim_fparam() > 0
             and bool(test_data.get("find_fparam", 0.0))
             else None,
+            uparam=test_data["uparam"]
+            if self.model.get_dim_uparam() > 0
+            and bool(test_data.get("find_uparam", 0.0))
+            else None,
             aparam=test_data["aparam"] if self.model.get_dim_aparam() > 0 else None,
             include_virial=include_virial,
             natoms=natoms,
@@ -498,6 +502,7 @@ class FullValidator:
         atom_types: np.ndarray,
         box: np.ndarray | None,
         fparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         aparam: np.ndarray | None,
         include_virial: bool,
         natoms: int,
@@ -510,6 +515,7 @@ class FullValidator:
             atom_types_batch: np.ndarray,
             box_batch: np.ndarray | None,
             fparam_batch: np.ndarray | None,
+            uparam_batch: np.ndarray | None,
             aparam_batch: np.ndarray | None,
         ) -> dict[str, np.ndarray]:
             coord_input = torch.tensor(
@@ -544,6 +550,12 @@ class FullValidator:
                 )
             else:
                 fparam_input = None
+            if uparam_batch is not None:
+                uparam_input = to_torch_tensor(
+                    uparam_batch.reshape(-1, self.model.get_dim_uparam())
+                )
+            else:
+                uparam_input = None
             if aparam_batch is not None:
                 aparam_input = to_torch_tensor(
                     aparam_batch.reshape(-1, natoms, self.model.get_dim_aparam())
@@ -558,6 +570,7 @@ class FullValidator:
                 type_input,
                 box=box_input,
                 fparam=fparam_input,
+                uparam=uparam_input,
                 aparam=aparam_input,
             )
             if isinstance(batch_output, tuple):
@@ -590,6 +603,7 @@ class FullValidator:
             atom_types,
             box,
             fparam,
+            uparam,
             aparam,
         )
         prediction = {

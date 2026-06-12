@@ -164,6 +164,7 @@ class ModelWrapper(torch.nn.Module):
         inference_only: bool = False,
         do_atomic_virial: bool = False,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         charge_spin: torch.Tensor | None = None,
     ) -> tuple[Any, Any, Any]:
@@ -179,6 +180,7 @@ class ModelWrapper(torch.nn.Module):
             "box": box,
             "do_atomic_virial": do_atomic_virial,
             "fparam": fparam,
+            "uparam": uparam,
             "aparam": aparam,
             "charge_spin": charge_spin,
         }

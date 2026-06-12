@@ -78,7 +78,8 @@ int session_input_tensors(
     const std::vector<VALUETYPE>& aparam_,
     const deepmd::AtomMap& atommap,
     const std::string scope = "",
-    const bool aparam_nall = false);
+    const bool aparam_nall = false,
+    const std::vector<VALUETYPE>& uparam_ = std::vector<VALUETYPE>());
 
 /**
  * @brief Get input tensors.
@@ -110,7 +111,8 @@ int session_input_tensors(
     const int nghost,
     const int ago,
     const std::string scope = "",
-    const bool aparam_nall = false);
+    const bool aparam_nall = false,
+    const std::vector<VALUETYPE>& uparam_ = std::vector<VALUETYPE>());
 
 /**
  * @brief Get input tensors for mixed type.
@@ -142,6 +144,7 @@ int session_input_tensors_mixed_type(
     const std::vector<VALUETYPE>& aparam_,
     const deepmd::AtomMap& atommap,
     const std::string scope = "",
-    const bool aparam_nall = false);
+    const bool aparam_nall = false,
+    const std::vector<VALUETYPE>& uparam_ = std::vector<VALUETYPE>());
 
 }  // namespace deepmd

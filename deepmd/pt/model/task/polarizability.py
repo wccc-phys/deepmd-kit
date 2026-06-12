@@ -100,6 +100,7 @@ class PolarFittingNet(GeneralFitting):
         shift_diag: bool = True,
         type_map: list[str] | None = None,
         default_fparam: list | None = None,
+        default_uparam: float | None = None,
         **kwargs: Any,
     ) -> None:
         self.embedding_width = embedding_width
@@ -142,6 +143,7 @@ class PolarFittingNet(GeneralFitting):
             exclude_types=exclude_types,
             type_map=type_map,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
             **kwargs,
         )
 
@@ -234,6 +236,7 @@ class PolarFittingNet(GeneralFitting):
         g2: torch.Tensor | None = None,
         h2: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
         nframes, nloc, _ = descriptor.shape
@@ -243,9 +246,9 @@ class PolarFittingNet(GeneralFitting):
         # cast the input to internal precsion
         gr = gr.to(self.prec)
         # (nframes, nloc, _net_out_dim)
-        out = self._forward_common(descriptor, atype, gr, g2, h2, fparam, aparam)[
-            self.var_name
-        ]
+        out = self._forward_common(
+            descriptor, atype, gr, g2, h2, fparam, uparam, aparam
+        )[self.var_name]
         out = out * (self.scale.to(atype.device).to(self.prec))[atype]
 
         gr = gr.view(nframes * nloc, self.embedding_width, 3)  # (nframes * nloc, m1, 3)

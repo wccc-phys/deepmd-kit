@@ -124,6 +124,10 @@ class DeepEval(DeepEvalBackend):
         """Get the number (dimension) of frame parameters of this DP."""
         return self.dp.get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this DP."""
+        return self.dp.get_dim_uparam()
+
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this DP."""
         return self.dp.get_dim_aparam()
@@ -131,6 +135,10 @@ class DeepEval(DeepEvalBackend):
     def has_default_fparam(self) -> bool:
         """Check if the model has default frame parameters."""
         return self.dp.has_default_fparam()
+
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
+        return self.dp.has_default_uparam()
 
     @property
     def model_type(self) -> type["DeepEvalWrapper"]:
@@ -188,6 +196,7 @@ class DeepEval(DeepEvalBackend):
         atomic: bool = False,
         fparam: Array | None = None,
         aparam: Array | None = None,
+        uparam: Array | None = None,
         **kwargs: Any,
     ) -> dict[str, Array]:
         """Evaluate the energy, force and virial by using this DP.
@@ -236,7 +245,7 @@ class DeepEval(DeepEvalBackend):
         )
         request_defs = self._get_request_defs(atomic)
         out = self._eval_func(self._eval_model, numb_test, natoms)(
-            coords, cells, atom_types, fparam, aparam, request_defs
+            coords, cells, atom_types, fparam, aparam, uparam, request_defs
         )
         return dict(
             zip(
@@ -329,6 +338,7 @@ class DeepEval(DeepEvalBackend):
         atom_types: Array,
         fparam: Array | None,
         aparam: Array | None,
+        uparam: Array | None,
         request_defs: list[OutputVariableDef],
     ) -> dict[str, Array]:
         model = self.dp
@@ -354,6 +364,10 @@ class DeepEval(DeepEvalBackend):
             aparam_input = aparam.reshape(nframes, natoms, self.get_dim_aparam())
         else:
             aparam_input = None
+        if uparam is not None:
+            uparam_input = uparam.reshape(nframes, self.get_dim_uparam())
+        else:
+            uparam_input = None
 
         do_atomic_virial = any(
             x.category == OutputVariableCategory.DERV_C_REDU for x in request_defs
@@ -364,6 +378,7 @@ class DeepEval(DeepEvalBackend):
             box=box_input,
             fparam=fparam_input,
             aparam=aparam_input,
+            uparam=uparam_input,
             do_atomic_virial=do_atomic_virial,
         )
         if isinstance(batch_output, tuple):

@@ -967,21 +967,31 @@ class DeepBaseModel {
     assert(dpbase);
     return daparam;
   }
-  /**
-   * @brief Check if the model has default frame parameters.
-   * @return true if the model has default frame parameters.
-   **/
+  int dim_uparam() const {
+    assert(dpbase);
+    return duparam;
+  }
   bool has_default_fparam() const {
     assert(dpbase);
     return has_default_fparam_;
+  }
+  bool has_default_uparam() const {
+    assert(dpbase);
+    return has_default_uparam_;
+  }
+  void set_uparam(const std::vector<double>& uparam) {
+    assert(dpbase);
+    DP_DeepBaseModelSetUParaM(dpbase, uparam.data(), uparam.size());
   }
 
  protected:
   DP_DeepBaseModel* dpbase;
   int dfparam;
   int daparam;
+  int duparam;
   bool aparam_nall;
   bool has_default_fparam_;
+  bool has_default_uparam_;
   template <typename VALUETYPE>
   void validate_fparam_aparam(const int& nframes,
                               const int& nloc,
@@ -1071,6 +1081,8 @@ class DeepPot : public DeepBaseModel {
     daparam = DP_DeepPotGetDimAParam(dp);
     aparam_nall = DP_DeepPotIsAParamNAll(dp);
     has_default_fparam_ = DP_DeepPotHasDefaultFParam(dp);
+    has_default_uparam_ = DP_DeepPotHasDefaultUParaM(dp);
+    duparam = DP_DeepPotGetDimUParaM(dp);
     dpbase = (DP_DeepBaseModel*)dp;
   };
 
@@ -1516,6 +1528,8 @@ class DeepSpin : public DeepBaseModel {
     daparam = DP_DeepSpinGetDimAParam(dp);
     aparam_nall = DP_DeepSpinIsAParamNAll(dp);
     has_default_fparam_ = DP_DeepSpinHasDefaultFParam(dp);
+    has_default_uparam_ = DP_DeepSpinHasDefaultUParaM(dp);
+    duparam = DP_DeepSpinGetDimUParaM(dp);
     dpbase = (DP_DeepBaseModel*)dp;
   };
 
@@ -1873,13 +1887,21 @@ class DeepBaseModelDevi {
     assert(dpbase);
     return daparam;
   }
-  /**
-   * @brief Check if the model has default frame parameters.
-   * @return true if the model has default frame parameters.
-   **/
+  int dim_uparam() const {
+    assert(dpbase);
+    return duparam;
+  }
   bool has_default_fparam() const {
     assert(dpbase);
     return has_default_fparam_;
+  }
+  bool has_default_uparam() const {
+    assert(dpbase);
+    return has_default_uparam_;
+  }
+  void set_uparam(const std::vector<double>& uparam) {
+    assert(dpbase);
+    DP_DeepBaseModelDeviSetUParaM(dpbase, uparam.data(), uparam.size());
   }
   /**
    * @param[out] avg The average of vectors.
@@ -2001,8 +2023,10 @@ class DeepBaseModelDevi {
   int numb_models;
   int dfparam;
   int daparam;
+  int duparam;
   bool aparam_nall;
   bool has_default_fparam_;
+  bool has_default_uparam_;
   template <typename VALUETYPE>
   void validate_fparam_aparam(const int& nframes,
                               const int& nloc,
@@ -2105,6 +2129,8 @@ class DeepPotModelDevi : public DeepBaseModelDevi {
     daparam = DP_DeepPotModelDeviGetDimAParam(dp);
     aparam_nall = DP_DeepPotModelDeviIsAParamNAll(dp);
     has_default_fparam_ = DP_DeepPotModelDeviHasDefaultFParam(dp);
+    has_default_uparam_ = DP_DeepPotModelDeviHasDefaultUParaM(dp);
+    duparam = DP_DeepPotModelDeviGetDimUParaM(dp);
     dpbase = (DP_DeepBaseModelDevi*)dp;
   };
 
@@ -2538,6 +2564,8 @@ class DeepSpinModelDevi : public DeepBaseModelDevi {
     daparam = DP_DeepSpinModelDeviGetDimAParam(dp);
     aparam_nall = DP_DeepSpinModelDeviIsAParamNAll(dp);
     has_default_fparam_ = DP_DeepSpinModelDeviHasDefaultFParam(dp);
+    has_default_uparam_ = DP_DeepSpinModelDeviHasDefaultUParaM(dp);
+    duparam = DP_DeepSpinModelDeviGetDimUParaM(dp);
     dpbase = (DP_DeepBaseModelDevi*)dp;
   };
 

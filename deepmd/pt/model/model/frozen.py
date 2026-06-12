@@ -69,6 +69,11 @@ class FrozenModel(BaseModel):
         return self.model.get_dim_fparam()
 
     @torch.jit.export
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return self.model.get_dim_uparam()
+
+    @torch.jit.export
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""
         return self.model.get_dim_aparam()
@@ -120,6 +125,7 @@ class FrozenModel(BaseModel):
         atype: torch.Tensor,
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
     ) -> dict[str, torch.Tensor]:
@@ -128,6 +134,7 @@ class FrozenModel(BaseModel):
             atype,
             box=box,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             do_atomic_virial=do_atomic_virial,
         )

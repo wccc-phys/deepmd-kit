@@ -56,20 +56,29 @@ DP_DeepBaseModel::DP_DeepBaseModel(deepmd::DeepBaseModel& dpbase)
     : dpbase(dpbase) {
   dfparam = dpbase.dim_fparam();
   daparam = dpbase.dim_aparam();
+  duparam = dpbase.dim_uparam();
   aparam_nall = dpbase.is_aparam_nall();
   has_default_fparam = dpbase.has_default_fparam();
+  has_default_uparam = dpbase.has_default_uparam();
 }
 void DP_DeleteDeepBaseModel(DP_DeepBaseModel* dpbase) { delete dpbase; }
 
 // DP Base Model Devi
 DP_DeepBaseModelDevi::DP_DeepBaseModelDevi()
-    : dfparam(0), daparam(0), aparam_nall(false), has_default_fparam(false) {}
+    : dfparam(0),
+      daparam(0),
+      duparam(0),
+      aparam_nall(false),
+      has_default_fparam(false),
+      has_default_uparam(false) {}
 DP_DeepBaseModelDevi::DP_DeepBaseModelDevi(deepmd::DeepBaseModelDevi& dpbase)
     : dpbase(dpbase) {
   dfparam = dpbase.dim_fparam();
   daparam = dpbase.dim_aparam();
+  duparam = dpbase.dim_uparam();
   aparam_nall = dpbase.is_aparam_nall();
   has_default_fparam = dpbase.has_default_fparam();
+  has_default_uparam = dpbase.has_default_uparam();
 }
 void DP_DeleteDeepBaseModelDevi(DP_DeepBaseModelDevi* dp) { delete dp; }
 
@@ -2028,6 +2037,20 @@ bool DP_DeepBaseModelHasDefaultFParam(DP_DeepBaseModel* dpbase) {
   return dpbase->has_default_fparam;
 }
 
+int DP_DeepBaseModelGetDimUParaM(DP_DeepBaseModel* dpbase) {
+  return dpbase->duparam;
+}
+
+bool DP_DeepBaseModelHasDefaultUParaM(DP_DeepBaseModel* dpbase) {
+  return dpbase->has_default_uparam;
+}
+
+void DP_DeepBaseModelSetUParaM(DP_DeepBaseModel* dpbase,
+                               const double* uparam,
+                               int size) {
+  dpbase->dpbase.set_uparam(std::vector<double>(uparam, uparam + size));
+}
+
 const char* DP_DeepBaseModelCheckOK(DP_DeepBaseModel* dpbase) {
   return string_to_char(dpbase->exception);
 }
@@ -2058,6 +2081,20 @@ bool DP_DeepBaseModelDeviIsAParamNAll(DP_DeepBaseModelDevi* dpbase) {
 
 bool DP_DeepBaseModelDeviHasDefaultFParam(DP_DeepBaseModelDevi* dpbase) {
   return dpbase->has_default_fparam;
+}
+
+int DP_DeepBaseModelDeviGetDimUParaM(DP_DeepBaseModelDevi* dpbase) {
+  return dpbase->duparam;
+}
+
+bool DP_DeepBaseModelDeviHasDefaultUParaM(DP_DeepBaseModelDevi* dpbase) {
+  return dpbase->has_default_uparam;
+}
+
+void DP_DeepBaseModelDeviSetUParaM(DP_DeepBaseModelDevi* dpbase,
+                                   const double* uparam,
+                                   int size) {
+  dpbase->dpbase.set_uparam(std::vector<double>(uparam, uparam + size));
 }
 
 const char* DP_DeepBaseModelDeviCheckOK(DP_DeepBaseModelDevi* dpbase) {
@@ -2095,6 +2132,14 @@ bool DP_DeepPotIsAParamNAll(DP_DeepPot* dp) {
 
 bool DP_DeepPotHasDefaultFParam(DP_DeepPot* dp) {
   return DP_DeepBaseModelHasDefaultFParam(static_cast<DP_DeepBaseModel*>(dp));
+}
+
+int DP_DeepPotGetDimUParaM(DP_DeepPot* dp) {
+  return DP_DeepBaseModelGetDimUParaM(static_cast<DP_DeepBaseModel*>(dp));
+}
+
+bool DP_DeepPotHasDefaultUParaM(DP_DeepPot* dp) {
+  return DP_DeepBaseModelHasDefaultUParaM(static_cast<DP_DeepBaseModel*>(dp));
 }
 
 const char* DP_DeepPotCheckOK(DP_DeepPot* dp) {
@@ -2135,6 +2180,16 @@ bool DP_DeepPotModelDeviHasDefaultFParam(DP_DeepPotModelDevi* dp) {
       static_cast<DP_DeepBaseModelDevi*>(dp));
 }
 
+int DP_DeepPotModelDeviGetDimUParaM(DP_DeepPotModelDevi* dp) {
+  return DP_DeepBaseModelDeviGetDimUParaM(
+      static_cast<DP_DeepBaseModelDevi*>(dp));
+}
+
+bool DP_DeepPotModelDeviHasDefaultUParaM(DP_DeepPotModelDevi* dp) {
+  return DP_DeepBaseModelDeviHasDefaultUParaM(
+      static_cast<DP_DeepBaseModelDevi*>(dp));
+}
+
 const char* DP_DeepPotModelDeviCheckOK(DP_DeepPotModelDevi* dp) {
   return DP_DeepBaseModelDeviCheckOK(static_cast<DP_DeepBaseModelDevi*>(dp));
 }
@@ -2172,6 +2227,14 @@ bool DP_DeepSpinHasDefaultFParam(DP_DeepSpin* dp) {
   return DP_DeepBaseModelHasDefaultFParam(static_cast<DP_DeepBaseModel*>(dp));
 }
 
+int DP_DeepSpinGetDimUParaM(DP_DeepSpin* dp) {
+  return DP_DeepBaseModelGetDimUParaM(static_cast<DP_DeepBaseModel*>(dp));
+}
+
+bool DP_DeepSpinHasDefaultUParaM(DP_DeepSpin* dp) {
+  return DP_DeepBaseModelHasDefaultUParaM(static_cast<DP_DeepBaseModel*>(dp));
+}
+
 const char* DP_DeepSpinCheckOK(DP_DeepSpin* dp) {
   return DP_DeepBaseModelCheckOK(static_cast<DP_DeepBaseModel*>(dp));
 }
@@ -2207,6 +2270,16 @@ bool DP_DeepSpinModelDeviIsAParamNAll(DP_DeepSpinModelDevi* dp) {
 
 bool DP_DeepSpinModelDeviHasDefaultFParam(DP_DeepSpinModelDevi* dp) {
   return DP_DeepBaseModelDeviHasDefaultFParam(
+      static_cast<DP_DeepBaseModelDevi*>(dp));
+}
+
+int DP_DeepSpinModelDeviGetDimUParaM(DP_DeepSpinModelDevi* dp) {
+  return DP_DeepBaseModelDeviGetDimUParaM(
+      static_cast<DP_DeepBaseModelDevi*>(dp));
+}
+
+bool DP_DeepSpinModelDeviHasDefaultUParaM(DP_DeepSpinModelDevi* dp) {
+  return DP_DeepBaseModelDeviHasDefaultUParaM(
       static_cast<DP_DeepBaseModelDevi*>(dp));
 }
 

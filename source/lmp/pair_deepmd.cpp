@@ -216,6 +216,10 @@ void PairDeepMD::compute(int eflag, int vflag) {
     make_fparam_from_compute(fparam);
   }
 
+  if (do_compute_uparam) {
+    make_uparam_from_compute(uparam);
+  }
+
   // int ago = numb_models > 1 ? 0 : neighbor->ago;
   int ago = neighbor->ago;
   if (numb_models > 1) {
@@ -248,6 +252,7 @@ void PairDeepMD::compute(int eflag, int vflag) {
       // cvflag_atom is the right flag for the cvatom matrix
       if (!(eflag_atom || cvflag_atom)) {
         try {
+          deep_pot.set_uparam(uparam);
           deep_pot.compute(dener, dforce, dvirial, dcoord, dtype, dbox, nghost,
                            lmp_list, ago, fparam, daparam);
         } catch (deepmd_compat::deepmd_exception& e) {
@@ -259,6 +264,7 @@ void PairDeepMD::compute(int eflag, int vflag) {
         vector<double> deatom(nall * 1, 0);
         vector<double> dvatom(nall * 9, 0);
         try {
+          deep_pot.set_uparam(uparam);
           deep_pot.compute(dener, dforce, dvirial, deatom, dvatom, dcoord,
                            dtype, dbox, nghost, lmp_list, ago, fparam, daparam);
         } catch (deepmd_compat::deepmd_exception& e) {
@@ -310,6 +316,7 @@ void PairDeepMD::compute(int eflag, int vflag) {
       vector<vector<double>> all_atom_virial;
       if (!(eflag_atom || cvflag_atom)) {
         try {
+          deep_pot_model_devi.set_uparam(uparam);
           deep_pot_model_devi.compute(all_energy, all_force, all_virial, dcoord,
                                       dtype, dbox, nghost, lmp_list, ago,
                                       fparam, daparam);
@@ -318,6 +325,7 @@ void PairDeepMD::compute(int eflag, int vflag) {
         }
       } else {
         try {
+          deep_pot_model_devi.set_uparam(uparam);
           deep_pot_model_devi.compute(all_energy, all_force, all_virial,
                                       all_atom_energy, all_atom_virial, dcoord,
                                       dtype, dbox, nghost, lmp_list, ago,
@@ -534,6 +542,8 @@ static bool is_key(const string& input) {
   keys.push_back("aparam");
   keys.push_back("fparam_from_compute");
   keys.push_back("aparam_from_compute");
+  keys.push_back("uparam");
+  keys.push_back("uparam_from_compute");
   keys.push_back("ttm");
   keys.push_back("atomic");
   keys.push_back("relative");
@@ -577,6 +587,7 @@ void PairDeepMD::settings(int narg, char** arg) {
     numb_types_spin = deep_pot.numb_types_spin();
     dim_fparam = deep_pot.dim_fparam();
     dim_aparam = deep_pot.dim_aparam();
+    dim_uparam = deep_pot.dim_uparam();
   } else {
     try {
       deep_pot.init(arg[0], get_node_rank(), get_file_content(arg[0]));
@@ -590,6 +601,7 @@ void PairDeepMD::settings(int narg, char** arg) {
     numb_types_spin = deep_pot_model_devi.numb_types_spin();
     dim_fparam = deep_pot_model_devi.dim_fparam();
     dim_aparam = deep_pot_model_devi.dim_aparam();
+    dim_uparam = deep_pot_model_devi.dim_uparam();
     assert(cutoff == deep_pot.cutoff() * dist_unit_cvt_factor);
     assert(numb_types == deep_pot.numb_types());
     assert(numb_types_spin == deep_pot.numb_types_spin());
@@ -643,6 +655,17 @@ void PairDeepMD::settings(int narg, char** arg) {
         aparam.push_back(atof(arg[iarg + 1 + ii]));
       }
       iarg += 1 + dim_aparam;
+    } else if (string(arg[iarg]) == string("uparam")) {
+      for (int ii = 0; ii < dim_uparam; ++ii) {
+        if (iarg + 1 + ii >= narg || is_key(arg[iarg + 1 + ii])) {
+          char tmp[1024];
+          sprintf(tmp, "Illegal uparam, the dimension should be %d",
+                  dim_uparam);
+          error->all(FLERR, tmp);
+        }
+        uparam.push_back(atof(arg[iarg + 1 + ii]));
+      }
+      iarg += 1 + dim_uparam;
     } else if (string(arg[iarg]) == string("ttm")) {
 #ifdef USE_TTM
       for (int ii = 0; ii < 1; ++ii) {
@@ -686,6 +709,17 @@ void PairDeepMD::settings(int narg, char** arg) {
       do_compute_aparam = true;
       compute_aparam_id = arg[iarg + 1];
       iarg += 1 + 1;
+    } else if (string(arg[iarg]) == string("uparam_from_compute")) {
+      for (int ii = 0; ii < 1; ++ii) {
+        if (iarg + 1 + ii >= narg || is_key(arg[iarg + 1 + ii])) {
+          error->all(FLERR,
+                     "invalid uparam_from_compute key: should be "
+                     "uparam_from_compute compute_uparam_id(str)");
+        }
+      }
+      do_compute_uparam = true;
+      compute_uparam_id = arg[iarg + 1];
+      iarg += 1 + 1;
     } else if (string(arg[iarg]) == string("atomic")) {
       out_each = 1;
       iarg += 1;
@@ -725,6 +759,11 @@ void PairDeepMD::settings(int narg, char** arg) {
         FLERR,
         "fparam and fparam_from_compute should NOT be set simultaneously");
   }
+  if (do_compute_uparam && uparam.size() > 0) {
+    error->all(
+        FLERR,
+        "uparam and uparam_from_compute should NOT be set simultaneously");
+  }
 
   if (comm->me == 0) {
     if (numb_models > 1 && out_freq > 0) {
@@ -762,6 +801,13 @@ void PairDeepMD::settings(int narg, char** arg) {
       cout << pre << "using fparam(s):    ";
       for (int ii = 0; ii < dim_fparam; ++ii) {
         cout << fparam[ii] << "  ";
+      }
+      cout << endl;
+    }
+    if (uparam.size() > 0) {
+      cout << pre << "using uparam(s):    ";
+      for (int ii = 0; ii < dim_uparam; ++ii) {
+        cout << uparam[ii] << "  ";
       }
       cout << endl;
     }

@@ -241,6 +241,7 @@ class LinearEnergyModel(LinearModel):
             # non zero not supported
             t_dfparam = tf.constant(0, name="dfparam", dtype=tf.int32)
             t_daparam = tf.constant(0, name="daparam", dtype=tf.int32)
+            t_duparam = tf.constant(0, name="duparam", dtype=tf.int32)
         with tf.variable_scope("descrpt_attr" + suffix, reuse=reuse):
             t_ntypes = tf.constant(self.get_ntypes(), name="ntypes", dtype=tf.int32)
             t_rcut = tf.constant(

@@ -242,6 +242,7 @@ class DPAtomicModel(BaseAtomicModel):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         comm_dict: dict[str, torch.Tensor] | None = None,
         charge_spin: torch.Tensor | None = None,
@@ -260,6 +261,8 @@ class DPAtomicModel(BaseAtomicModel):
             mapps the extended indices to local indices
         fparam
             frame parameter. nf x ndf
+        uparam
+            DFT+U parameter. nf x dim_uparam
         aparam
             atomic parameter. nf x nloc x nda
 
@@ -300,6 +303,7 @@ class DPAtomicModel(BaseAtomicModel):
             g2=g2,
             h2=h2,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
         )
         if self.enable_eval_fitting_last_layer_hook:
@@ -380,12 +384,24 @@ class DPAtomicModel(BaseAtomicModel):
         """Get the number (dimension) of frame parameters of this atomic model."""
         return self.fitting_net.get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return self.fitting_net.get_dim_uparam()
+
     def has_default_fparam(self) -> bool:
         """Check if the model has default frame parameters."""
         return self.fitting_net.has_default_fparam()
 
     def get_default_fparam(self) -> torch.Tensor | None:
         return self.fitting_net.get_default_fparam()
+
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
+        return self.fitting_net.has_default_uparam()
+
+    def get_default_uparam(self) -> torch.Tensor | None:
+        """Get the default DFT+U parameters."""
+        return self.fitting_net.get_default_uparam()
 
     @torch.jit.export
     def has_chg_spin_ebd(self) -> bool:

@@ -588,6 +588,14 @@ def test_ener(
             must=not dp.has_default_fparam(),
             high_prec=False,
         )
+    if dp.get_dim_uparam() > 0:
+        data.add(
+            "uparam",
+            dp.get_dim_uparam(),
+            atomic=False,
+            must=not dp.has_default_uparam(),
+            high_prec=False,
+        )
     if dp.get_dim_aparam() > 0:
         data.add("aparam", dp.get_dim_aparam(), atomic=True, must=True, high_prec=False)
     if dp.has_chg_spin_ebd():
@@ -635,6 +643,10 @@ def test_ener(
         fparam = test_data["fparam"][:numb_test]
     else:
         fparam = None
+    if dp.get_dim_uparam() > 0 and test_data.get("find_uparam", 0.0) != 0.0:
+        uparam = test_data["uparam"][:numb_test]
+    else:
+        uparam = None
     if dp.get_dim_aparam() > 0:
         aparam = test_data["aparam"][:numb_test]
     else:
@@ -649,6 +661,7 @@ def test_ener(
         box,
         atype,
         fparam=fparam,
+        uparam=uparam,
         aparam=aparam,
         atomic=has_atom_ener,
         efield=efield,
@@ -969,6 +982,10 @@ def test_dos(
         fparam = test_data["fparam"][:numb_test]
     else:
         fparam = None
+    if dp.get_dim_uparam() > 0:
+        uparam = test_data["uparam"][:numb_test]
+    else:
+        uparam = None
     if dp.get_dim_aparam() > 0:
         aparam = test_data["aparam"][:numb_test]
     else:
@@ -979,6 +996,7 @@ def test_dos(
         box,
         atype,
         fparam=fparam,
+        uparam=uparam,
         aparam=aparam,
         atomic=has_atom_dos,
         mixed_type=mixed_type,
@@ -1137,6 +1155,10 @@ def test_property(
         fparam = test_data["fparam"][:numb_test]
     else:
         fparam = None
+    if dp.get_dim_uparam() > 0:
+        uparam = test_data["uparam"][:numb_test]
+    else:
+        uparam = None
     if dp.get_dim_aparam() > 0:
         aparam = test_data["aparam"][:numb_test]
     else:
@@ -1147,6 +1169,7 @@ def test_property(
         box,
         atype,
         fparam=fparam,
+        uparam=uparam,
         aparam=aparam,
         atomic=has_atom_property,
         mixed_type=mixed_type,

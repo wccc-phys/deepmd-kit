@@ -139,6 +139,7 @@ class DeepEval(DeepEvalBackend):
         self._init_attr()
         self.has_efield = self.tensors["efield"] is not None
         self.has_fparam = self.tensors["fparam"] is not None
+        self.has_uparam = self.tensors["uparam"] is not None
         self.has_aparam = self.tensors["aparam"] is not None
         self.has_spin = self.ntypes_spin > 0
 
@@ -180,12 +181,14 @@ class DeepEval(DeepEvalBackend):
             # fitting attrs
             "dfparam": "fitting_attr/dfparam:0",
             "daparam": "fitting_attr/daparam:0",
+            "duparam": "fitting_attr/duparam:0",
             "numb_dos": "fitting_attr/numb_dos:0",
             # model attrs
             "sel_type": "model_attr/sel_type:0",
             # additional inputs
             "efield": "t_efield:0",
             "fparam": "t_fparam:0",
+            "uparam": "t_uparam:0",
             "aparam": "t_aparam:0",
             "ntypes_spin": "spin_attr/ntypes_spin:0",
             # descriptor
@@ -242,6 +245,10 @@ class DeepEval(DeepEvalBackend):
             self.daparam = run_sess(self.sess, [self.tensors["daparam"]])[0]
         else:
             self.daparam = 0
+        if self.tensors["duparam"] is not None:
+            self.duparam = run_sess(self.sess, [self.tensors["duparam"]])[0]
+        else:
+            self.duparam = 0
         if self.tensors["sel_type"] is not None:
             self.sel_type = run_sess(self.sess, [self.tensors["sel_type"]])[0]
         else:
@@ -640,6 +647,10 @@ class DeepEval(DeepEvalBackend):
         """Get the number (dimension) of frame parameters of this DP."""
         return self.dfparam
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this DP."""
+        return self.duparam
+
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this DP."""
         return self.daparam
@@ -695,6 +706,7 @@ class DeepEval(DeepEvalBackend):
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         efield: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         **kwargs: Any,
     ) -> dict[str, np.ndarray]:
         """Evaluate the energy, force and virial by using this DP.
@@ -727,6 +739,11 @@ class DeepEval(DeepEvalBackend):
         efield
             The external field on atoms.
             The array should be of size nframes x natoms x 3
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         **kwargs
             Other parameters
 
@@ -749,6 +766,7 @@ class DeepEval(DeepEvalBackend):
             aparam=aparam,
             atomic=atomic,
             efield=efield,
+            uparam=uparam,
         )
         if not isinstance(output, tuple):
             output = (output,)
@@ -779,6 +797,7 @@ class DeepEval(DeepEvalBackend):
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         efield: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
     ) -> tuple[dict, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         # standardize the shape of inputs
         natoms, nframes = self._get_natoms_and_nframes(
@@ -798,6 +817,9 @@ class DeepEval(DeepEvalBackend):
         if self.has_fparam:
             assert fparam is not None
             fparam = np.array(fparam)
+        if self.has_uparam:
+            assert uparam is not None
+            uparam = np.array(uparam)
         if self.has_aparam:
             assert aparam is not None
             aparam = np.array(aparam)
@@ -817,6 +839,16 @@ class DeepEval(DeepEvalBackend):
             else:
                 raise RuntimeError(
                     f"got wrong size of frame param, should be either {nframes} x {fdim} or {fdim}"
+                )
+        if self.has_uparam:
+            udim = self.get_dim_uparam()
+            if uparam.size == nframes * udim:
+                uparam = np.reshape(uparam, [nframes, udim])
+            elif uparam.size == udim:
+                uparam = np.tile(uparam.reshape([-1]), [nframes, 1])
+            else:
+                raise RuntimeError(
+                    f"got wrong size of DFT+U param, should be either {nframes} x {udim} or {udim}"
                 )
         if self.has_aparam:
             fdim = self.get_dim_aparam()
@@ -887,6 +919,8 @@ class DeepEval(DeepEvalBackend):
         feed_dict_test[self.tensors["mesh"]] = mesh
         if self.has_fparam:
             feed_dict_test[self.tensors["fparam"]] = np.reshape(fparam, [-1])
+        if self.has_uparam:
+            feed_dict_test[self.tensors["uparam"]] = np.reshape(uparam, [-1])
         if self.has_aparam:
             feed_dict_test[self.tensors["aparam"]] = np.reshape(aparam, [-1])
         return feed_dict_test, imap, natoms_vec, ghost_map, sel_at, sel_imap
@@ -899,6 +933,7 @@ class DeepEval(DeepEvalBackend):
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         efield: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         **kwargs: Any,
     ) -> tuple:
         natoms, nframes = self._get_natoms_and_nframes(
@@ -919,6 +954,7 @@ class DeepEval(DeepEvalBackend):
             fparam,
             aparam,
             efield,
+            uparam,
         )
 
         nloc = natoms_vec[0]
@@ -1025,6 +1061,7 @@ class DeepEval(DeepEvalBackend):
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         efield: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
     ) -> np.ndarray:
         """Evaluate descriptors by using this DP.
 
@@ -1054,6 +1091,11 @@ class DeepEval(DeepEvalBackend):
         efield
             The external field on atoms.
             The array should be of size nframes x natoms x 3
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
 
         Returns
         -------
@@ -1071,6 +1113,7 @@ class DeepEval(DeepEvalBackend):
             fparam=fparam,
             aparam=aparam,
             efield=efield,
+            uparam=uparam,
         )
         return descriptor
 
@@ -1082,6 +1125,7 @@ class DeepEval(DeepEvalBackend):
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         efield: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
     ) -> np.ndarray:
         natoms, nframes = self._get_natoms_and_nframes(
             coords,
@@ -1101,6 +1145,7 @@ class DeepEval(DeepEvalBackend):
             fparam,
             aparam,
             efield,
+            uparam,
         )
         (descriptor,) = run_sess(
             self.sess, [self.tensors["descriptor"]], feed_dict=feed_dict_test

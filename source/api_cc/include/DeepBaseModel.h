@@ -80,6 +80,9 @@ class DeepBaseModelBackend {
    * @return true if the model has default frame parameters.
    **/
   virtual bool has_default_fparam() const = 0;
+  virtual int dim_uparam() const = 0;
+  virtual bool has_default_uparam() const = 0;
+  virtual void set_uparam(const std::vector<double>& uparam) {};
 };
 
 /**
@@ -151,6 +154,9 @@ class DeepBaseModel {
    * @return true if the model has default frame parameters.
    **/
   bool has_default_fparam() const;
+  int dim_uparam() const;
+  bool has_default_uparam() const;
+  void set_uparam(const std::vector<double>& uparam);
 
  protected:
   bool inited;
@@ -290,6 +296,19 @@ class DeepBaseModelDevi {
   bool has_default_fparam() const {
     assert(inited);
     return dpbases[0]->has_default_fparam();
+  };
+  int dim_uparam() const {
+    assert(inited);
+    return dpbases[0]->dim_uparam();
+  };
+  bool has_default_uparam() const {
+    assert(inited);
+    return dpbases[0]->has_default_uparam();
+  };
+  void set_uparam(const std::vector<double>& uparam) {
+    for (auto& dpbase : dpbases) {
+      dpbase->set_uparam(uparam);
+    }
   };
 
  protected:

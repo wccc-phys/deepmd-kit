@@ -514,6 +514,7 @@ def _resolve_auto_neuron(
     *,
     dim_descrpt: int,
     numb_fparam: int,
+    numb_uparam: int,
     numb_aparam: int,
     dim_case_embd: int,
     case_film_embd: bool,
@@ -529,6 +530,7 @@ def _resolve_auto_neuron(
     dim_in = (
         int(dim_descrpt)
         + int(numb_fparam)
+        + int(numb_uparam)
         + (0 if use_aparam_as_mask else int(numb_aparam))
         + case_dim
     )
@@ -564,12 +566,14 @@ class SeZMEnergyFittingNet(InvarFitting):
         seed: int | list[int] | None = None,
         type_map: list[str] | None = None,
         default_fparam: list | None = None,
+        default_uparam: float | None = None,
         **kwargs: Any,
     ) -> None:
         neuron = _resolve_auto_neuron(
             neuron,
             dim_descrpt=dim_descrpt,
             numb_fparam=numb_fparam,
+            numb_uparam=int(default_uparam is not None),
             numb_aparam=numb_aparam,
             dim_case_embd=dim_case_embd,
             case_film_embd=case_film_embd,
@@ -592,6 +596,7 @@ class SeZMEnergyFittingNet(InvarFitting):
             seed=seed,
             type_map=type_map,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
             **kwargs,
         )
         self.bias_out = bool(bias_out)
@@ -644,6 +649,7 @@ class SeZMEnergyFittingNet(InvarFitting):
         g2: torch.Tensor | None = None,
         h2: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
         """Run the SeZM fitting path with optional case FiLM."""
@@ -655,15 +661,17 @@ class SeZMEnergyFittingNet(InvarFitting):
                 g2,
                 h2,
                 fparam,
+                uparam,
                 aparam,
             )
-        return self._forward_case_film(descriptor, atype, fparam, aparam)
+        return self._forward_case_film(descriptor, atype, fparam, uparam, aparam)
 
     def _forward_case_film(
         self,
         descriptor: torch.Tensor,
         atype: torch.Tensor,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
         """
@@ -677,6 +685,8 @@ class SeZMEnergyFittingNet(InvarFitting):
             Atom types with shape (nf, nloc).
         fparam
             Frame parameters with shape (nf, numb_fparam).
+        uparam
+            DFT+U parameters with shape (nf, numb_uparam).
         aparam
             Atomic parameters with shape (nf, nloc, numb_aparam).
 

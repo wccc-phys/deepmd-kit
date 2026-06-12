@@ -135,6 +135,7 @@ class DOSFitting(Fitting):
         mixed_types: bool = False,
         type_map: list[str] | None = None,  # to be compat with input
         default_fparam: list[float] | None = None,  # to be compat with input
+        default_uparam: float | None = None,  # to be compat with input
         **kwargs: Any,
     ) -> None:
         """Constructor."""
@@ -145,8 +146,10 @@ class DOSFitting(Fitting):
 
         self.numb_fparam = numb_fparam
         self.numb_aparam = numb_aparam
+        self.numb_uparam = int(default_uparam is not None)
         self.dim_case_embd = dim_case_embd
         self.default_fparam = default_fparam
+        self.default_uparam = default_uparam
         if dim_case_embd > 0:
             raise ValueError("dim_case_embd is not supported in TensorFlow.")
         if default_fparam is not None:
@@ -180,6 +183,9 @@ class DOSFitting(Fitting):
         self.aparam_avg = None
         self.aparam_std = None
         self.aparam_inv_std = None
+        self.uparam_avg = None
+        self.uparam_std = None
+        self.uparam_inv_std = None
 
         self.fitting_net_variables = None
         self.mixed_prec = None
@@ -199,6 +205,10 @@ class DOSFitting(Fitting):
     def get_numb_aparam(self) -> int:
         """Get the number of atomic parameters."""
         return self.numb_aparam
+
+    def get_numb_uparam(self) -> int:
+        """Get the number of DFT+U parameters."""
+        return self.numb_uparam
 
     def get_numb_dos(self) -> int:
         """Get the number of gridpoints in energy space."""
@@ -306,6 +316,16 @@ class DOSFitting(Fitting):
                 if self.aparam_std[ii] < protection:
                     self.aparam_std[ii] = protection
             self.aparam_inv_std = 1.0 / self.aparam_std
+        # stat uparam
+        if self.numb_uparam > 0:
+            cat_data = np.concatenate(all_stat["uparam"], axis=0)
+            cat_data = np.reshape(cat_data, [-1, self.numb_uparam])
+            self.uparam_avg = np.average(cat_data, axis=0)
+            self.uparam_std = np.std(cat_data, axis=0)
+            for ii in range(self.uparam_std.size):
+                if self.uparam_std[ii] < protection:
+                    self.uparam_std[ii] = protection
+            self.uparam_inv_std = 1.0 / self.uparam_std
 
     def _compute_std(
         self, sumv2: np.ndarray, sumv: np.ndarray, sumn: np.ndarray

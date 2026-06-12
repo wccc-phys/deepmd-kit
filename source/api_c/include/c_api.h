@@ -12,7 +12,7 @@ extern "C" {
 /** C API version. Bumped whenever the API is changed.
  * @since API version 22
  */
-#define DP_C_API_VERSION 26
+#define DP_C_API_VERSION 27
 
 /**
  * @brief Neighbor list.
@@ -1431,6 +1431,7 @@ int DP_DeepBaseModelGetNumbTypesSpin(DP_DeepBaseModel* dpbase);
  * @since API version 24
  */
 int DP_DeepBaseModelGetDimFParam(DP_DeepBaseModel* dpbase);
+int DP_DeepBaseModelGetDimUParaM(DP_DeepBaseModel* dpbase);
 
 /**
  * @brief Get the dimension of atomic parameters of a DP.
@@ -1460,6 +1461,10 @@ bool DP_DeepBaseModelIsAParamNAll(DP_DeepBaseModel* dpbase);
  * @since API version 26
  */
 bool DP_DeepBaseModelHasDefaultFParam(DP_DeepBaseModel* dpbase);
+bool DP_DeepBaseModelHasDefaultUParaM(DP_DeepBaseModel* dpbase);
+void DP_DeepBaseModelSetUParaM(DP_DeepBaseModel* dpbase,
+                               const double* uparam,
+                               int size);
 
 /**
  * @brief Get the type map of a DP.
@@ -1485,6 +1490,7 @@ const char* DP_DeepBaseModelCheckOK(DP_DeepBaseModel* dpbase);
  * @since API version 24
  */
 int DP_DeepBaseModelDeviGetDimFParam(DP_DeepBaseModelDevi* dpbase);
+int DP_DeepBaseModelDeviGetDimUParaM(DP_DeepBaseModelDevi* dpbase);
 /**
  * @brief Get the dimension of atomic parameters of a DP Model Deviation.
  * @param[in] dpbase The DP Model Deviation to use.
@@ -1513,6 +1519,10 @@ bool DP_DeepBaseModelDeviIsAParamNAll(DP_DeepBaseModelDevi* dpbase);
  * @since API version 26
  */
 bool DP_DeepBaseModelDeviHasDefaultFParam(DP_DeepBaseModelDevi* dpbase);
+bool DP_DeepBaseModelDeviHasDefaultUParaM(DP_DeepBaseModelDevi* dpbase);
+void DP_DeepBaseModelDeviSetUParaM(DP_DeepBaseModelDevi* dpbase,
+                                   const double* uparam,
+                                   int size);
 
 /**
  * @brief Get the type map of a DP model deviation.
@@ -1575,6 +1585,7 @@ int DP_DeepPotGetNumbTypesSpin(DP_DeepPot* dp);
  * @return The dimension of frame parameters of the DP.
  */
 int DP_DeepPotGetDimFParam(DP_DeepPot* dp);
+int DP_DeepPotGetDimUParaM(DP_DeepPot* dp);
 
 /**
  * @brief Get the dimension of atomic parameters of a DP.
@@ -1601,6 +1612,7 @@ bool DP_DeepPotIsAParamNAll(DP_DeepPot* dp);
  * @since API version 26
  */
 bool DP_DeepPotHasDefaultFParam(DP_DeepPot* dp);
+bool DP_DeepPotHasDefaultUParaM(DP_DeepPot* dp);
 
 /**
  * @brief Get the type map of a DP.
@@ -1623,6 +1635,7 @@ const char* DP_DeepPotCheckOK(DP_DeepPot* dp);
  * @return The dimension of frame parameters of the DP Model Deviation.
  */
 int DP_DeepPotModelDeviGetDimFParam(DP_DeepPotModelDevi* dp);
+int DP_DeepPotModelDeviGetDimUParaM(DP_DeepPotModelDevi* dp);
 /**
  * @brief Get the dimension of atomic parameters of a DP Model Deviation.
  * @param[in] dp The DP Model Deviation to use.
@@ -1648,6 +1661,7 @@ bool DP_DeepPotModelDeviIsAParamNAll(DP_DeepPotModelDevi* dp);
  * @since API version 26
  */
 bool DP_DeepPotModelDeviHasDefaultFParam(DP_DeepPotModelDevi* dp);
+bool DP_DeepPotModelDeviHasDefaultUParaM(DP_DeepPotModelDevi* dp);
 
 /**
  * @brief Get the type map of a DP model deviation.
@@ -1710,6 +1724,7 @@ int DP_DeepSpinGetNumbTypesSpin(DP_DeepSpin* dp);
  * @since API version 24
  */
 int DP_DeepSpinGetDimFParam(DP_DeepSpin* dp);
+int DP_DeepSpinGetDimUParaM(DP_DeepSpin* dp);
 
 /**
  * @brief Get the dimension of atomic parameters of a DP Spin Model.
@@ -1738,6 +1753,7 @@ bool DP_DeepSpinIsAParamNAll(DP_DeepSpin* dp);
  * @since API version 26
  */
 bool DP_DeepSpinHasDefaultFParam(DP_DeepSpin* dp);
+bool DP_DeepSpinHasDefaultUParaM(DP_DeepSpin* dp);
 
 /**
  * @brief Get the type map of a DP Spin Model.
@@ -1763,6 +1779,7 @@ const char* DP_DeepSpinCheckOK(DP_DeepSpin* dp);
  * @since API version 24
  */
 int DP_DeepSpinModelDeviGetDimFParam(DP_DeepSpinModelDevi* dp);
+int DP_DeepSpinModelDeviGetDimUParaM(DP_DeepSpinModelDevi* dp);
 /**
  * @brief Get the dimension of atomic parameters of a DP Spin Model Deviation.
  * @param[in] dp The DP Spin Model Deviation to use.
@@ -1790,6 +1807,7 @@ bool DP_DeepSpinModelDeviIsAParamNAll(DP_DeepSpinModelDevi* dp);
  * @since API version 26
  */
 bool DP_DeepSpinModelDeviHasDefaultFParam(DP_DeepSpinModelDevi* dp);
+bool DP_DeepSpinModelDeviHasDefaultUParaM(DP_DeepSpinModelDevi* dp);
 
 /**
  * @brief Get the type map of a DP model deviation.

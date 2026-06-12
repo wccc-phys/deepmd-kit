@@ -252,6 +252,17 @@ class DeepPotPT : public DeepPotBackend {
     assert(inited);
     return has_default_fparam_;
   };
+  int dim_uparam() const {
+    assert(inited);
+    return duparam;
+  };
+  bool has_default_uparam() const {
+    assert(inited);
+    return has_default_uparam_;
+  };
+  void set_uparam(const std::vector<double>& uparam) override {
+    uparam_ = uparam;
+  };
 
   // forward to template class
   void computew(std::vector<double>& ener,
@@ -335,6 +346,10 @@ class DeepPotPT : public DeepPotBackend {
   int ntypes;
   int ntypes_spin;
   int dfparam;
+  int duparam{0};
+  bool has_default_uparam_{false};
+  std::vector<double> default_uparam_;
+  std::vector<double> uparam_;
   int daparam;
   bool aparam_nall;
   bool has_default_fparam_;

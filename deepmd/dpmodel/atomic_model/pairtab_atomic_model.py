@@ -252,6 +252,7 @@ class PairTabAtomicModel(BaseAtomicModel):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         comm_dict: dict | None = None,
         charge_spin: Array | None = None,
@@ -473,6 +474,10 @@ class PairTabAtomicModel(BaseAtomicModel):
 
     def get_dim_fparam(self) -> int:
         """Get the number (dimension) of frame parameters of this atomic model."""
+        return 0
+
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
         return 0
 
     def get_dim_aparam(self) -> int:

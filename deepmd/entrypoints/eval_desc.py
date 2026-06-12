@@ -120,6 +120,11 @@ def eval_desc(
             if "aparam" in test_data:
                 aparam = test_data["aparam"]
 
+        uparam = None
+        if dp.get_dim_uparam() > 0:
+            if "uparam" in test_data:
+                uparam = test_data["uparam"]
+
         # evaluate descriptors
         log.info(f"# evaluating descriptors for {nframes} frames")
         descriptors = dp.eval_descriptor(
@@ -128,6 +133,7 @@ def eval_desc(
             atype,
             fparam=fparam,
             aparam=aparam,
+            uparam=uparam,
             mixed_type=mixed_type,
         )
 

@@ -2385,6 +2385,7 @@ def fitting_ener() -> list[Argument]:
     doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams."
     doc_numb_aparam = "The dimension of the atomic parameter. If set to >0, file `aparam.npy` should be included to provided the input aparams."
     doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net."
+    doc_default_uparam = "The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams. For systems without `uparam.npy`, this value is used as the default."
     doc_dim_case_embd = "The dimension of the case embedding embedding. When training or fine-tuning a multitask model with case embedding embeddings, this number should be set to the number of model branches."
     doc_neuron = "The number of neurons in each hidden layer of the fitting net. When two hidden layers are of the same size, a skip connection is built."
     doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
@@ -2418,6 +2419,13 @@ def fitting_ener() -> list[Argument]:
             optional=True,
             default=None,
             doc=doc_only_pt_supported + doc_default_fparam,
+        ),
+        Argument(
+            "default_uparam",
+            float,
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported + doc_default_uparam,
         ),
         Argument(
             "dim_case_embd",
@@ -2481,6 +2489,7 @@ def fitting_sezm_ener() -> list[Argument]:
     doc_numb_fparam = "Dimension of frame parameters. If set to >0, each data system should provide `fparam.npy`."
     doc_numb_aparam = "Dimension of atomic parameters. If set to >0, each data system should provide `aparam.npy`."
     doc_default_fparam = "Default frame parameters used when a data system does not provide `fparam.npy`."
+    doc_default_uparam = "The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams. For systems without `uparam.npy`, this value is used as the default."
     doc_dim_case_embd = "Dimension of the case embedding. For multitask training or fine-tuning with case embeddings, set this value to the number of model branches."
     doc_neuron = "The number of neurons in each hidden layer of the fitting net. Use 0 as an auto-width placeholder resolved from the descriptor width."
     doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
@@ -2514,6 +2523,13 @@ def fitting_sezm_ener() -> list[Argument]:
             optional=True,
             default=None,
             doc=doc_only_pt_supported + doc_default_fparam,
+        ),
+        Argument(
+            "default_uparam",
+            float,
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported + doc_default_uparam,
         ),
         Argument(
             "dim_case_embd",
@@ -2580,6 +2596,7 @@ def fitting_dos() -> list[Argument]:
     doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams."
     doc_numb_aparam = "The dimension of the atomic parameter. If set to >0, file `aparam.npy` should be included to provided the input aparams."
     doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net."
+    doc_default_uparam = "The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams. For systems without `uparam.npy`, this value is used as the default."
     doc_dim_case_embd = "The dimension of the case embedding embedding. When training or fine-tuning a multitask model with case embedding embeddings, this number should be set to the number of model branches."
     doc_neuron = "The number of neurons in each hidden layer of the fitting net. When two hidden layers are of the same size, a skip connection is built."
     doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
@@ -2603,6 +2620,13 @@ def fitting_dos() -> list[Argument]:
             optional=True,
             default=None,
             doc=doc_only_pt_supported + doc_default_fparam,
+        ),
+        Argument(
+            "default_uparam",
+            float,
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported + doc_default_uparam,
         ),
         Argument(
             "dim_case_embd",
@@ -2643,6 +2667,7 @@ def fitting_property() -> list[Argument]:
     doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams."
     doc_numb_aparam = "The dimension of the atomic parameter. If set to >0, file `aparam.npy` should be included to provided the input aparams."
     doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net."
+    doc_default_uparam = "The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams. For systems without `uparam.npy`, this value is used as the default."
     doc_dim_case_embd = "The dimension of the case embedding embedding. When training or fine-tuning a multitask model with case embedding embeddings, this number should be set to the number of model branches."
     doc_neuron = "The number of neurons in each hidden layer of the fitting net. When two hidden layers are of the same size, a skip connection is built"
     doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
@@ -2667,6 +2692,13 @@ def fitting_property() -> list[Argument]:
             optional=True,
             default=None,
             doc=doc_only_pt_supported + doc_default_fparam,
+        ),
+        Argument(
+            "default_uparam",
+            float,
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported + doc_default_uparam,
         ),
         Argument(
             "dim_case_embd",
@@ -2723,6 +2755,7 @@ def fitting_polar() -> list[Argument]:
     doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams."
     doc_numb_aparam = "The dimension of the atomic parameter. If set to >0, file `aparam.npy` should be included to provided the input aparams."
     doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net."
+    doc_default_uparam = "The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams. For systems without `uparam.npy`, this value is used as the default."
     doc_dim_case_embd = "The dimension of the case embedding embedding. When training or fine-tuning a multitask model with case embedding embeddings, this number should be set to the number of model branches."
     doc_neuron = "The number of neurons in each hidden layer of the fitting net. When two hidden layers are of the same size, a skip connection is built."
     doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
@@ -2758,6 +2791,13 @@ def fitting_polar() -> list[Argument]:
             optional=True,
             default=None,
             doc=doc_only_pt_supported + doc_default_fparam,
+        ),
+        Argument(
+            "default_uparam",
+            float,
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported + doc_default_uparam,
         ),
         Argument(
             "dim_case_embd",
@@ -2809,6 +2849,7 @@ def fitting_dipole() -> list[Argument]:
     doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams."
     doc_numb_aparam = "The dimension of the atomic parameter. If set to >0, file `aparam.npy` should be included to provided the input aparams."
     doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net."
+    doc_default_uparam = "The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams. For systems without `uparam.npy`, this value is used as the default."
     doc_dim_case_embd = "The dimension of the case embedding embedding. When training or fine-tuning a multitask model with case embedding embeddings, this number should be set to the number of model branches."
     doc_neuron = "The number of neurons in each hidden layer of the fitting net. When two hidden layers are of the same size, a skip connection is built."
     doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
@@ -2837,6 +2878,13 @@ def fitting_dipole() -> list[Argument]:
             optional=True,
             default=None,
             doc=doc_only_pt_supported + doc_default_fparam,
+        ),
+        Argument(
+            "default_uparam",
+            float,
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported + doc_default_uparam,
         ),
         Argument(
             "dim_case_embd",

@@ -127,6 +127,8 @@ class FrozenModel(Model):
                 extra_feed_dict["fparam"] = input_dict["fparam"]
             if "aparam" in input_dict:
                 extra_feed_dict["aparam"] = input_dict["aparam"]
+            if "uparam" in input_dict:
+                extra_feed_dict["uparam"] = input_dict["uparam"]
         input_map = self.get_feed_dict(
             coord_, atype_, natoms, box, mesh, **extra_feed_dict
         )
@@ -154,6 +156,9 @@ class FrozenModel(Model):
             )
             t_daparam = tf.constant(
                 self.model.get_dim_aparam(), name="daparam", dtype=tf.int32
+            )
+            t_duparam = tf.constant(
+                self.model.get_dim_uparam(), name="duparam", dtype=tf.int32
             )
         if self.model_type == "ener":
             return {
@@ -291,6 +296,7 @@ class FrozenModel(Model):
         data_requirement = []
         numb_fparam = self.model.get_dim_fparam()
         numb_aparam = self.model.get_dim_aparam()
+        numb_uparam = self.model.get_dim_uparam()
         if numb_fparam > 0:
             data_requirement.append(
                 DataRequirementItem(
@@ -301,6 +307,12 @@ class FrozenModel(Model):
             data_requirement.append(
                 DataRequirementItem(
                     "aparam", numb_aparam, atomic=True, must=True, high_prec=False
+                )
+            )
+        if numb_uparam > 0:
+            data_requirement.append(
+                DataRequirementItem(
+                    "uparam", numb_uparam, atomic=False, must=True, high_prec=False
                 )
             )
         return data_requirement

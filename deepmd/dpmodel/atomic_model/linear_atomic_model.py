@@ -223,6 +223,7 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         comm_dict: dict | None = None,
         charge_spin: Array | None = None,
@@ -241,6 +242,8 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
             mapps the extended indices to local indices.
         fparam
             frame parameter. (nframes, ndf)
+        uparam
+            DFT+U parameter. (nframes, ndu)
         aparam
             atomic parameter. (nframes, nloc, nda)
         comm_dict
@@ -285,6 +288,7 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
                     nlists_[i],
                     mapping,
                     fparam,
+                    uparam,
                     aparam,
                     comm_dict,
                     charge_spin=charge_spin,
@@ -446,6 +450,10 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
         """Get the number (dimension) of frame parameters of this atomic model."""
         # tricky...
         return max([model.get_dim_fparam() for model in self.models])
+
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return max([model.get_dim_uparam() for model in self.models])
 
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""

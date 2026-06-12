@@ -73,6 +73,7 @@ def model_call_from_call_lower(
     atype: Array,
     box: Array | None = None,
     fparam: Array | None = None,
+    uparam: Array | None = None,
     aparam: Array | None = None,
     do_atomic_virial: bool = False,
     coord_corr_for_virial: Array | None = None,
@@ -111,8 +112,8 @@ def model_call_from_call_lower(
 
     """
     nframes, nloc = atype.shape[:2]
-    cc, bb, fp, ap = coord, box, fparam, aparam
-    del coord, box, fparam, aparam
+    cc, bb, fp, up, ap = coord, box, fparam, uparam, aparam
+    del coord, box, fparam, uparam, aparam
     builder = neighbor_list if neighbor_list is not None else DefaultNeighborList()
     extended_coord, extended_atype, nlist, mapping = builder.build(
         cc, atype, bb, rcut, sel
@@ -134,6 +135,7 @@ def model_call_from_call_lower(
         extended_coord_corr = None
     call_lower_kwargs: dict[str, Any] = {
         "fparam": fp,
+        "uparam": up,
         "aparam": ap,
         "do_atomic_virial": do_atomic_virial,
         "charge_spin": charge_spin,
@@ -254,6 +256,7 @@ def make_model(
             atype: Array,
             box: Array | None = None,
             fparam: Array | None = None,
+            uparam: Array | None = None,
             aparam: Array | None = None,
             do_atomic_virial: bool = False,
             coord_corr_for_virial: Array | None = None,
@@ -293,10 +296,15 @@ def make_model(
                 The keys are defined by the `ModelOutputDef`.
 
             """
-            cc, bb, fp, ap, cs, input_prec = self._input_type_cast(
-                coord, box=box, fparam=fparam, aparam=aparam, charge_spin=charge_spin
+            cc, bb, fp, up, ap, cs, input_prec = self._input_type_cast(
+                coord,
+                box=box,
+                fparam=fparam,
+                uparam=uparam,
+                aparam=aparam,
+                charge_spin=charge_spin,
             )
-            del coord, box, fparam, aparam, charge_spin
+            del coord, box, fparam, uparam, aparam, charge_spin
             model_predict = model_call_from_call_lower(
                 call_lower=self.call_common_lower,
                 rcut=self.get_rcut(),
@@ -307,6 +315,7 @@ def make_model(
                 atype=atype,
                 box=bb,
                 fparam=fp,
+                uparam=up,
                 aparam=ap,
                 do_atomic_virial=do_atomic_virial,
                 coord_corr_for_virial=coord_corr_for_virial,
@@ -323,6 +332,7 @@ def make_model(
             nlist: Array,
             mapping: Array | None = None,
             fparam: Array | None = None,
+            uparam: Array | None = None,
             aparam: Array | None = None,
             do_atomic_virial: bool = False,
             extended_coord_corr: Array | None = None,
@@ -373,16 +383,21 @@ def make_model(
                 nlist,
                 extra_nlist_sort=self.need_sorted_nlist_for_lower(),
             )
-            cc_ext, _, fp, ap, cs, input_prec = self._input_type_cast(
-                extended_coord, fparam=fparam, aparam=aparam, charge_spin=charge_spin
+            cc_ext, _, fp, up, ap, cs, input_prec = self._input_type_cast(
+                extended_coord,
+                fparam=fparam,
+                uparam=uparam,
+                aparam=aparam,
+                charge_spin=charge_spin,
             )
-            del extended_coord, fparam, aparam, charge_spin
+            del extended_coord, fparam, uparam, aparam, charge_spin
             model_predict = self.forward_common_atomic(
                 cc_ext,
                 extended_atype,
                 nlist,
                 mapping=mapping,
                 fparam=fp,
+                uparam=up,
                 aparam=ap,
                 do_atomic_virial=do_atomic_virial,
                 extended_coord_corr=extended_coord_corr,
@@ -399,6 +414,7 @@ def make_model(
             nlist: Array,
             mapping: Array | None = None,
             fparam: Array | None = None,
+            uparam: Array | None = None,
             aparam: Array | None = None,
             do_atomic_virial: bool = False,
             extended_coord_corr: Array | None = None,
@@ -411,6 +427,7 @@ def make_model(
                 nlist,
                 mapping=mapping,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 comm_dict=comm_dict,
                 charge_spin=charge_spin,
@@ -477,9 +494,18 @@ def make_model(
             coord: Array,
             box: Array | None = None,
             fparam: Array | None = None,
+            uparam: Array | None = None,
             aparam: Array | None = None,
             charge_spin: Array | None = None,
-        ) -> tuple[Array, Array | None, Array | None, Array | None, Array | None, Any]:
+        ) -> tuple[
+            Array,
+            Array | None,
+            Array | None,
+            Array | None,
+            Array | None,
+            Array | None,
+            Any,
+        ]:
             """Cast the input data to global float type."""
             xp = array_api_compat.array_namespace(coord)
             input_dtype = coord.dtype
@@ -491,16 +517,17 @@ def make_model(
             ###
             _lst: list[Array | None] = [
                 xp.astype(vv, input_dtype) if vv is not None else None
-                for vv in [box, fparam, aparam, charge_spin]
+                for vv in [box, fparam, uparam, aparam, charge_spin]
             ]
-            box, fparam, aparam, charge_spin = _lst
+            box, fparam, uparam, aparam, charge_spin = _lst
             if input_dtype == global_dtype:
-                return coord, box, fparam, aparam, charge_spin, input_dtype
+                return coord, box, fparam, uparam, aparam, charge_spin, input_dtype
             else:
                 return (
                     xp.astype(coord, global_dtype),
                     xp.astype(box, global_dtype) if box is not None else None,
                     xp.astype(fparam, global_dtype) if fparam is not None else None,
+                    xp.astype(uparam, global_dtype) if uparam is not None else None,
                     xp.astype(aparam, global_dtype) if aparam is not None else None,
                     xp.astype(charge_spin, global_dtype)
                     if charge_spin is not None
@@ -705,6 +732,10 @@ def make_model(
             """Get the number (dimension) of frame parameters of this atomic model."""
             return self.atomic_model.get_dim_fparam()
 
+        def get_dim_uparam(self) -> int:
+            """Get the number (dimension) of DFT+U parameters of this atomic model."""
+            return self.atomic_model.get_dim_uparam()
+
         def get_dim_aparam(self) -> int:
             """Get the number (dimension) of atomic parameters of this atomic model."""
             return self.atomic_model.get_dim_aparam()
@@ -716,6 +747,14 @@ def make_model(
         def get_default_fparam(self) -> list[float] | None:
             """Get the default frame parameters."""
             return self.atomic_model.get_default_fparam()
+
+        def has_default_uparam(self) -> bool:
+            """Check if the model has default DFT+U parameters."""
+            return self.atomic_model.has_default_uparam()
+
+        def get_default_uparam(self) -> float | None:
+            """Get the default DFT+U parameters."""
+            return self.atomic_model.get_default_uparam()
 
         def has_chg_spin_ebd(self) -> bool:
             """Check if the model has charge spin embedding."""

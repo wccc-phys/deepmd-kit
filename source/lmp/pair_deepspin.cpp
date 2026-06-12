@@ -229,6 +229,16 @@ void PairDeepSpin::compute(int eflag, int vflag) {
     make_fparam_from_compute(fparam);
   }
 
+  if (do_compute_uparam) {
+    make_uparam_from_compute(uparam);
+  }
+
+  if (single_model || multi_models_no_mod_devi) {
+    deep_spin.set_uparam(uparam);
+  } else {
+    deep_spin_model_devi.set_uparam(uparam);
+  }
+
   // int ago = numb_models > 1 ? 0 : neighbor->ago;
   int ago = neighbor->ago;
   if (numb_models > 1) {
@@ -578,6 +588,8 @@ static bool is_key(const string& input) {
   keys.push_back("aparam");
   keys.push_back("fparam_from_compute");
   keys.push_back("aparam_from_compute");
+  keys.push_back("uparam");
+  keys.push_back("uparam_from_compute");
   keys.push_back("ttm");
   keys.push_back("atomic");
   keys.push_back("relative");
@@ -621,6 +633,7 @@ void PairDeepSpin::settings(int narg, char** arg) {
     numb_types_spin = deep_spin.numb_types_spin();
     dim_fparam = deep_spin.dim_fparam();
     dim_aparam = deep_spin.dim_aparam();
+    dim_uparam = deep_spin.dim_uparam();
   } else {
     try {
       deep_spin.init(arg[0], get_node_rank(), get_file_content(arg[0]));
@@ -634,11 +647,13 @@ void PairDeepSpin::settings(int narg, char** arg) {
     numb_types_spin = deep_spin_model_devi.numb_types_spin();
     dim_fparam = deep_spin_model_devi.dim_fparam();
     dim_aparam = deep_spin_model_devi.dim_aparam();
+    dim_uparam = deep_spin_model_devi.dim_uparam();
     assert(cutoff == deep_spin.cutoff() * dist_unit_cvt_factor);
     assert(numb_types == deep_spin.numb_types());
     assert(numb_types_spin == deep_spin.numb_types_spin());
     assert(dim_fparam == deep_spin.dim_fparam());
     assert(dim_aparam == deep_spin.dim_aparam());
+    assert(dim_uparam == deep_spin.dim_uparam());
   }
 
   out_freq = 100;
@@ -730,6 +745,17 @@ void PairDeepSpin::settings(int narg, char** arg) {
       do_compute_aparam = true;
       compute_aparam_id = arg[iarg + 1];
       iarg += 1 + 1;
+    } else if (string(arg[iarg]) == string("uparam_from_compute")) {
+      for (int ii = 0; ii < 1; ++ii) {
+        if (iarg + 1 + ii >= narg || is_key(arg[iarg + 1 + ii])) {
+          error->all(FLERR,
+                     "invalid uparam_from_compute key: should be "
+                     "uparam_from_compute compute_uparam_id(str)");
+        }
+      }
+      do_compute_uparam = true;
+      compute_uparam_id = arg[iarg + 1];
+      iarg += 1 + 1;
     } else if (string(arg[iarg]) == string("atomic")) {
       out_each = 1;
       iarg += 1;
@@ -769,6 +795,11 @@ void PairDeepSpin::settings(int narg, char** arg) {
         FLERR,
         "fparam and fparam_from_compute should NOT be set simultaneously");
   }
+  if (do_compute_uparam && uparam.size() > 0) {
+    error->all(
+        FLERR,
+        "uparam and uparam_from_compute should NOT be set simultaneously");
+  }
 
   if (comm->me == 0) {
     if (numb_models > 1 && out_freq > 0) {
@@ -803,6 +834,13 @@ void PairDeepSpin::settings(int narg, char** arg) {
       cout << pre << "using fparam(s):    ";
       for (int ii = 0; ii < dim_fparam; ++ii) {
         cout << fparam[ii] << "  ";
+      }
+      cout << endl;
+    }
+    if (uparam.size() > 0) {
+      cout << pre << "using uparam(s):    ";
+      for (int ii = 0; ii < dim_uparam; ++ii) {
+        cout << uparam[ii] << "  ";
       }
       cout << endl;
     }

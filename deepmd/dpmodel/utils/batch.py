@@ -11,7 +11,16 @@ import numpy as np
 _DROP_KEYS = {"default_mesh", "sid", "fid"}
 
 # Keys that belong to model input (everything else is label).
-_INPUT_KEYS = {"coord", "atype", "spin", "box", "fparam", "aparam", "charge_spin"}
+_INPUT_KEYS = {
+    "coord",
+    "atype",
+    "spin",
+    "box",
+    "fparam",
+    "uparam",
+    "aparam",
+    "charge_spin",
+}
 
 
 def normalize_batch(batch: dict[str, Any]) -> dict[str, Any]:
@@ -70,7 +79,7 @@ def split_batch(
     Returns
     -------
     input_dict : dict[str, Any]
-        Model inputs (coord, atype, box, fparam, aparam, spin).
+        Model inputs (coord, atype, box, fparam, uparam, aparam, spin).
     label_dict : dict[str, Any]
         Labels and find flags (energy, force, virial, find_*, natoms, …).
     """

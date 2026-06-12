@@ -193,6 +193,35 @@ void PairDeepBaseModel::make_aparam_from_compute(vector<double>& aparam) {
   }
 }
 
+void PairDeepBaseModel::make_uparam_from_compute(vector<double>& uparam) {
+  assert(do_compute_uparam);
+
+  int icompute = modify->find_compute(compute_uparam_id);
+  Compute* compute = modify->compute[icompute];
+
+  if (!compute) {
+    error->all(FLERR, "compute id is not found: " + compute_uparam_id);
+  }
+  uparam.resize(dim_uparam);
+
+  if (dim_uparam == 1) {
+    if (!(compute->invoked_flag & Compute::INVOKED_SCALAR)) {
+      compute->compute_scalar();
+      compute->invoked_flag |= Compute::INVOKED_SCALAR;
+    }
+    uparam[0] = compute->scalar;
+  } else if (dim_uparam > 1) {
+    if (!(compute->invoked_flag & Compute::INVOKED_VECTOR)) {
+      compute->compute_vector();
+      compute->invoked_flag |= Compute::INVOKED_VECTOR;
+    }
+    double* cvector = compute->vector;
+    for (int jj = 0; jj < dim_uparam; ++jj) {
+      uparam[jj] = cvector[jj];
+    }
+  }
+}
+
 #ifdef USE_TTM
 void PairDeepBaseModel::make_ttm_fparam(vector<double>& fparam) {
   assert(do_ttm);

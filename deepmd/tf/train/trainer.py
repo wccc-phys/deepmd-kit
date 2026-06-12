@@ -192,6 +192,7 @@ class DPTrainer:
         # self.auto_prob_style = tr_data['auto_prob']
         self.useBN = False
         self.numb_fparam = self.model.get_numb_fparam()
+        self.numb_uparam = self.model.get_numb_uparam()
 
         if tr_data.get("validation_data", None) is not None:
             self.valid_numb_batch = tr_data["validation_data"].get("numb_btch", 1)
@@ -222,6 +223,8 @@ class DPTrainer:
             log.info(f"training with {self.numb_fparam} frame parameter(s)")
         else:
             log.info("training without frame parameter")
+        if self.numb_uparam > 0:
+            log.info(f"training with {self.numb_uparam} DFT+U parameter(s)")
 
         if not self.is_compress:
             # Usually, the type number of the model should be equal to that of the data

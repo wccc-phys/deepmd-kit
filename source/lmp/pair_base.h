@@ -89,6 +89,11 @@ class PairDeepBaseModel : public Pair {
   void make_aparam_from_compute(std::vector<double>& aparam);
   bool do_compute_aparam;
   std::string compute_aparam_id;
+  void make_uparam_from_compute(std::vector<double>& uparam);
+  bool do_compute_uparam;
+  std::string compute_uparam_id;
+  int dim_uparam;
+  std::vector<double> uparam;
 
   void make_ttm_fparam(std::vector<double>& fparam);
 

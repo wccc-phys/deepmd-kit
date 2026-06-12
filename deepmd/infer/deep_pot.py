@@ -96,6 +96,7 @@ class DeepPot(DeepEval):
         atomic: Literal[True],
         fparam: np.ndarray | None,
         aparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         mixed_type: bool,
         **kwargs: Any,
     ) -> (
@@ -113,6 +114,7 @@ class DeepPot(DeepEval):
         atomic: Literal[False],
         fparam: np.ndarray | None,
         aparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         mixed_type: bool,
         **kwargs: Any,
     ) -> (
@@ -130,6 +132,7 @@ class DeepPot(DeepEval):
         atomic: bool,
         fparam: np.ndarray | None,
         aparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         mixed_type: bool,
         **kwargs: Any,
     ) -> tuple[np.ndarray, ...]:
@@ -143,6 +146,7 @@ class DeepPot(DeepEval):
         atomic: bool = False,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         mixed_type: bool = False,
         **kwargs: Any,
     ) -> tuple[np.ndarray, ...]:
@@ -200,9 +204,12 @@ class DeepPot(DeepEval):
             atom_types,
             fparam,
             aparam,
+            uparam,
             nframes,
             natoms,
-        ) = self._standard_input(coords, cells, atom_types, fparam, aparam, mixed_type)
+        ) = self._standard_input(
+            coords, cells, atom_types, fparam, aparam, uparam, mixed_type
+        )
         results = self.deep_eval.eval(
             coords,
             cells,
@@ -210,6 +217,7 @@ class DeepPot(DeepEval):
             atomic,
             fparam=fparam,
             aparam=aparam,
+            uparam=uparam,
             **kwargs,
         )
         energy = results["energy_redu"].reshape(nframes, 1)
