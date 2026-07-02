@@ -128,6 +128,7 @@ def _make_node_names(
             "spin_attr/spin_norm",
             "fitting_attr/dfparam",
             "fitting_attr/daparam",
+            "fitting_attr/duparam",
             "fitting_attr/aparam_nall",
         ]
     elif model_type == "dos":
@@ -136,6 +137,7 @@ def _make_node_names(
             "fitting_attr/numb_dos",
             "fitting_attr/dfparam",
             "fitting_attr/daparam",
+            "fitting_attr/duparam",
         ]
     elif model_type == "wfc":
         nodes += [

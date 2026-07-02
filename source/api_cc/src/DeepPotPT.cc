@@ -129,11 +129,17 @@ void DeepPotPT::init(const std::string& model,
   ntypes_spin = 0;
   dfparam = module.run_method("get_dim_fparam").toInt();
   daparam = module.run_method("get_dim_aparam").toInt();
+  duparam = module.run_method("get_dim_uparam").toInt();
   aparam_nall = module.run_method("is_aparam_nall").toBool();
   if (module.find_method("has_default_fparam")) {
     has_default_fparam_ = module.run_method("has_default_fparam").toBool();
   } else {
     has_default_fparam_ = false;
+  }
+  if (module.find_method("has_default_uparam")) {
+    has_default_uparam_ = module.run_method("has_default_uparam").toBool();
+  } else {
+    has_default_uparam_ = false;
   }
   // Charge/spin embedding (e.g. DPA3 add_chg_spin_ebd).  Guarded with
   // find_method so .pth models exported before charge_spin support
@@ -153,6 +159,7 @@ void DeepPotPT::init(const std::string& model,
                                cs_t.data_ptr<double>() + cs_t.numel());
     }
   }
+
   inited = true;
 }
 
@@ -251,6 +258,15 @@ void DeepPotPT::compute(ENERGYVTYPE& ener,
                          {1, static_cast<std::int64_t>(fparam.size())}, options)
             .to(device);
   }
+  c10::optional<torch::Tensor> uparam_tensor;
+  if (!uparam_.empty()) {
+    uparam_tensor =
+        torch::from_blob(const_cast<double*>(uparam_.data()),
+                         {1, static_cast<std::int64_t>(uparam_.size())},
+                         torch::TensorOptions().dtype(torch::kFloat64))
+            .to(options.dtype())
+            .to(device);
+  }
   c10::optional<torch::Tensor> aparam_tensor;
   if (!aparam_.empty()) {
     aparam_tensor =
@@ -323,11 +339,11 @@ void DeepPotPT::compute(ENERGYVTYPE& ener,
         (do_message_passing)
             ? module.run_method("forward_lower", coord_wrapped_Tensor,
                                 atype_Tensor, firstneigh_tensor, mapping_tensor,
-                                fparam_tensor, aparam_tensor,
+                                uparam_tensor, fparam_tensor, aparam_tensor,
                                 do_atom_virial_tensor, comm_dict)
             : module.run_method("forward_lower", coord_wrapped_Tensor,
                                 atype_Tensor, firstneigh_tensor, mapping_tensor,
-                                fparam_tensor, aparam_tensor,
+                                uparam_tensor, fparam_tensor, aparam_tensor,
                                 do_atom_virial_tensor);
   }
   auto outputs = outputs_ival.toGenericDict();
@@ -459,6 +475,16 @@ void DeepPotPT::compute(ENERGYVTYPE& ener,
             .to(device);
   }
   inputs.push_back(fparam_tensor);
+  c10::optional<torch::Tensor> uparam_tensor;
+  if (!uparam_.empty()) {
+    uparam_tensor =
+        torch::from_blob(const_cast<double*>(uparam_.data()),
+                         {1, static_cast<std::int64_t>(uparam_.size())},
+                         torch::TensorOptions().dtype(torch::kFloat64))
+            .to(options.dtype())
+            .to(device);
+  }
+  inputs.push_back(uparam_tensor);
   c10::optional<torch::Tensor> aparam_tensor;
   if (!aparam.empty()) {
     aparam_tensor =

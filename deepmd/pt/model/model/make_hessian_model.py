@@ -66,6 +66,7 @@ def make_hessian_model(T_Model: type) -> type:
             atype: torch.Tensor,
             box: torch.Tensor | None = None,
             fparam: torch.Tensor | None = None,
+            uparam: torch.Tensor | None = None,
             aparam: torch.Tensor | None = None,
             do_atomic_virial: bool = False,
             charge_spin: torch.Tensor | None = None,
@@ -83,6 +84,8 @@ def make_hessian_model(T_Model: type) -> type:
                 The simulation box. shape: nf x 9
             fparam
                 frame parameter. nf x ndf
+            uparam
+                DFT+U parameter. nf x dim_uparam
             aparam
                 atomic parameter. nf x nloc x nda
             do_atomic_virial
@@ -100,6 +103,7 @@ def make_hessian_model(T_Model: type) -> type:
                 atype,
                 box=box,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 do_atomic_virial=do_atomic_virial,
                 charge_spin=charge_spin,
@@ -112,6 +116,7 @@ def make_hessian_model(T_Model: type) -> type:
                     atype,
                     box=box,
                     fparam=fparam,
+                    uparam=uparam,
                     aparam=aparam,
                 )
                 ret.update(hess)
@@ -123,12 +128,14 @@ def make_hessian_model(T_Model: type) -> type:
             atype: torch.Tensor,
             box: torch.Tensor | None = None,
             fparam: torch.Tensor | None = None,
+            uparam: torch.Tensor | None = None,
             aparam: torch.Tensor | None = None,
         ) -> dict[str, torch.Tensor]:
             nf, nloc = atype.shape
             coord = coord.view([nf, (nloc * 3)])
             box = box.view([nf, 9]) if box is not None else None
             fparam = fparam.view([nf, -1]) if fparam is not None else None
+            uparam = uparam.view([nf, -1]) if uparam is not None else None
             aparam = aparam.view([nf, nloc, -1]) if aparam is not None else None
             fdef = self.atomic_output_def()
             # keys of values that require hessian
@@ -149,11 +156,12 @@ def make_hessian_model(T_Model: type) -> type:
                     iatype = atype[ii]
                     ibox = box[ii] if box is not None else None
                     ifparam = fparam[ii] if fparam is not None else None
+                    iuparam = uparam[ii] if uparam is not None else None
                     iaparam = aparam[ii] if aparam is not None else None
                     # loop over all components
                     for idx in range(vsize):
                         hess = self._cal_hessian_one_component(
-                            idx, icoord, iatype, ibox, ifparam, iaparam
+                            idx, icoord, iatype, ibox, ifparam, iuparam, iaparam
                         )
                         res[get_hessian_name(kk)].append(hess)
                 res[get_hessian_name(kk)] = torch.stack(res[get_hessian_name(kk)]).view(
@@ -168,14 +176,18 @@ def make_hessian_model(T_Model: type) -> type:
             atype: torch.Tensor,
             box: torch.Tensor | None = None,
             fparam: torch.Tensor | None = None,
+            uparam: torch.Tensor | None = None,
             aparam: torch.Tensor | None = None,
         ) -> torch.Tensor:
             # coord, # (nloc x 3)
             # atype, # nloc
             # box: Optional[torch.Tensor] = None,     # 9
             # fparam: Optional[torch.Tensor] = None,  # nfp
+            # uparam: Optional[torch.Tensor] = None,  # ndu
             # aparam: Optional[torch.Tensor] = None,  # (nloc x nap)
-            wc = wrapper_class_forward_energy(self, ci, atype, box, fparam, aparam)
+            wc = wrapper_class_forward_energy(
+                self, ci, atype, box, fparam, uparam, aparam
+            )
             hess = torch.autograd.functional.hessian(
                 wc,
                 coord,
@@ -191,9 +203,16 @@ def make_hessian_model(T_Model: type) -> type:
             atype: torch.Tensor,
             box: torch.Tensor | None,
             fparam: torch.Tensor | None,
+            uparam: torch.Tensor | None,
             aparam: torch.Tensor | None,
         ) -> None:
-            self.atype, self.box, self.fparam, self.aparam = atype, box, fparam, aparam
+            self.atype, self.box, self.fparam, self.uparam, self.aparam = (
+                atype,
+                box,
+                fparam,
+                uparam,
+                aparam,
+            )
             self.ci = ci
             self.obj = obj
 
@@ -202,12 +221,19 @@ def make_hessian_model(T_Model: type) -> type:
             xx: torch.Tensor,
         ) -> torch.Tensor:
             ci = self.ci
-            atype, box, fparam, aparam = self.atype, self.box, self.fparam, self.aparam
+            atype, box, fparam, uparam, aparam = (
+                self.atype,
+                self.box,
+                self.fparam,
+                self.uparam,
+                self.aparam,
+            )
             res = super(CM, self.obj).forward_common(
                 xx.unsqueeze(0),
                 atype.unsqueeze(0),
                 box.unsqueeze(0) if box is not None else None,
                 fparam.unsqueeze(0) if fparam is not None else None,
+                uparam.unsqueeze(0) if uparam is not None else None,
                 aparam.unsqueeze(0) if aparam is not None else None,
                 do_atomic_virial=False,
             )

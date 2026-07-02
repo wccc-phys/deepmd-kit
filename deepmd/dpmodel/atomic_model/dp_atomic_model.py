@@ -184,6 +184,7 @@ class DPAtomicModel(BaseAtomicModel):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         comm_dict: dict | None = None,
         charge_spin: Array | None = None,
@@ -250,6 +251,7 @@ class DPAtomicModel(BaseAtomicModel):
             g2=g2,
             h2=h2,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
         )
         return ret
@@ -423,6 +425,10 @@ class DPAtomicModel(BaseAtomicModel):
         """Get the number (dimension) of frame parameters of this atomic model."""
         return self.fitting_net.get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return self.fitting_net.get_dim_uparam()
+
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""
         return self.fitting_net.get_dim_aparam()
@@ -434,6 +440,14 @@ class DPAtomicModel(BaseAtomicModel):
     def get_default_fparam(self) -> list[float] | None:
         """Get the default frame parameters."""
         return self.fitting_net.get_default_fparam()
+
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
+        return self.fitting_net.has_default_uparam()
+
+    def get_default_uparam(self) -> float | None:
+        """Get the default DFT+U parameters."""
+        return self.fitting_net.get_default_uparam()
 
     def get_sel_type(self) -> list[int]:
         """Get the selected atom types of this model.

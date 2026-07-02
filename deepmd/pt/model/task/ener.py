@@ -56,6 +56,7 @@ class EnergyFittingNet(InvarFitting):
         seed: int | list[int] | None = None,
         type_map: list[str] | None = None,
         default_fparam: list | None = None,
+        default_uparam: float | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -75,6 +76,7 @@ class EnergyFittingNet(InvarFitting):
             seed=seed,
             type_map=type_map,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
             **kwargs,
         )
 
@@ -203,6 +205,7 @@ class EnergyFittingNetDirect(Fitting):
         g2: torch.Tensor | None = None,
         h2: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         return_atomic_feature: bool = False,
     ) -> tuple[torch.Tensor, None]:

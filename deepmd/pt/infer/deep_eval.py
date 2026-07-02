@@ -377,6 +377,10 @@ class DeepEval(DeepEvalBackend):
         """Get the number (dimension) of frame parameters of this DP."""
         return self.dp.model["Default"].get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this DP."""
+        return self.dp.model["Default"].get_dim_uparam()
+
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this DP."""
         return self.dp.model["Default"].get_dim_aparam()
@@ -387,6 +391,13 @@ class DeepEval(DeepEvalBackend):
             return self.dp.model["Default"].has_default_fparam()
         except AttributeError:
             # for compatibility with old models
+            return False
+
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
+        try:
+            return self.dp.model["Default"].has_default_uparam()
+        except AttributeError:
             return False
 
     def has_chg_spin_ebd(self) -> bool:
@@ -496,6 +507,7 @@ class DeepEval(DeepEvalBackend):
         atom_types: np.ndarray,
         atomic: bool = False,
         fparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         charge_spin: np.ndarray | None = None,
         **kwargs: Any,
@@ -547,7 +559,14 @@ class DeepEval(DeepEvalBackend):
         request_defs = self._get_request_defs(atomic)
         if "spin" not in kwargs or kwargs["spin"] is None:
             out = self._eval_func(self._eval_model, numb_test, natoms)(
-                coords, cells, atom_types, fparam, aparam, request_defs, charge_spin
+                coords,
+                cells,
+                atom_types,
+                fparam,
+                uparam,
+                aparam,
+                request_defs,
+                charge_spin,
             )
         else:
             out = self._eval_func(self._eval_model_spin, numb_test, natoms)(
@@ -556,6 +575,7 @@ class DeepEval(DeepEvalBackend):
                 atom_types,
                 np.array(kwargs["spin"]),
                 fparam,
+                uparam,
                 aparam,
                 request_defs,
                 charge_spin,
@@ -658,6 +678,7 @@ class DeepEval(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         aparam: np.ndarray | None,
         request_defs: list[OutputVariableDef],
         charge_spin: np.ndarray | None,
@@ -696,6 +717,12 @@ class DeepEval(DeepEvalBackend):
             )
         else:
             fparam_input = None
+        if uparam is not None:
+            uparam_input = to_torch_tensor(
+                uparam.reshape(nframes, self.get_dim_uparam())
+            )
+        else:
+            uparam_input = None
         if aparam is not None:
             aparam_input = to_torch_tensor(
                 aparam.reshape(nframes, natoms, self.get_dim_aparam())
@@ -715,6 +742,7 @@ class DeepEval(DeepEvalBackend):
                 type_input,
                 box_input,
                 fparam_input,
+                uparam_input,
                 aparam_input,
                 charge_spin_input,
                 do_atomic_virial,
@@ -726,6 +754,7 @@ class DeepEval(DeepEvalBackend):
                 box=box_input,
                 do_atomic_virial=do_atomic_virial,
                 fparam=fparam_input,
+                uparam=uparam_input,
                 aparam=aparam_input,
                 charge_spin=charge_spin_input,
             )
@@ -752,6 +781,7 @@ class DeepEval(DeepEvalBackend):
         atype: torch.Tensor,
         box: torch.Tensor | None,
         fparam: torch.Tensor | None,
+        uparam: torch.Tensor | None,
         aparam: torch.Tensor | None,
         charge_spin: torch.Tensor | None,
         do_atomic_virial: bool,
@@ -824,6 +854,7 @@ class DeepEval(DeepEvalBackend):
         atom_types: np.ndarray,
         spins: np.ndarray,
         fparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         aparam: np.ndarray | None,
         request_defs: list[OutputVariableDef],
         charge_spin: np.ndarray | None,
@@ -862,6 +893,12 @@ class DeepEval(DeepEvalBackend):
             )
         else:
             fparam_input = None
+        if uparam is not None:
+            uparam_input = to_torch_tensor(
+                uparam.reshape(nframes, self.get_dim_uparam())
+            )
+        else:
+            uparam_input = None
         if aparam is not None:
             aparam_input = to_torch_tensor(
                 aparam.reshape(nframes, natoms, self.get_dim_aparam())
@@ -883,6 +920,7 @@ class DeepEval(DeepEvalBackend):
             box=box_input,
             do_atomic_virial=do_atomic_virial,
             fparam=fparam_input,
+            uparam=uparam_input,
             aparam=aparam_input,
             charge_spin=charge_spin_input,
         )

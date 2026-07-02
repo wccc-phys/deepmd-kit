@@ -137,6 +137,10 @@ class DeepTensor(DeepEval):
         """Get the number (dimension) of frame parameters of this DP."""
         return self.dfparam
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this DP."""
+        return self.duparam
+
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this DP."""
         return self.daparam
@@ -151,6 +155,7 @@ class DeepTensor(DeepEval):
         aparam: np.ndarray | None = None,
         efield: np.ndarray | None = None,
         mixed_type: bool = False,
+        uparam: np.ndarray | None = None,
     ) -> np.ndarray:
         """Evaluate the model.
 
@@ -174,6 +179,8 @@ class DeepTensor(DeepEval):
         aparam
             Not used in this model
         efield
+            Not used in this model
+        uparam
             Not used in this model
         mixed_type
             Whether to perform the mixed_type mode.
@@ -281,6 +288,7 @@ class DeepTensor(DeepEval):
         aparam: np.ndarray | None = None,
         efield: np.ndarray | None = None,
         mixed_type: bool = False,
+        uparam: np.ndarray | None = None,
     ) -> tuple[np.ndarray, ...]:
         """Evaluate the model with interface similar to the energy model.
         Will return global tensor, component-wise force and virial
@@ -305,6 +313,9 @@ class DeepTensor(DeepEval):
         aparam
             Not used in this model
         efield
+            Not used in this model
+        uparam
+            Not used in this model
             Not used in this model
         mixed_type
             Whether to perform the mixed_type mode.

@@ -130,6 +130,7 @@ class PolarFittingSeA(Fitting):
         mixed_types: bool = False,
         type_map: list[str] | None = None,  # to be compat with input
         default_fparam: list[float] | None = None,  # to be compat with input
+        default_uparam: float | None = None,  # to be compat with input
         trainable: list[bool] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -187,8 +188,10 @@ class PolarFittingSeA(Fitting):
         self.type_map = type_map
         self.numb_fparam = numb_fparam
         self.numb_aparam = numb_aparam
+        self.numb_uparam = int(default_uparam is not None)
         self.dim_case_embd = dim_case_embd
         self.default_fparam = default_fparam
+        self.default_uparam = default_uparam
         if numb_fparam > 0:
             raise ValueError("numb_fparam is not supported in the dipole fitting")
         if numb_aparam > 0:
@@ -203,6 +206,9 @@ class PolarFittingSeA(Fitting):
         self.aparam_avg = None
         self.aparam_std = None
         self.aparam_inv_std = None
+        self.uparam_avg = None
+        self.uparam_std = None
+        self.uparam_inv_std = None
         if trainable is None:
             self.trainable = [True for _ in range(len(self.n_neuron) + 1)]
         elif isinstance(trainable, bool):
@@ -922,3 +928,7 @@ class GlobalPolarFittingSeA:
     def get_numb_aparam(self) -> int:
         """Get the number of atomic parameters."""
         return self.numb_aparam
+
+    def get_numb_uparam(self) -> int:
+        """Get the number of DFT+U parameters."""
+        return self.numb_uparam

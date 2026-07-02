@@ -181,6 +181,9 @@ class DeepSpinTF : public DeepSpinBackend {
    * @return Always false for TF backend.
    **/
   bool has_default_fparam() const { return false; };
+  int dim_uparam() const { return duparam; };
+  bool has_default_uparam() const { return false; };
+  void set_uparam(const std::vector<double>& uparam) { uparam_ = uparam; };
 
   // forward to template class
   void computew(std::vector<double>& ener,
@@ -301,8 +304,10 @@ class DeepSpinTF : public DeepSpinBackend {
   std::map<int, int> new_idx_map;
   std::map<int, int> old_idx_map;
   int dfparam;
+  int duparam{0};
   int daparam;
   bool aparam_nall;
+  std::vector<double> uparam_;
   /**
    * @brief Validate the size of frame and atomic parameters.
    * @param[in] nframes The number of frames.

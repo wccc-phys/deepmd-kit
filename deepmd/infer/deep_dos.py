@@ -64,6 +64,7 @@ class DeepDOS(DeepEval):
         atomic: bool = False,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         mixed_type: bool = False,
         **kwargs: Any,
     ) -> tuple[np.ndarray, ...]:
@@ -112,9 +113,12 @@ class DeepDOS(DeepEval):
             atom_types,
             fparam,
             aparam,
+            uparam,
             nframes,
             natoms,
-        ) = self._standard_input(coords, cells, atom_types, fparam, aparam, mixed_type)
+        ) = self._standard_input(
+            coords, cells, atom_types, fparam, aparam, uparam, mixed_type
+        )
         results = self.deep_eval.eval(
             coords,
             cells,
@@ -122,6 +126,7 @@ class DeepDOS(DeepEval):
             atomic,
             fparam=fparam,
             aparam=aparam,
+            uparam=uparam,
             **kwargs,
         )
         # energy = results["dos_redu"].reshape(nframes, self.get_numb_dos())

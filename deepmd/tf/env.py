@@ -212,6 +212,8 @@ TRANSFER_PATTERN = (
         r"descrpt_attr/t_std|"
         r"fitting_attr/t_fparam_avg|"
         r"fitting_attr/t_fparam_istd|"
+        r"fitting_attr/t_uparam_avg|"
+        r"fitting_attr/t_uparam_istd|"
         r"fitting_attr/t_aparam_avg|"
         r"fitting_attr/t_aparam_istd|"
         r"model_attr/t_tab_info|"

@@ -77,6 +77,7 @@ class DOSModel(StandardModel):
         self.numb_dos = self.fitting.get_numb_dos()
         self.numb_fparam = self.fitting.get_numb_fparam()
         self.numb_aparam = self.fitting.get_numb_aparam()
+        self.numb_uparam = self.fitting.get_numb_uparam()
 
     def get_numb_dos(self) -> int:
         return self.numb_dos
@@ -97,6 +98,10 @@ class DOSModel(StandardModel):
     def get_numb_aparam(self) -> int:
         """Get the number of atomic parameters."""
         return self.numb_aparam
+
+    def get_numb_uparam(self) -> int:
+        """Get the number of DFT+U parameters."""
+        return self.numb_uparam
 
     def data_stat(
         self, data: DeepmdDataSystem, stat_file_path: DPPath | None = None

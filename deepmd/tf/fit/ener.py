@@ -191,6 +191,7 @@ class EnerFitting(Fitting):
         mixed_types: bool = False,
         type_map: list[str] | None = None,  # to be compat with input
         default_fparam: list[float] | None = None,  # to be compat with input
+        default_uparam: float | None = None,  # to be compat with input
         **kwargs: Any,
     ) -> None:
         """Constructor."""
@@ -218,6 +219,8 @@ class EnerFitting(Fitting):
         self.default_fparam = default_fparam
         if self.default_fparam is not None:
             raise ValueError("default_fparam is not supported in TensorFlow.")
+        self.default_uparam = default_uparam
+        self.numb_uparam = int(self.default_uparam is not None)
         self.n_neuron = neuron
         self.resnet_dt = resnet_dt
         self.rcond = rcond
@@ -256,6 +259,9 @@ class EnerFitting(Fitting):
         self.aparam_avg = None
         self.aparam_std = None
         self.aparam_inv_std = None
+        self.uparam_avg = None
+        self.uparam_std = None
+        self.uparam_inv_std = None
 
         self.fitting_net_variables = None
         self.mixed_prec = None
@@ -275,6 +281,10 @@ class EnerFitting(Fitting):
     def get_numb_aparam(self) -> int:
         """Get the number of atomic parameters."""
         return self.numb_aparam
+
+    def get_numb_uparam(self) -> int:
+        """Get the number of DFT+U parameters."""
+        return self.numb_uparam
 
     def compute_output_stats(self, all_stat: dict, mixed_type: bool = False) -> None:
         """Compute the output statistics.
@@ -379,6 +389,16 @@ class EnerFitting(Fitting):
                 save_param_stats(stat_file_path, "aparam", aparam_stats)
             self.aparam_avg, self.aparam_std = stats_avg_std(aparam_stats, protection)
             self.aparam_inv_std = 1.0 / self.aparam_std
+        # stat uparam
+        if self.numb_uparam > 0:
+            cat_data = np.concatenate(all_stat["uparam"], axis=0)
+            cat_data = np.reshape(cat_data, [-1, self.numb_uparam])
+            self.uparam_avg = np.average(cat_data, axis=0)
+            self.uparam_std = np.std(cat_data, axis=0)
+            for ii in range(self.uparam_std.size):
+                if self.uparam_std[ii] < protection:
+                    self.uparam_std[ii] = protection
+            self.uparam_inv_std = 1.0 / self.uparam_std
 
     def _compute_std(self, sumv2: float, sumv: float, sumn: int) -> float:
         return np.sqrt(sumv2 / sumn - np.multiply(sumv / sumn, sumv / sumn))
@@ -391,6 +411,7 @@ class EnerFitting(Fitting):
         inputs: tf.Tensor,
         fparam: tf.Tensor | None = None,
         aparam: tf.Tensor | None = None,
+        uparam: tf.Tensor | None = None,
         bias_atom_e: float = 0.0,
         type_suffix: str = "",
         suffix: str = "",
@@ -405,6 +426,11 @@ class EnerFitting(Fitting):
             ext_fparam = tf.reshape(ext_fparam, [-1, self.numb_fparam])
             ext_fparam = tf.cast(ext_fparam, self.fitting_precision)
             layer = tf.concat([layer, ext_fparam], axis=1)
+        if uparam is not None:
+            ext_uparam = tf.tile(uparam, [1, natoms])
+            ext_uparam = tf.reshape(ext_uparam, [-1, self.numb_uparam])
+            ext_uparam = tf.cast(ext_uparam, self.fitting_precision)
+            layer = tf.concat([layer, ext_uparam], axis=1)
         if aparam is not None and not self.use_aparam_as_mask:
             ext_aparam = tf.slice(
                 aparam,
@@ -531,6 +557,11 @@ class EnerFitting(Fitting):
                 self.aparam_avg = 0.0
             if self.aparam_inv_std is None:
                 self.aparam_inv_std = 1.0
+        if self.numb_uparam > 0:
+            if self.uparam_avg is None:
+                self.uparam_avg = 0.0
+            if self.uparam_inv_std is None:
+                self.uparam_inv_std = 1.0
 
         ntypes_atom = self.ntypes - self.ntypes_spin
         if self.spin is not None:
@@ -560,6 +591,7 @@ class EnerFitting(Fitting):
         with tf.variable_scope("fitting_attr" + suffix, reuse=reuse):
             t_dfparam = tf.constant(self.numb_fparam, name="dfparam", dtype=tf.int32)
             t_daparam = tf.constant(self.numb_aparam, name="daparam", dtype=tf.int32)
+            t_duparam = tf.constant(self.numb_uparam, name="duparam", dtype=tf.int32)
             self.t_bias_atom_e = tf.get_variable(
                 "t_bias_atom_e",
                 self.bias_atom_e.shape,
@@ -604,6 +636,28 @@ class EnerFitting(Fitting):
                 t_aparam_istd = tf.ones(
                     self.numb_aparam, dtype=GLOBAL_TF_FLOAT_PRECISION
                 )
+            if self.numb_uparam > 0:
+                t_uparam_avg = tf.get_variable(
+                    "t_uparam_avg",
+                    self.numb_uparam,
+                    dtype=GLOBAL_TF_FLOAT_PRECISION,
+                    trainable=False,
+                    initializer=tf.constant_initializer(self.uparam_avg),
+                )
+                t_uparam_istd = tf.get_variable(
+                    "t_uparam_istd",
+                    self.numb_uparam,
+                    dtype=GLOBAL_TF_FLOAT_PRECISION,
+                    trainable=False,
+                    initializer=tf.constant_initializer(self.uparam_inv_std),
+                )
+            else:
+                t_uparam_avg = tf.zeros(
+                    self.numb_uparam, dtype=GLOBAL_TF_FLOAT_PRECISION
+                )
+                t_uparam_istd = tf.ones(
+                    self.numb_uparam, dtype=GLOBAL_TF_FLOAT_PRECISION
+                )
 
         inputs = tf.reshape(inputs, [-1, natoms[0], self.dim_descrpt])
         if len(self.atom_ener):
@@ -635,6 +689,12 @@ class EnerFitting(Fitting):
             aparam = tf.reshape(aparam, [-1, self.numb_aparam])
             aparam = (aparam - t_aparam_avg) * t_aparam_istd
             aparam = tf.reshape(aparam, [-1, self.numb_aparam * natoms[0]])
+
+        uparam = None
+        if self.numb_uparam > 0:
+            uparam = input_dict["uparam"]
+            uparam = tf.reshape(uparam, [-1, self.numb_uparam])
+            uparam = (uparam - t_uparam_avg) * t_uparam_istd
 
         atype_nall = tf.reshape(atype, [-1, natoms[1]])
         self.atype_nloc = tf.slice(
@@ -693,6 +753,7 @@ class EnerFitting(Fitting):
                     inputs,
                     fparam,
                     aparam,
+                    uparam,
                     bias_atom_e=0.0,
                     type_suffix="_type_" + str(type_i),
                     suffix=suffix,
@@ -706,6 +767,7 @@ class EnerFitting(Fitting):
                         inputs_zero,
                         fparam,
                         aparam,
+                        uparam,
                         bias_atom_e=0.0,
                         type_suffix="_type_" + str(type_i),
                         suffix=suffix,
@@ -729,6 +791,7 @@ class EnerFitting(Fitting):
                 inputs,
                 fparam,
                 aparam,
+                uparam,
                 bias_atom_e=0.0,
                 suffix=suffix,
                 reuse=reuse,
@@ -742,6 +805,7 @@ class EnerFitting(Fitting):
                     inputs_zero,
                     fparam,
                     aparam,
+                    uparam,
                     bias_atom_e=0.0,
                     suffix=suffix,
                     reuse=True,
@@ -818,6 +882,13 @@ class EnerFitting(Fitting):
             )
             self.aparam_inv_std = get_tensor_by_name_from_graph(
                 graph, f"fitting_attr{suffix}/t_aparam_istd"
+            )
+        if self.numb_uparam > 0:
+            self.uparam_avg = get_tensor_by_name_from_graph(
+                graph, f"fitting_attr{suffix}/t_uparam_avg"
+            )
+            self.uparam_inv_std = get_tensor_by_name_from_graph(
+                graph, f"fitting_attr{suffix}/t_uparam_istd"
             )
         try:
             self.bias_atom_e = get_tensor_by_name_from_graph(
@@ -915,6 +986,9 @@ class EnerFitting(Fitting):
         if fitting.numb_aparam > 0 and not fitting.use_aparam_as_mask:
             fitting.aparam_avg = data["@variables"]["aparam_avg"]
             fitting.aparam_inv_std = data["@variables"]["aparam_inv_std"]
+        if fitting.numb_uparam > 0:
+            fitting.uparam_avg = data["@variables"]["uparam_avg"]
+            fitting.uparam_inv_std = data["@variables"]["uparam_inv_std"]
         return fitting
 
     def serialize(self, suffix: str = "") -> dict:
@@ -938,8 +1012,10 @@ class EnerFitting(Fitting):
             "resnet_dt": self.resnet_dt,
             "numb_fparam": self.numb_fparam,
             "numb_aparam": self.numb_aparam,
+            "numb_uparam": self.numb_uparam,
             "dim_case_embd": self.dim_case_embd,
             "default_fparam": self.default_fparam,
+            "default_uparam": self.default_uparam,
             "rcond": self.rcond,
             "tot_ener_zero": self.tot_ener_zero,
             "trainable": self.trainable,
@@ -957,6 +1033,7 @@ class EnerFitting(Fitting):
                     self.dim_descrpt
                     + self.tebd_dim
                     + self.numb_fparam
+                    + self.numb_uparam
                     + (0 if self.use_aparam_as_mask else self.numb_aparam)
                 ),
                 neuron=self.n_neuron,
@@ -972,6 +1049,8 @@ class EnerFitting(Fitting):
                 "fparam_inv_std": self.fparam_inv_std,
                 "aparam_avg": self.aparam_avg,
                 "aparam_inv_std": self.aparam_inv_std,
+                "uparam_avg": self.uparam_avg,
+                "uparam_inv_std": self.uparam_inv_std,
                 "case_embd": None,
             },
             "type_map": self.type_map,
@@ -992,6 +1071,12 @@ class EnerFitting(Fitting):
             data_requirement.append(
                 DataRequirementItem(
                     "aparam", self.numb_aparam, atomic=True, must=True, high_prec=False
+                )
+            )
+        if self.numb_uparam > 0:
+            data_requirement.append(
+                DataRequirementItem(
+                    "uparam", self.numb_uparam, atomic=False, must=True, high_prec=False
                 )
             )
         return data_requirement

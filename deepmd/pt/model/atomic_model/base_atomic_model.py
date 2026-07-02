@@ -189,6 +189,14 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
         """Get the default frame parameters."""
         return None
 
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
+        return False
+
+    def get_default_uparam(self) -> torch.Tensor | None:
+        """Get the default DFT+U parameters."""
+        return None
+
     def has_chg_spin_ebd(self) -> bool:
         """Check if the model has charge spin embedding."""
         return False
@@ -250,6 +258,16 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
                     for sample in sampled:
                         nframe = sample["atype"].shape[0]
                         sample["fparam"] = default_fparam.repeat(nframe, 1)
+            if (
+                "find_uparam" not in sampled[0]
+                and "uparam" not in sampled[0]
+                and self.has_default_uparam()
+            ):
+                default_uparam = self.get_default_uparam()
+                if default_uparam is not None:
+                    for sample in sampled:
+                        nframe = sample["atype"].shape[0]
+                        sample["uparam"] = default_uparam.repeat(nframe, 1)
             return sampled
 
         return wrapped_sampler
@@ -320,6 +338,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         comm_dict: dict[str, torch.Tensor] | None = None,
         charge_spin: torch.Tensor | None = None,
@@ -342,6 +361,8 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
             extended to local index mapping, shape: nf x nall
         fparam
             frame parameters, shape: nf x dim_fparam
+        uparam
+            DFT+U parameters, shape: nf x dim_uparam
         aparam
             atomic parameter, shape: nf x nloc x dim_aparam
         comm_dict
@@ -372,6 +393,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
             nlist,
             mapping=mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             comm_dict=comm_dict,
             charge_spin=charge_spin,

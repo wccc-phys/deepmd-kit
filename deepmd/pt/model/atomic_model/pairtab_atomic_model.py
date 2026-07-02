@@ -268,6 +268,7 @@ class PairTabAtomicModel(BaseAtomicModel):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         comm_dict: dict[str, torch.Tensor] | None = None,
@@ -504,6 +505,10 @@ class PairTabAtomicModel(BaseAtomicModel):
 
     def get_dim_fparam(self) -> int:
         """Get the number (dimension) of frame parameters of this atomic model."""
+        return 0
+
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
         return 0
 
     def get_dim_aparam(self) -> int:

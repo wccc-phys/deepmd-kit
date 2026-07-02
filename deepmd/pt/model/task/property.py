@@ -93,6 +93,7 @@ class PropertyFittingNet(InvarFitting):
         trainable: bool | list[bool] = True,
         seed: int | None = None,
         default_fparam: list | None = None,
+        default_uparam: float | None = None,
         distinguish_types: bool = True,
         **kwargs: Any,
     ) -> None:
@@ -116,6 +117,7 @@ class PropertyFittingNet(InvarFitting):
             trainable=trainable,
             seed=seed,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
             **kwargs,
         )
 

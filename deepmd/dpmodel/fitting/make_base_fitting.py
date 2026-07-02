@@ -58,6 +58,7 @@ def make_base_fitting(
             g2: t_tensor | None = None,
             h2: t_tensor | None = None,
             fparam: t_tensor | None = None,
+            uparam: t_tensor | None = None,
             aparam: t_tensor | None = None,
         ) -> dict[str, t_tensor]:
             """Calculate fitting."""

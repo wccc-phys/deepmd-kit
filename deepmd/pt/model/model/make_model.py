@@ -136,6 +136,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
             atype: torch.Tensor,
             box: torch.Tensor | None = None,
             fparam: torch.Tensor | None = None,
+            uparam: torch.Tensor | None = None,
             aparam: torch.Tensor | None = None,
             do_atomic_virial: bool = False,
             coord_corr_for_virial: torch.Tensor | None = None,
@@ -154,6 +155,8 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
                 The simulation box. shape: nf x 9
             fparam
                 frame parameter. nf x ndf
+            uparam
+                DFT+U parameter. nf x dim_uparam
             aparam
                 atomic parameter. nf x nloc x nda
             do_atomic_virial
@@ -169,10 +172,10 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
                 The keys are defined by the `ModelOutputDef`.
 
             """
-            cc, bb, fp, ap, input_prec = self._input_type_cast(
-                coord, box=box, fparam=fparam, aparam=aparam
+            cc, bb, fp, up, ap, input_prec = self._input_type_cast(
+                coord, box=box, fparam=fparam, uparam=uparam, aparam=aparam
             )
-            del coord, box, fparam, aparam
+            del coord, box, fparam, uparam, aparam
             (
                 extended_coord,
                 extended_atype,
@@ -203,6 +206,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
                 mapping,
                 do_atomic_virial=do_atomic_virial,
                 fparam=fp,
+                uparam=up,
                 aparam=ap,
                 extended_coord_corr=extended_coord_corr,
                 charge_spin=charge_spin,
@@ -338,6 +342,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
             nlist: torch.Tensor,
             mapping: torch.Tensor | None = None,
             fparam: torch.Tensor | None = None,
+            uparam: torch.Tensor | None = None,
             aparam: torch.Tensor | None = None,
             do_atomic_virial: bool = False,
             comm_dict: dict[str, torch.Tensor] | None = None,
@@ -362,6 +367,8 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
                 mapps the extended indices to local indices. nf x nall.
             fparam
                 frame parameter. nf x ndf
+            uparam
+                DFT+U parameter. nf x dim_uparam
             aparam
                 atomic parameter. nf x nloc x nda
             do_atomic_virial
@@ -384,10 +391,10 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
             nlist = self.format_nlist(
                 extended_coord, extended_atype, nlist, extra_nlist_sort=extra_nlist_sort
             )
-            cc_ext, _, fp, ap, input_prec = self._input_type_cast(
-                extended_coord, fparam=fparam, aparam=aparam
+            cc_ext, _, fp, up, ap, input_prec = self._input_type_cast(
+                extended_coord, fparam=fparam, uparam=uparam, aparam=aparam
             )
-            del extended_coord, fparam, aparam
+            del extended_coord, fparam, uparam, aparam
             force_coord = cc_ext
             if self.atomic_model.do_grad_r() or self.atomic_model.do_grad_c():
                 if not force_coord.requires_grad:
@@ -398,6 +405,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
                 nlist,
                 mapping=mapping,
                 fparam=fp,
+                uparam=up,
                 aparam=ap,
                 comm_dict=comm_dict,
                 charge_spin=charge_spin,
@@ -419,9 +427,11 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
             coord: torch.Tensor,
             box: torch.Tensor | None = None,
             fparam: torch.Tensor | None = None,
+            uparam: torch.Tensor | None = None,
             aparam: torch.Tensor | None = None,
         ) -> tuple[
             torch.Tensor,
+            torch.Tensor | None,
             torch.Tensor | None,
             torch.Tensor | None,
             torch.Tensor | None,
@@ -432,29 +442,23 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
             ###
             ### type checking would not pass jit, convert to coord prec anyway
             ###
-            # for vv, kk in zip([fparam, aparam], ["frame", "atomic"]):
-            #     if vv is not None and self.reverse_precision_dict[vv.dtype] != input_prec:
-            #         log.warning(
-            #           f"type of {kk} parameter {self.reverse_precision_dict[vv.dtype]}"
-            #           " does not match"
-            #           f" that of the coordinate {input_prec}"
-            #         )
             _lst: list[torch.Tensor | None] = [
                 vv.to(coord.dtype) if vv is not None else None
-                for vv in [box, fparam, aparam]
+                for vv in [box, fparam, uparam, aparam]
             ]
-            box, fparam, aparam = _lst
+            box, fparam, uparam, aparam = _lst
             if (
                 input_prec
                 == self.reverse_precision_dict[self.global_pt_float_precision]
             ):
-                return coord, box, fparam, aparam, input_prec
+                return coord, box, fparam, uparam, aparam, input_prec
             else:
                 pp = self.global_pt_float_precision
                 return (
                     coord.to(pp),
                     box.to(pp) if box is not None else None,
                     fparam.to(pp) if fparam is not None else None,
+                    uparam.to(pp) if uparam is not None else None,
                     aparam.to(pp) if aparam is not None else None,
                     input_prec,
                 )
@@ -659,6 +663,19 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type:
 
         def get_default_fparam(self) -> torch.Tensor | None:
             return self.atomic_model.get_default_fparam()
+
+        @torch.jit.export
+        def get_dim_uparam(self) -> int:
+            """Get the number (dimension) of DFT+U parameters of this atomic model."""
+            return self.atomic_model.get_dim_uparam()
+
+        @torch.jit.export
+        def has_default_uparam(self) -> bool:
+            """Check if the model has default DFT+U parameters."""
+            return self.atomic_model.has_default_uparam()
+
+        def get_default_uparam(self) -> torch.Tensor | None:
+            return self.atomic_model.get_default_uparam()
 
         @torch.jit.export
         def has_chg_spin_ebd(self) -> bool:

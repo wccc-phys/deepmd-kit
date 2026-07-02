@@ -481,11 +481,19 @@ void DeepSpinTF::init(const std::string& model,
   ntypes_spin = get_scalar<int>("spin_attr/ntypes_spin");
   dfparam = get_scalar<int>("fitting_attr/dfparam");
   daparam = get_scalar<int>("fitting_attr/daparam");
+  try {
+    duparam = get_scalar<int>("fitting_attr/duparam");
+  } catch (const deepmd::deepmd_exception&) {
+    duparam = 0;
+  }
   if (dfparam < 0) {
     dfparam = 0;
   }
   if (daparam < 0) {
     daparam = 0;
+  }
+  if (duparam < 0) {
+    duparam = 0;
   }
   if (daparam > 0) {
     try {
@@ -600,6 +608,16 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
   tile_fparam_aparam(fparam, nframes, dfparam, fparam_);
   tile_fparam_aparam(aparam, nframes, nloc * daparam, aparam_);
 
+  std::vector<VALUETYPE> uparam;
+  if (duparam > 0) {
+    if (uparam_.size() > 0) {
+      std::vector<VALUETYPE> uparam_v(uparam_.begin(), uparam_.end());
+      tile_fparam_aparam(uparam, nframes, duparam, uparam_v);
+    } else {
+      uparam.assign(nframes * duparam, VALUETYPE(0));
+    }
+  }
+
   std::vector<VALUETYPE> extend_dcoord;
   std::vector<int> extend_atype;
   extend_nlist(extend_dcoord, extend_atype, dcoord_, dspin_, datype_);
@@ -612,7 +630,7 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
   if (dtype == tensorflow::DT_DOUBLE) {
     int ret = session_input_tensors<double>(
         input_tensors, extend_dcoord, ntypes, extend_atype, dbox, cell_size,
-        fparam, aparam, atommap, "", aparam_nall);
+        fparam, aparam, atommap, "", aparam_nall, uparam);
     if (atomic) {
       run_model<double>(dener, dforce_tmp, dvirial, datom_energy_,
                         datom_virial_, session, input_tensors, atommap,
@@ -624,7 +642,7 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
   } else {
     int ret = session_input_tensors<float>(
         input_tensors, extend_dcoord, ntypes, extend_atype, dbox, cell_size,
-        fparam, aparam, atommap, "", aparam_nall);
+        fparam, aparam, atommap, "", aparam_nall, uparam);
     if (atomic) {
       run_model<float>(dener, dforce_tmp, dvirial, datom_energy_, datom_virial_,
                        session, input_tensors, atommap, nframes);
@@ -746,6 +764,17 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
   tile_fparam_aparam(fparam, nframes, dfparam, fparam_);
   tile_fparam_aparam(aparam_, nframes, (aparam_nall ? nall : nloc) * daparam,
                      aparam__);
+
+  std::vector<VALUETYPE> uparam;
+  if (duparam > 0) {
+    if (uparam_.size() > 0) {
+      std::vector<VALUETYPE> uparam_v(uparam_.begin(), uparam_.end());
+      tile_fparam_aparam(uparam, nframes, duparam, uparam_v);
+    } else {
+      uparam.assign(nframes * duparam, VALUETYPE(0));
+    }
+  }
+
   std::vector<std::pair<std::string, Tensor>> input_tensors;
   // select real atoms
   std::vector<VALUETYPE> dcoord, dforce, aparam, datom_energy, datom_virial;
@@ -769,7 +798,7 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
   if (dtype == tensorflow::DT_DOUBLE) {
     int ret = session_input_tensors<double>(
         input_tensors, dcoord, ntypes, datype, dbox, nlist, fparam, aparam,
-        atommap, nghost_real, ago, "", aparam_nall);
+        atommap, nghost_real, ago, "", aparam_nall, uparam);
     assert(nloc_real == ret);
     if (atomic) {
       run_model<double>(dener, dforce, dvirial, datom_energy, datom_virial,
@@ -781,7 +810,7 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
   } else {
     int ret = session_input_tensors<float>(
         input_tensors, dcoord, ntypes, datype, dbox, nlist, fparam, aparam,
-        atommap, nghost_real, ago, "", aparam_nall);
+        atommap, nghost_real, ago, "", aparam_nall, uparam);
     assert(nloc_real == ret);
     if (atomic) {
       run_model<float>(dener, dforce, dvirial, datom_energy, datom_virial,

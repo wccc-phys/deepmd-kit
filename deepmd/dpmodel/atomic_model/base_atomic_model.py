@@ -163,6 +163,14 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
         """Get the default frame parameters."""
         return None
 
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
+        return False
+
+    def get_default_uparam(self) -> float | None:
+        """Get the default DFT+U parameters."""
+        return None
+
     def has_chg_spin_ebd(self) -> bool:
         """Check if the model has charge spin embedding."""
         return False
@@ -253,6 +261,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         comm_dict: dict | None = None,
         charge_spin: Array | None = None,
@@ -306,6 +315,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
             nlist,
             mapping=mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             comm_dict=comm_dict,
             charge_spin=charge_spin,
@@ -423,6 +433,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         charge_spin: Array | None = None,
     ) -> dict[str, Array]:
@@ -432,6 +443,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
             nlist,
             mapping=mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
         )
@@ -541,6 +553,19 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
                                 default_fparam_np.reshape(1, -1), (nframe, 1)
                             )
                             sample["find_fparam"] = np.bool_(True)
+            # For systems where uparam is missing (find_uparam == 0),
+            # fill with default uparam if available and mark as found.
+            if self.has_default_uparam():
+                default_uparam = self.get_default_uparam()
+                if default_uparam is not None:
+                    default_uparam_np = np.array(default_uparam)
+                    for sample in sampled:
+                        if "find_uparam" in sample and not sample["find_uparam"]:
+                            nframe = sample["atype"].shape[0]
+                            sample["uparam"] = np.tile(
+                                default_uparam_np.reshape(1, -1), (nframe, 1)
+                            )
+                            sample["find_uparam"] = np.bool_(True)
             return sampled
 
         return wrapped_sampler
@@ -637,6 +662,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
             atype: np.ndarray,
             box: np.ndarray | None,
             fparam: np.ndarray | None = None,
+            uparam: np.ndarray | None = None,
             aparam: np.ndarray | None = None,
             charge_spin: np.ndarray | None = None,
         ) -> dict[str, np.ndarray]:
@@ -656,6 +682,8 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
                     box = xp.asarray(box, device=device)
             if fparam is not None:
                 fparam = xp.asarray(fparam, device=device)
+            if uparam is not None:
+                uparam = xp.asarray(uparam, device=device)
             if aparam is not None:
                 aparam = xp.asarray(aparam, device=device)
             if charge_spin is not None:
@@ -680,6 +708,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
                 nlist,
                 mapping=mapping,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 charge_spin=charge_spin,
             )

@@ -265,6 +265,8 @@ class DeepPotPD : public DeepPotBackend {
    * @return Always false for Paddle backend.
    **/
   bool has_default_fparam() const { return false; };
+  int dim_uparam() const { return duparam; };
+  bool has_default_uparam() const { return false; };
 
   /**
    * @brief Print the shape of given tensor.
@@ -378,6 +380,7 @@ class DeepPotPD : public DeepPotBackend {
   int ntypes;
   int ntypes_spin;
   int dfparam;
+  int duparam{0};
   int daparam;
   int aparam_nall;
   // copy neighbor list info from host

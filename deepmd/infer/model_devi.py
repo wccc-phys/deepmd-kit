@@ -248,6 +248,7 @@ def calc_model_devi(
     mixed_type: bool = False,
     fparam: np.ndarray | None = None,
     aparam: np.ndarray | None = None,
+    uparam: np.ndarray | None = None,
     real_data: dict | None = None,
     atomic: bool = False,
     relative: float | None = None,
@@ -316,6 +317,7 @@ def calc_model_devi(
             atype,
             fparam=fparam,
             aparam=aparam,
+            uparam=uparam,
             mixed_type=mixed_type,
         )
         energies.append(ret[0] / natom)
@@ -430,6 +432,14 @@ def make_model_devi(
                 must=True,
                 high_prec=False,
             )
+        if first_dp.get_dim_uparam() > 0:
+            dp_data.add(
+                "uparam",
+                first_dp.get_dim_uparam(),
+                atomic=False,
+                must=True,
+                high_prec=False,
+            )
         if real_error:
             dp_data.add(
                 "energy",
@@ -475,6 +485,10 @@ def make_model_devi(
                 aparam = data["aparam"]
             else:
                 aparam = None
+            if first_dp.get_dim_uparam() > 0:
+                uparam = data["uparam"]
+            else:
+                uparam = None
             if real_error:
                 natoms = atype.shape[-1]
                 real_data = {
@@ -492,6 +506,7 @@ def make_model_devi(
                 mixed_type=mixed_type,
                 fparam=fparam,
                 aparam=aparam,
+                uparam=uparam,
                 real_data=real_data,
                 atomic=atomic,
                 relative=relative,

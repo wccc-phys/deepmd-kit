@@ -231,6 +231,7 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         comm_dict: dict[str, torch.Tensor] | None = None,
         charge_spin: torch.Tensor | None = None,
@@ -249,6 +250,8 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
             mapps the extended indices to local indices.
         fparam
             frame parameter. (nframes, ndf)
+        uparam
+            DFT+U parameter. (nframes, ndu)
         aparam
             atomic parameter. (nframes, nloc, nda)
 
@@ -293,6 +296,7 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
                     nlists_[i],
                     mapping,
                     fparam,
+                    uparam,
                     aparam,
                     comm_dict=comm_dict,
                     charge_spin=charge_spin,
@@ -503,6 +507,10 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
         """Get the number (dimension) of frame parameters of this atomic model."""
         # tricky...
         return max([model.get_dim_fparam() for model in self.models])
+
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return max([model.get_dim_uparam() for model in self.models])
 
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""

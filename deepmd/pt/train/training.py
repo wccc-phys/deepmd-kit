@@ -2325,6 +2325,7 @@ class Trainer:
             "spin",
             "box",
             "fparam",
+            "uparam",
             "aparam",
             "charge_spin",
         ]
@@ -2333,6 +2334,8 @@ class Trainer:
         for item_key in batch_data:
             if item_key in input_keys:
                 if item_key == "fparam" and batch_data.get("find_fparam", 1.0) == 0.0:
+                    continue
+                if item_key == "uparam" and batch_data.get("find_uparam", 1.0) == 0.0:
                     continue
                 if (
                     item_key == "charge_spin"
@@ -2438,6 +2441,22 @@ def get_additional_data_requirement(_model: Any) -> list[DataRequirementItem]:
             )
         ]
         additional_data_requirement += fparam_requirement_items
+    if _model.get_dim_uparam() > 0:
+        _uparam_default = (
+            _model.get_default_uparam().cpu().numpy()
+            if _model.has_default_uparam()
+            else 0.0
+        )
+        uparam_requirement_items = [
+            DataRequirementItem(
+                "uparam",
+                _model.get_dim_uparam(),
+                atomic=False,
+                must=not _model.has_default_uparam(),
+                default=_uparam_default,
+            )
+        ]
+        additional_data_requirement += uparam_requirement_items
     if _model.get_dim_aparam() > 0:
         aparam_requirement_items = [
             DataRequirementItem(
