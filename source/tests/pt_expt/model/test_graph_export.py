@@ -98,7 +98,7 @@ def test_graph_exportable_traces():
     # the traced module reproduces eager outputs
     eager = model.forward_common_lower_graph(*graph_inputs, do_atomic_virial=False)
     # Optional conditioning inputs remain explicit placeholders.
-    traced = gm(*graph_inputs, None, None, None)
+    traced = gm(*graph_inputs, None, None, None, None)
     # traced returns a tuple/dict; compare energy_redu
     te = traced["energy_redu"] if isinstance(traced, dict) else traced[1]
     torch.testing.assert_close(te, eager["energy_redu"], rtol=1e-10, atol=1e-10)
@@ -188,6 +188,7 @@ def test_graph_export_aparam_flat_node_axis():
             so2,
             srp2,
             fp2,
+            up2,
             ap2,
             cs2,
         ) = inputs
@@ -197,7 +198,7 @@ def test_graph_export_aparam_flat_node_axis():
         ap2 = torch.linspace(
             0.1, 0.9, ap2.numel(), dtype=torch.float64, device=ap2.device
         ).reshape(ap2.shape)
-        out = loaded(a2, nn2, nl2, ei2, ev2, em2, do2, drp2, so2, srp2, fp2, ap2, cs2)
+        out = loaded(a2, nn2, nl2, ei2, ev2, em2, do2, drp2, so2, srp2, fp2, up2, ap2, cs2)
         ref = model.forward_common_lower_graph(
             a2,
             nn2,
@@ -218,7 +219,7 @@ def test_graph_export_aparam_flat_node_axis():
         )
         # aparam must actually reach the fitting: bump it -> energy changes
         out_bump = loaded(
-            a2, nn2, nl2, ei2, ev2, em2, do2, drp2, so2, srp2, fp2, ap2 + 1.5, cs2
+            a2, nn2, nl2, ei2, ev2, em2, do2, drp2, so2, srp2, fp2, up2, ap2 + 1.5, cs2
         )
         assert not torch.allclose(out_bump["energy"], out["energy"]), (
             f"aparam bump must change the energy (nf={nframes}, nloc={nloc})"
@@ -254,7 +255,7 @@ def test_forward_lower_graph_exportable_public_keys(do_atomic_virial):
         _allow_non_fake_inputs=True,
     )
     assert isinstance(gm, torch.nn.Module)
-    out = gm(*graph_inputs, None, None, None)
+    out = gm(*graph_inputs, None, None, None, None)
 
     # public key set (graph path is local-only: force/atom_virial, NOT extended_*)
     assert "atom_energy" in out and "energy" in out and "force" in out

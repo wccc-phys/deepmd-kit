@@ -98,6 +98,18 @@ class TF2TrainEntrypoint(AbstractTrainEntrypoint):
         options: TrainEntrypointOptions,
     ) -> dict[str, Any]:
         """Apply TF2 fine-tuning and pretrained-script preprocessing."""
+        # TF2 does not implement uparam (DFT+U) conditioning; reject configs
+        # that ask for it instead of silently ignoring the parameter.
+        _fitting_cfgs = (
+            [config["model"]["fitting_net"]]
+            if "model_dict" not in config["model"]
+            else [m["fitting_net"] for m in config["model"]["model_dict"].values()]
+        )
+        for _fc in _fitting_cfgs:
+            if (_fc or {}).get("default_uparam") is not None:
+                raise NotImplementedError(
+                    "uparam (DFT+U) is not supported by the TensorFlow 2 backend."
+                )
         self.finetune_links = None
         self.shared_links = None
         if self.is_multi_task(config):

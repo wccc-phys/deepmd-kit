@@ -186,6 +186,7 @@ def _cal_hessian_ext(
     mapping: torch.Tensor | None,
     fparam: torch.Tensor | None,
     aparam: torch.Tensor | None,
+    uparam: torch.Tensor | None = None,
     create_graph: bool = False,
     charge_spin: torch.Tensor | None = None,
 ) -> torch.Tensor:
@@ -214,6 +215,8 @@ def _cal_hessian_ext(
         Frame parameters. Shape: [nf, nfp] or None.
     aparam
         Atomic parameters. Shape: [nf, nloc, nap] or None.
+    uparam
+        Frame parameters. Shape: [nf, nup] or None.
     create_graph
         Whether to create graph for higher-order derivatives.
     charge_spin
@@ -240,6 +243,7 @@ def _cal_hessian_ext(
                 mapping[ii] if mapping is not None else None,
                 fparam[ii] if fparam is not None else None,
                 aparam[ii] if aparam is not None else None,
+                uparam[ii] if uparam is not None else None,
                 charge_spin[ii] if charge_spin is not None else None,
             )
             hess = torch.autograd.functional.hessian(
@@ -252,6 +256,10 @@ def _cal_hessian_ext(
     result = torch.stack(hessians).reshape(nf, *vdef.shape, nall, 3, nall, 3)
     return result
 
+
+from deepmd.dpmodel.utils.fitting_params import (  # noqa: E402
+    FittingParams,
+)
 
 class _WrapperForwardEnergy:
     """Callable wrapper for torch.autograd.functional.hessian.
@@ -271,6 +279,7 @@ class _WrapperForwardEnergy:
         mapping: torch.Tensor | None,
         fparam: torch.Tensor | None,
         aparam: torch.Tensor | None,
+        uparam: torch.Tensor | None = None,
         charge_spin: torch.Tensor | None = None,
     ) -> None:
         self.model = model
@@ -282,6 +291,7 @@ class _WrapperForwardEnergy:
         self.mapping = mapping
         self.fparam = fparam
         self.aparam = aparam
+        self.uparam = uparam
         self.charge_spin = charge_spin
 
     def __call__(self, coord_flat: torch.Tensor) -> torch.Tensor:
@@ -305,6 +315,7 @@ class _WrapperForwardEnergy:
             mapping=self.mapping.unsqueeze(0) if self.mapping is not None else None,
             fparam=self.fparam.unsqueeze(0) if self.fparam is not None else None,
             aparam=self.aparam.unsqueeze(0) if self.aparam is not None else None,
+            uparam=self.uparam.unsqueeze(0) if self.uparam is not None else None,
             charge_spin=self.charge_spin.unsqueeze(0)
             if self.charge_spin is not None
             else None,
@@ -339,6 +350,7 @@ class _WrapperForwardEnergyGraph:
         pair_excl: Any,
         rcut: float,
         fparam: torch.Tensor | None,  # (1, ndf) or None
+        uparam: torch.Tensor | None,  # (1, ndu) or None
         aparam: torch.Tensor | None,  # (nloc, nda) or None
         spin: torch.Tensor | None,  # (nloc, 3) or None
         charge_spin: torch.Tensor | None,  # (1, 2) or None
@@ -353,6 +365,7 @@ class _WrapperForwardEnergyGraph:
         self.pair_excl = pair_excl
         self.rcut = rcut
         self.fparam = fparam
+        self.uparam = uparam
         self.aparam = aparam
         self.spin = spin
         self.charge_spin = charge_spin
@@ -366,6 +379,7 @@ class _WrapperForwardEnergyGraph:
             ng,
             self.atype.reshape(-1),
             fparam=self.fparam,
+            uparam=self.uparam,
             aparam=self.aparam,
             spin=self.spin,
             charge_spin=self.charge_spin,
@@ -384,6 +398,7 @@ def _cal_hessian_ext_graph(
     atype: torch.Tensor,
     box: torch.Tensor | None,
     fparam: torch.Tensor | None,
+    uparam: torch.Tensor | None,
     aparam: torch.Tensor | None,
     spin: torch.Tensor | None,
     charge_spin: torch.Tensor | None,
@@ -439,6 +454,7 @@ def _cal_hessian_ext_graph(
                 pair_excl=pair_excl,
                 rcut=rcut,
                 fparam=fparam[ii : ii + 1] if fparam is not None else None,
+                uparam=uparam[ii : ii + 1] if uparam is not None else None,
                 aparam=aparam_frame,
                 spin=spin_frame,
                 charge_spin=charge_spin_frame,
@@ -567,6 +583,7 @@ def make_model(
             destination_sorted: bool = False,
             do_atomic_virial: bool = False,
             fparam: torch.Tensor | None = None,
+            uparam: torch.Tensor | None = None,
             aparam: torch.Tensor | None = None,
             charge_spin: torch.Tensor | None = None,
             spin: torch.Tensor | None = None,
@@ -683,6 +700,11 @@ def make_model(
                 # edge_energy_deriv's signature untouched; see the second
                 # torch.autograd.grad call in fit_output_to_model_output_graph.
                 spin = spin.detach().requires_grad_(True)
+            import os
+            if os.environ.get("DP_DBG"):
+                print("DBG lower: edge_vec grad", edge_vec.requires_grad,
+                      "uparam", None if uparam is None else (tuple(uparam.shape), uparam.requires_grad),
+                      flush=True)
             graph = NeighborGraph(
                 n_node=n_node,
                 edge_index=edge_index,
@@ -711,6 +733,7 @@ def make_model(
                 atype,
                 fparam=fparam,
                 aparam=aparam,
+                uparam=uparam,
                 charge_spin=charge_spin,
                 spin=spin,
                 comm_dict=comm_dict,
@@ -785,11 +808,20 @@ def make_model(
             n_node: torch.Tensor,
             box: torch.Tensor | None = None,
             fparam: torch.Tensor | None = None,
+            uparam: torch.Tensor | None = None,
             aparam: torch.Tensor | None = None,
             do_atomic_virial: bool = False,
             charge_spin: torch.Tensor | None = None,
             spin: torch.Tensor | None = None,
+            cond: "FittingParams | None" = None,
         ) -> dict[str, torch.Tensor]:
+            # Registry container: fill any missing conditioning parameter
+            # from ``cond`` (explicit arguments win).
+            if cond is not None:
+                fparam = fparam if fparam is not None else cond.fparam
+                uparam = uparam if uparam is not None else cond.uparam
+                aparam = aparam if aparam is not None else cond.aparam
+                charge_spin = charge_spin if charge_spin is not None else cond.charge_spin
             """Model forward over a batch whose node axis is already flat.
 
             The rectangular :meth:`call_common` pads frames of unequal atom
@@ -878,6 +910,7 @@ def make_model(
                 destination_sorted=graph.destination_sorted,
                 do_atomic_virial=do_atomic_virial,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 charge_spin=charge_spin,
                 spin=spin,
@@ -893,8 +926,9 @@ def make_model(
             cc: torch.Tensor,
             atype: torch.Tensor,
             bb: torch.Tensor | None,
-            fp: torch.Tensor | None,
-            ap: torch.Tensor | None,
+            fparam: torch.Tensor | None,
+            uparam: torch.Tensor | None,
+            aparam: torch.Tensor | None,
             method: str,
             do_atomic_virial: bool = False,
             spin: torch.Tensor | None = None,
@@ -915,9 +949,11 @@ def make_model(
                 the atom types. nf x nloc
             bb
                 the simulation cell. nf x 3 x 3, or ``None`` for non-periodic.
-            fp
+            fparam
                 the frame parameter. nf x ndf
-            ap
+            uparam
+                the DFT+U parameter. nf x nup
+            aparam
                 the atomic parameter. nf x nloc x nda
             method
                 the carry-all builder, ``"dense"`` or ``"ase"``.
@@ -978,8 +1014,8 @@ def make_model(
             atype_flat = atype_flat[node_index]
             # graph-lower ABI: aparam/spin are FLAT on the node axis, (N, nda)/(N, 3).
             ap_flat = (
-                ap.reshape(n_padded, ap.shape[-1])[node_index]
-                if ap is not None
+                aparam.reshape(n_padded, aparam.shape[-1])[node_index]
+                if aparam is not None
                 else None
             )
             spin_flat = (
@@ -998,7 +1034,8 @@ def make_model(
                 ng.source_row_ptr,
                 destination_sorted=ng.destination_sorted,
                 do_atomic_virial=do_atomic_virial,
-                fparam=fp,
+                fparam=fparam,
+                uparam=uparam,
                 aparam=ap_flat,
                 spin=spin_flat,
                 charge_spin=charge_spin,
@@ -1042,8 +1079,9 @@ def make_model(
                         coord=cc,
                         atype=atype,
                         box=bb,
-                        fparam=fp,
-                        aparam=ap,
+                        fparam=fparam,
+                        uparam=uparam,
+                        aparam=aparam,
                         spin=spin,
                         charge_spin=charge_spin,
                         method=method,
@@ -1060,12 +1098,20 @@ def make_model(
             nlist: torch.Tensor,
             mapping: torch.Tensor | None = None,
             fparam: torch.Tensor | None = None,
+            uparam: torch.Tensor | None = None,
             aparam: torch.Tensor | None = None,
             do_atomic_virial: bool = False,
             extended_coord_corr: torch.Tensor | None = None,
             comm_dict: dict | None = None,
             charge_spin: torch.Tensor | None = None,
+            cond: "FittingParams | None" = None,
         ) -> dict[str, torch.Tensor]:
+            # Registry container: fill any missing conditioning parameter
+            # from ``cond`` (explicit arguments win).
+            if cond is not None:
+                fparam = fparam if fparam is not None else cond.fparam
+                uparam = uparam if uparam is not None else cond.uparam
+                aparam = aparam if aparam is not None else cond.aparam
             atomic_ret = self.atomic_model.forward_common_atomic(
                 extended_coord,
                 extended_atype,
@@ -1073,6 +1119,7 @@ def make_model(
                 mapping=mapping,
                 fparam=fparam,
                 aparam=aparam,
+                uparam=uparam,
                 comm_dict=comm_dict,
                 charge_spin=charge_spin,
             )
@@ -1103,6 +1150,7 @@ def make_model(
                         mapping,
                         fparam,
                         aparam,
+                        uparam=uparam,
                         charge_spin=charge_spin,
                         create_graph=self.training,
                     )
@@ -1115,6 +1163,7 @@ def make_model(
             nlist: torch.Tensor,
             mapping: torch.Tensor | None = None,
             fparam: torch.Tensor | None = None,
+            uparam: torch.Tensor | None = None,
             aparam: torch.Tensor | None = None,
             do_atomic_virial: bool = False,
             charge_spin: torch.Tensor | None = None,
@@ -1133,7 +1182,8 @@ def make_model(
 
             Parameters
             ----------
-            extended_coord, extended_atype, nlist, mapping, fparam, aparam, do_atomic_virial, charge_spin
+            extended_coord, extended_atype, nlist, mapping, fparam, uparam, aparam,
+            do_atomic_virial, charge_spin
                 Sample inputs with representative shapes (used for tracing).
             **make_fx_kwargs
                 Extra keyword arguments forwarded to ``make_fx``
@@ -1156,6 +1206,7 @@ def make_model(
                 mapping: torch.Tensor | None,
                 fparam: torch.Tensor | None,
                 aparam: torch.Tensor | None,
+                uparam: torch.Tensor | None,
                 charge_spin: torch.Tensor | None,
             ) -> dict[str, torch.Tensor]:
                 extended_coord = extended_coord.detach().requires_grad_(True)
@@ -1167,6 +1218,7 @@ def make_model(
                     mapping,
                     fparam=fparam,
                     aparam=aparam,
+                    uparam=uparam,
                     charge_spin=charge_spin,
                     do_atomic_virial=do_atomic_virial,
                 )
@@ -1188,6 +1240,7 @@ def make_model(
                     mapping,
                     fparam,
                     aparam,
+                    uparam,
                     charge_spin,
                 )
             finally:
@@ -1207,6 +1260,7 @@ def make_model(
             source_order: torch.Tensor,
             source_row_ptr: torch.Tensor,
             fparam: torch.Tensor | None = None,
+            uparam: torch.Tensor | None = None,
             aparam: torch.Tensor | None = None,
             do_atomic_virial: bool = False,
             charge_spin: torch.Tensor | None = None,
@@ -1241,7 +1295,7 @@ def make_model(
             destination_sorted
                 Static export-time assertion that the payload is
                 destination-major and ``destination_order`` is identity.
-            fparam, aparam, do_atomic_virial, charge_spin
+            fparam, uparam, aparam, do_atomic_virial, charge_spin
                 As in ``forward_common_lower_graph``.
             spin
                 Per-node native spin, flat ``(N, 3)``, or ``None``. Threaded
@@ -1262,7 +1316,7 @@ def make_model(
                 A traced module whose ``forward`` accepts
                 ``(atype, n_node, n_local, edge_index, edge_vec, edge_mask,
                 destination_order, destination_row_ptr, source_order,
-                source_row_ptr, fparam, aparam, charge_spin, spin)`` and
+                source_row_ptr, fparam, uparam, aparam, charge_spin, spin)`` and
                 returns a dict with the same internal keys as
                 ``forward_common_lower_graph``.
             """
@@ -1301,6 +1355,7 @@ def make_model(
                     source_order: torch.Tensor,
                     source_row_ptr: torch.Tensor,
                     fparam: torch.Tensor | None,
+                    uparam: torch.Tensor | None,
                     aparam: torch.Tensor | None,
                     charge_spin: torch.Tensor | None,
                 ) -> dict[str, torch.Tensor]:
@@ -1321,6 +1376,7 @@ def make_model(
                         destination_sorted=destination_sorted,
                         do_atomic_virial=do_atomic_virial,
                         fparam=fparam,
+                        uparam=uparam,
                         aparam=aparam,
                         charge_spin=charge_spin,
                     )
@@ -1337,6 +1393,7 @@ def make_model(
                     source_order,
                     source_row_ptr,
                     fparam,
+                    uparam,
                     aparam,
                     charge_spin,
                 )
@@ -1405,15 +1462,16 @@ def make_model(
             mapping: torch.Tensor | None,
             fparam: torch.Tensor | None,
             aparam: torch.Tensor | None,
-            charge_spin: torch.Tensor | None,
-            send_list: torch.Tensor,
-            send_proc: torch.Tensor,
-            recv_proc: torch.Tensor,
-            send_num: torch.Tensor,
-            recv_num: torch.Tensor,
-            communicator: torch.Tensor,
-            nlocal: torch.Tensor,
-            nghost: torch.Tensor,
+            uparam: torch.Tensor | None = None,
+            charge_spin: torch.Tensor | None = None,
+            send_list: torch.Tensor = None,
+            send_proc: torch.Tensor = None,
+            recv_proc: torch.Tensor = None,
+            send_num: torch.Tensor = None,
+            recv_num: torch.Tensor = None,
+            communicator: torch.Tensor = None,
+            nlocal: torch.Tensor = None,
+            nghost: torch.Tensor = None,
             do_atomic_virial: bool = False,
             **make_fx_kwargs: Any,
         ) -> torch.nn.Module:
@@ -1438,6 +1496,7 @@ def make_model(
                 mapping: torch.Tensor | None,
                 fparam: torch.Tensor | None,
                 aparam: torch.Tensor | None,
+                uparam: torch.Tensor | None,
                 charge_spin: torch.Tensor | None,
                 send_list: torch.Tensor,
                 send_proc: torch.Tensor,
@@ -1470,6 +1529,7 @@ def make_model(
                     mapping,
                     fparam=fparam,
                     aparam=aparam,
+                    uparam=uparam,
                     do_atomic_virial=do_atomic_virial,
                     comm_dict=comm_dict,
                     charge_spin=charge_spin,
@@ -1489,6 +1549,7 @@ def make_model(
                     mapping,
                     fparam,
                     aparam,
+                    uparam,
                     charge_spin,
                     send_list,
                     send_proc,

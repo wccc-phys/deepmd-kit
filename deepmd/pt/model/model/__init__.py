@@ -426,6 +426,9 @@ def get_standard_model(model_params: dict) -> BaseModel:
         modelcls = EnergyModel
     elif fitting_net_type == "property":
         modelcls = PropertyModel
+    elif fitting_net_type == "mlu":
+        # MLU reuses PropertyModel; var_name="uparam" comes from MLUFitting.
+        modelcls = PropertyModel
     elif fitting_net_type == "population":
         modelcls = PopulationModel
     else:
@@ -533,6 +536,7 @@ def get_sezm_model(model_params: dict) -> BaseModel:
             fitting_net.get("neuron"),
             dim_descrpt=fitting_net["dim_descrpt"],
             numb_fparam=fitting_net.get("numb_fparam", 0),
+            numb_uparam=fitting_net.get("numb_uparam", 0),
             numb_aparam=fitting_net.get("numb_aparam", 0),
             dim_case_embd=fitting_net.get("dim_case_embd", 0),
             case_film_embd=fitting_net.get("case_film_embd", False),

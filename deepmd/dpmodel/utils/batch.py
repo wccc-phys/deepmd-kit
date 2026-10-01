@@ -17,14 +17,18 @@ _DROP_KEYS = {"default_mesh", "sid", "fid"}
 # Keys that belong to model input (everything else is label).
 # ``n_node`` is an input rather than a label: it states how a ragged batch's
 # flat node axis divides into frames, which the model needs to read it at all.
+# The conditioning members (fparam/uparam/aparam/charge_spin) come from the
+# FittingParams registry -- the single place to register a new parameter.
+from deepmd.dpmodel.utils.fitting_params import (
+    FittingParams,
+)
+
 _INPUT_KEYS = {
     "coord",
     "atype",
     "spin",
     "box",
-    "fparam",
-    "aparam",
-    "charge_spin",
+    *FittingParams.cond_input_keys(),
     "n_node",
 }
 
@@ -103,7 +107,7 @@ def split_batch(
     Returns
     -------
     input_dict : dict[str, Any]
-        Model inputs (coord, atype, box, fparam, aparam, spin).
+        Model inputs (coord, atype, box, fparam, uparam, aparam, spin).
     label_dict : dict[str, Any]
         Labels and find flags (energy, force, virial, find_*, natoms, …).
     """

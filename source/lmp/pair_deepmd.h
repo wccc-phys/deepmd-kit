@@ -14,12 +14,16 @@ PairStyle(deepmd, PairDeepMD)
 
 #ifdef DP_USE_CXX_API
 #ifdef LMPPLUGIN
+#include "DeepMLU.h"
 #include "DeepPot.h"
 #else
+#include "deepmd/DeepMLU.h"
 #include "deepmd/DeepPot.h"
 #endif
+#define DEEPMD_HAS_MLU_MODEL 1
 namespace deepmd_compat = deepmd;
 #else
+#define DEEPMD_HAS_MLU_MODEL 0
 #ifdef LMPPLUGIN
 #include "deepmd.hpp"
 #else
@@ -50,6 +54,7 @@ class PairDeepMD : public PairDeepBaseModel {
   int pack_reverse_comm(int, int, double*) override;
   void unpack_reverse_comm(int, int*, double*) override;
   double eval_energy_with_fparam(const std::vector<double>& fparam_override);
+  double eval_energy_with_uparam(const std::vector<double>& uparam_override);
 
  protected:
   deepmd_compat::DeepPot deep_pot;
@@ -58,6 +63,10 @@ class PairDeepMD : public PairDeepBaseModel {
   // geometry fields are unused) for the device-resident message-passing path,
   // where ghost features are exchanged across ranks inside the forward pass.
   deepmd_compat::InputNlist make_comm_nlist();
+
+#if DEEPMD_HAS_MLU_MODEL
+  deepmd_compat::DeepMLU mlu_model;
+#endif
 
  private:
   CommBrickDeepMD* commdata_;

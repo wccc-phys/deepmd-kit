@@ -59,6 +59,10 @@ class DeepSpinPT : public DeepSpinBackend {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The DFT+U parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   *uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -77,6 +81,7 @@ class DeepSpinPT : public DeepSpinBackend {
                const std::vector<int>& atype,
                const std::vector<VALUETYPE>& box,
                const std::vector<VALUETYPE>& fparam,
+               const std::vector<VALUETYPE>& uparam,
                const std::vector<VALUETYPE>& aparam,
                const bool atomic);
 
@@ -103,6 +108,10 @@ class DeepSpinPT : public DeepSpinBackend {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The DFT+U parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   *uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -124,6 +133,7 @@ class DeepSpinPT : public DeepSpinBackend {
                const InputNlist& lmp_list,
                const int& ago,
                const std::vector<VALUETYPE>& fparam,
+               const std::vector<VALUETYPE>& uparam,
                const std::vector<VALUETYPE>& aparam,
                const bool atomic);
 
@@ -196,6 +206,17 @@ class DeepSpinPT : public DeepSpinBackend {
     assert(inited);
     return has_default_fparam_;
   };
+  int dim_uparam() const {
+    assert(inited);
+    return duparam;
+  };
+  bool has_default_uparam() const {
+    assert(inited);
+    return has_default_uparam_;
+  };
+  void set_uparam(const std::vector<double>& uparam) override {
+    uparam_ = uparam;
+  };
 
   void computew(std::vector<double>& ener,
                 std::vector<double>& force,
@@ -208,6 +229,7 @@ class DeepSpinPT : public DeepSpinBackend {
                 const std::vector<int>& atype,
                 const std::vector<double>& box,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const bool atomic);
   void computew(std::vector<double>& ener,
@@ -221,6 +243,7 @@ class DeepSpinPT : public DeepSpinBackend {
                 const std::vector<int>& atype,
                 const std::vector<float>& box,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const bool atomic);
   void computew(std::vector<double>& ener,
@@ -237,6 +260,7 @@ class DeepSpinPT : public DeepSpinBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const bool atomic);
   void computew(std::vector<double>& ener,
@@ -253,6 +277,7 @@ class DeepSpinPT : public DeepSpinBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const bool atomic);
 
@@ -262,6 +287,10 @@ class DeepSpinPT : public DeepSpinBackend {
   int ntypes;
   int ntypes_spin;
   int dfparam;
+  int duparam{0};
+  bool has_default_uparam_{false};
+  std::vector<double> default_uparam_;
+  std::vector<double> uparam_;
   int daparam;
   bool aparam_nall;
   bool has_default_fparam_;

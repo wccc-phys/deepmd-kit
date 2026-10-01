@@ -58,6 +58,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
                const InputNlist& lmp_list,
                const int& ago,
                const std::vector<VALUETYPE>& fparam,
+               const std::vector<VALUETYPE>& uparam,
                const std::vector<VALUETYPE>& aparam,
                const std::vector<double>& charge_spin,
                const bool atomic);
@@ -76,6 +77,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
                const std::vector<int>& atype,
                const std::vector<VALUETYPE>& box,
                const std::vector<VALUETYPE>& fparam,
+               const std::vector<VALUETYPE>& uparam,
                const std::vector<VALUETYPE>& aparam,
                const std::vector<double>& charge_spin,
                const bool atomic);
@@ -129,6 +131,17 @@ class DeepSpinPTExpt : public DeepSpinBackend {
     assert(inited);
     return has_default_fparam_;
   };
+  int dim_uparam() const {
+    assert(inited);
+    return duparam;
+  };
+  bool has_default_uparam() const {
+    assert(inited);
+    return has_default_uparam_;
+  };
+  void set_uparam(const std::vector<double>& uparam) override {
+    uparam_ = uparam;
+  };
 
   // forward to template class (no charge_spin — uses default_chg_spin_
   // fallback)
@@ -143,6 +156,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
                 const std::vector<int>& atype,
                 const std::vector<double>& box,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const bool atomic);
   void computew(std::vector<double>& ener,
@@ -156,6 +170,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
                 const std::vector<int>& atype,
                 const std::vector<float>& box,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const bool atomic);
   void computew(std::vector<double>& ener,
@@ -172,6 +187,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const bool atomic);
   void computew(std::vector<double>& ener,
@@ -188,6 +204,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const bool atomic);
 
@@ -203,6 +220,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
                 const std::vector<int>& atype,
                 const std::vector<double>& box,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const std::vector<double>& charge_spin,
                 const bool atomic) override;
@@ -217,6 +235,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
                 const std::vector<int>& atype,
                 const std::vector<float>& box,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const std::vector<double>& charge_spin,
                 const bool atomic) override;
@@ -234,6 +253,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const std::vector<double>& charge_spin,
                 const bool atomic) override;
@@ -251,6 +271,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const std::vector<double>& charge_spin,
                 const bool atomic) override;
@@ -260,6 +281,10 @@ class DeepSpinPTExpt : public DeepSpinBackend {
   int ntypes;
   int ntypes_spin;
   int dfparam;
+  int duparam{0};
+  bool has_default_uparam_{false};
+  std::vector<double> default_uparam_;
+  std::vector<double> uparam_;
   int daparam;
   int dchgspin;
   bool aparam_nall;
@@ -322,6 +347,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
                                        const torch::Tensor& nlist,
                                        const torch::Tensor& mapping,
                                        const torch::Tensor& fparam,
+                                       const torch::Tensor& uparam,
                                        const torch::Tensor& aparam,
                                        const torch::Tensor& charge_spin);
 
@@ -338,6 +364,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
       const torch::Tensor& edge_mask,
       const torch::Tensor& spin,
       const torch::Tensor& fparam,
+      const torch::Tensor& uparam,
       const torch::Tensor& aparam,
       const torch::Tensor& charge_spin);
 
@@ -363,6 +390,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
       const torch::Tensor& source_row_ptr,
       const torch::Tensor& spin,
       const torch::Tensor& fparam,
+      const torch::Tensor& uparam,
       const torch::Tensor& aparam,
       const torch::Tensor& charge_spin);
 
@@ -389,6 +417,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
       const torch::Tensor& source_row_ptr,
       const torch::Tensor& spin,
       const torch::Tensor& fparam,
+      const torch::Tensor& uparam,
       const torch::Tensor& aparam,
       const torch::Tensor& charge_spin,
       const std::vector<at::Tensor>& comm_tensors);
@@ -408,6 +437,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
       const torch::Tensor& edge_mask,
       const torch::Tensor& spin,
       const torch::Tensor& fparam,
+      const torch::Tensor& uparam,
       const torch::Tensor& aparam,
       const torch::Tensor& charge_spin,
       const std::vector<at::Tensor>& comm_tensors);
@@ -423,6 +453,7 @@ class DeepSpinPTExpt : public DeepSpinBackend {
       const torch::Tensor& nlist,
       const torch::Tensor& mapping,
       const torch::Tensor& fparam,
+      const torch::Tensor& uparam,
       const torch::Tensor& aparam,
       const torch::Tensor& charge_spin,
       const std::vector<at::Tensor>& comm_tensors);

@@ -16,6 +16,15 @@ import torch
 from deepmd.dpmodel.model.transform_output import (
     communicate_extended_output,
 )
+from deepmd.dpmodel.utils.fitting_params import (
+    FittingParams,
+    ParamSpec,
+)
+
+def spec_frame_level(key: str) -> bool:
+    """Frame-level flag from the FittingParams registry."""
+    return FittingParams.spec(key).frame_level
+
 from deepmd.dpmodel.output_def import (
     FittingOutputDef,
     ModelOutputDef,
@@ -910,6 +919,35 @@ class DeepEval(DeepEvalBackend):
             return self._dpmodel.get_dim_aparam()
         return int(self.metadata["dim_aparam"])
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of frame parameters of this DP."""
+        if self._dpmodel is not None:
+            return self._dpmodel.get_dim_uparam()
+        return int(self.metadata.get("dim_uparam", 0))
+
+    def get_uparam_mode(self) -> str:
+        """Get the mode of DFT+U parameters ('frame', 'atomic', or 'orbital')."""
+        if self._dpmodel is not None and hasattr(self._dpmodel, "get_uparam_mode"):
+            return str(self._dpmodel.get_uparam_mode())
+        return str(self.metadata.get("uparam_mode", "frame"))
+
+    def has_default_uparam(self) -> bool:
+        """Check whether the model has a default uparam fallback."""
+        if self._dpmodel is not None and hasattr(self._dpmodel, "has_default_uparam"):
+            return bool(self._dpmodel.has_default_uparam())
+        return bool(
+            self.metadata.get(
+                "has_default_uparam",
+                self.metadata.get("default_uparam") is not None,
+            )
+        )
+
+    def get_default_uparam(self) -> float | list[float] | None:
+        """Get the default uparam value."""
+        if self._dpmodel is not None and hasattr(self._dpmodel, "get_default_uparam"):
+            return self._dpmodel.get_default_uparam()
+        return self.metadata.get("default_uparam")
+
     def has_chg_spin_ebd(self) -> bool:
         """Check whether the model uses a dedicated charge_spin input."""
         if self._dpmodel is not None:
@@ -1245,6 +1283,7 @@ class DeepEval(DeepEvalBackend):
         atomic: bool = False,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         charge_spin: np.ndarray | None = None,
         **kwargs: Any,
     ) -> dict[str, np.ndarray]:
@@ -1270,6 +1309,9 @@ class DeepEval(DeepEvalBackend):
         aparam
             The atomic parameter.
             The array should be of size nframes x natoms x dim_aparam.
+        uparam
+            The frame parameter.
+            The array should be of size nframes x dim_uparam.
         charge_spin
             The charge and spin values for each frame.
             The array should be reshape-compatible with nframes x 2, where the first
@@ -1313,6 +1355,7 @@ class DeepEval(DeepEvalBackend):
                 atom_types,
                 spins,
                 fparam,
+                uparam,
                 aparam,
                 request_defs,
                 charge_spin,
@@ -1323,6 +1366,7 @@ class DeepEval(DeepEvalBackend):
                 cells,
                 atom_types,
                 fparam,
+                uparam,
                 aparam,
                 request_defs,
                 charge_spin,
@@ -1667,7 +1711,8 @@ class DeepEval(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None,
-        aparam: np.ndarray | None,
+        uparam: np.ndarray | None = None,
+        aparam: np.ndarray | None = None,
         charge_spin: np.ndarray | None = None,
     ) -> tuple:
         """Prepare the extended-coordinate and padded-neighbor-list inputs.
@@ -1676,7 +1721,7 @@ class DeepEval(DeepEvalBackend):
         -------
         tuple
             (ext_coord_t, ext_atype_t, nlist_t, mapping_t,
-             fparam_t, aparam_t, charge_spin_t, nframes, natoms)
+             fparam_t, uparam_t, aparam_t, charge_spin_t, nframes, natoms)
         """
         nframes = coords.shape[0]
         if len(atom_types.shape) == 1:
@@ -1760,6 +1805,43 @@ class DeepEval(DeepEvalBackend):
         else:
             aparam_t = None
 
+        if uparam is not None:
+            # Graph-lower expects NODE-level uparam: (N, ndu). Frame-mode
+            # models repeat the single row per node; atomic-mode models
+            # flatten the per-atom values in node order.
+            if self.get_uparam_mode() == "atomic":
+                uparam_t = torch.tensor(
+                    np.ascontiguousarray(
+                        uparam.reshape(nframes, natoms, self.get_dim_uparam())
+                    ).reshape(-1, self.get_dim_uparam()),
+                    dtype=torch.float64,
+                    device=DEVICE,
+                )
+            else:
+                uparam_t = torch.tensor(
+                    uparam.reshape(nframes, self.get_dim_uparam()),
+                    dtype=torch.float64,
+                    device=DEVICE,
+                ).repeat_interleave(natoms, dim=0)
+        elif self.get_dim_uparam() > 0:
+            # Exported models (.pt2/.pte) are compiled with uparam as a
+            # required input.  Fill with default values from metadata.
+            default_up = self.metadata.get("default_uparam")
+            if default_up is not None:
+                uparam_t = (
+                    torch.tensor(default_up, dtype=torch.float64, device=DEVICE)
+                    .unsqueeze(0)
+                    .expand(nframes, -1)
+                    .contiguous()
+                )
+            else:
+                raise ValueError(
+                    f"uparam is required for this model (dim_uparam={self.get_dim_uparam()}) "
+                    "but was not provided, and no default_uparam is stored in the model."
+                )
+        else:
+            uparam_t = None
+
         charge_spin_t = self._make_charge_spin_input(nframes, charge_spin)
 
         return (
@@ -1768,6 +1850,7 @@ class DeepEval(DeepEvalBackend):
             nlist_t,
             mapping_t,
             fparam_t,
+            uparam_t,
             aparam_t,
             charge_spin_t,
             nframes,
@@ -1781,6 +1864,7 @@ class DeepEval(DeepEvalBackend):
         atom_types: np.ndarray,
         fparam: np.ndarray | None,
         aparam: np.ndarray | None,
+        uparam: np.ndarray | None = None,
         charge_spin: np.ndarray | None = None,
     ) -> tuple[tuple[torch.Tensor | None, ...], torch.Tensor, int, int]:
         """Prepare lower-interface inputs and the output fold-back mapping."""
@@ -1818,12 +1902,13 @@ class DeepEval(DeepEvalBackend):
                 self._sel,
                 return_mode="edges",
             )
-            fparam_t, aparam_t = self._prepare_optional_lower_inputs(
-                fparam,
-                aparam,
-                nframes,
-                natoms,
-                DEVICE,
+            fparam_t, uparam_t, aparam_t = self._prepare_optional_lower_inputs(
+                fparam=fparam,
+                aparam=aparam,
+                uparam=uparam,
+                nframes=nframes,
+                natoms=natoms,
+                device=DEVICE,
             )
             charge_spin_t = self._make_charge_spin_input(nframes, charge_spin)
             model_inputs = (
@@ -1834,6 +1919,7 @@ class DeepEval(DeepEvalBackend):
                 edge_schema.edge_scatter_index,
                 edge_schema.edge_mask,
                 fparam_t,
+                uparam_t,
                 aparam_t,
                 charge_spin_t,
             )
@@ -1849,12 +1935,13 @@ class DeepEval(DeepEvalBackend):
             nlist_t,
             mapping_t,
             fparam_t,
+            uparam_t,
             aparam_t,
             charge_spin_t,
             nframes,
             natoms,
         ) = self._prepare_nlist_inputs(
-            coords, cells, atom_types, fparam, aparam, charge_spin
+            coords, cells, atom_types, fparam, aparam, uparam, charge_spin
         )
         if self.metadata.get("lower_input_kind") == "edge_vec":
             edge_index_t, edge_vec_t, edge_scatter_t, edge_mask_t = (
@@ -1873,6 +1960,7 @@ class DeepEval(DeepEvalBackend):
                 edge_scatter_t,
                 edge_mask_t,
                 fparam_t,
+                uparam_t,
                 aparam_t,
                 charge_spin_t,
             )
@@ -1883,56 +1971,73 @@ class DeepEval(DeepEvalBackend):
                 nlist_t,
                 mapping_t,
                 fparam_t,
+                uparam_t,
                 aparam_t,
                 charge_spin_t,
             )
         return model_inputs, mapping_t, nframes, natoms
 
-    def _prepare_optional_lower_inputs(
+    def _cond_to_tensor(
         self,
-        fparam: np.ndarray | None,
-        aparam: np.ndarray | None,
+        key: str,
+        value: np.ndarray,
+        atomic: bool,
         nframes: int,
         natoms: int,
-        device: torch.device,
-    ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
-        """Prepare optional frame and atomic parameters for lower interfaces."""
-        if fparam is not None:
-            fparam_t = torch.tensor(
-                fparam.reshape(nframes, self.get_dim_fparam()),
-                dtype=torch.float64,
-                device=device,
-            )
-        elif self.get_dim_fparam() > 0:
-            default_fp = self.metadata.get("default_fparam")
-            if default_fp is None:
-                raise ValueError(
-                    f"fparam is required for this model (dim_fparam={self.get_dim_fparam()}) "
-                    "but was not provided, and no default_fparam is stored in the model."
-                )
-            fparam_t = (
-                torch.tensor(default_fp, dtype=torch.float64, device=device)
-                .unsqueeze(0)
-                .expand(nframes, -1)
-                .contiguous()
-            )
-        else:
-            fparam_t = None
+        device: torch.device | None,
+    ) -> torch.Tensor:
+        """Materialize one conditioning tensor in the lower's expected layout.
 
-        if aparam is not None:
-            aparam_t = torch.tensor(
-                aparam.reshape(nframes, natoms, self.get_dim_aparam()),
-                dtype=torch.float64,
-                device=device,
-            )
-        elif self.get_dim_aparam() > 0:
-            raise ValueError(
-                f"aparam is required for this model (dim_aparam={self.get_dim_aparam()}) "
-                "but was not provided."
-            )
+        frame parameters -> ``(nframes, dim)``; atomic parameters ->
+        ``(nframes, natoms, dim)`` (graph call sites flatten to the node
+        axis themselves); uparam frame mode -> node level
+        ``(nframes * natoms, dim)`` via per-frame row repetition, atomic
+        mode -> flat node order.
+        """
+        dim_getter = getattr(self, f"get_dim_{key}")
+        dim = int(dim_getter())
+        if key == "uparam":
+            if atomic:
+                prepared = value.reshape(nframes, natoms, dim).reshape(-1, dim)
+            else:
+                prepared = np.repeat(value.reshape(nframes, dim), natoms, axis=0)
+        elif not spec_frame_level(key) and value.ndim == 3:
+            prepared = value.reshape(nframes, natoms, dim)
         else:
-            aparam_t = None
-        return fparam_t, aparam_t
+            prepared = value.reshape(nframes, dim)
+        return torch.tensor(
+            np.ascontiguousarray(prepared), dtype=torch.float64, device=device
+        )
+
+    def _prepare_optional_lower_inputs(
+        self,
+        fparam: np.ndarray | None = None,
+        aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
+        nframes: int = 0,
+        natoms: int = 0,
+        device: torch.device | None = None,
+    ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
+        """Prepare optional fparam / uparam / aparam for the lower forwards.
+
+        Registry-driven (``FittingParams.prepare_lower_inputs``): per-key
+        dim gating, default filling, and frame/node layout rules live in
+        the registry. Returns ``(fparam_t, uparam_t, aparam_t)`` -- the
+        historical return order every call site unpacks. Call sites pass
+        KEYWORDS to keep the parameter binding unambiguous.
+        """
+        model = getattr(self, "_dpmodel", None)
+        prepared = FittingParams.prepare_lower_inputs(
+            {"fparam": fparam, "uparam": uparam, "aparam": aparam},
+            model,
+            self.metadata,
+            nframes,
+            natoms,
+            to_tensor=lambda key, value, atomic: self._cond_to_tensor(
+                key, value, atomic, nframes, natoms, device
+            ),
+        )
+        return prepared["fparam"], prepared["uparam"], prepared["aparam"]
 
     def _eval_model(
         self,
@@ -1940,20 +2045,31 @@ class DeepEval(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None,
-        aparam: np.ndarray | None,
-        request_defs: list[OutputVariableDef],
+        uparam: np.ndarray | None = None,
+        aparam: np.ndarray | None = None,
+        request_defs: list[OutputVariableDef] | None = None,
         charge_spin: np.ndarray | None = None,
     ) -> tuple[np.ndarray, ...]:
+        # Signature is the REGISTRY order (fparam, uparam, aparam) --
+        # historically this layer swapped aparam/uparam against eval(),
+        # silently dropping uparam on the graph route.
         if self.metadata.get("lower_input_kind") in (
             "graph",
             "dpa1_canonical",
             "dpa4c_canonical",
         ):
             return self._eval_model_graph(
-                coords, cells, atom_types, fparam, aparam, request_defs, charge_spin
+                coords,
+                cells,
+                atom_types,
+                fparam,
+                uparam,
+                aparam,
+                request_defs,
+                charge_spin,
             )
         model_inputs, mapping_t, nframes, natoms = self._prepare_inputs(
-            coords, cells, atom_types, fparam, aparam, charge_spin
+            coords, cells, atom_types, fparam, aparam, uparam, charge_spin
         )
         if self._is_pt2:
             # AOTInductor's __call__ unflattens output using stored out_spec,
@@ -2002,8 +2118,9 @@ class DeepEval(DeepEvalBackend):
         atom_types: np.ndarray,
         spins: np.ndarray,
         fparam: np.ndarray | None,
-        aparam: np.ndarray | None,
-        request_defs: list[OutputVariableDef],
+        uparam: np.ndarray | None = None,
+        aparam: np.ndarray | None = None,
+        request_defs: list[OutputVariableDef] | None = None,
         charge_spin: np.ndarray | None = None,
     ) -> tuple[np.ndarray, ...]:
         if self.metadata.get("lower_input_kind") in ("graph", "dpa4c_canonical"):
@@ -2110,6 +2227,31 @@ class DeepEval(DeepEvalBackend):
         else:
             aparam_t = None
 
+        if uparam is not None:
+            uparam_t = torch.tensor(
+                uparam.reshape(nframes, self.get_dim_uparam()),
+                dtype=torch.float64,
+                device=DEVICE,
+            )
+        elif self.get_dim_uparam() > 0:
+            # Exported models (.pt2/.pte) are compiled with uparam as a
+            # required input.  Fill with default values from metadata.
+            default_up = self.metadata.get("default_uparam")
+            if default_up is not None:
+                uparam_t = (
+                    torch.tensor(default_up, dtype=torch.float64, device=DEVICE)
+                    .unsqueeze(0)
+                    .expand(nframes, -1)
+                    .contiguous()
+                )
+            else:
+                raise ValueError(
+                    f"uparam is required for this model (dim_uparam={self.get_dim_uparam()}) "
+                    "but was not provided, and no default_uparam is stored in the model."
+                )
+        else:
+            uparam_t = None
+
         charge_spin_t = self._make_charge_spin_input(nframes, charge_spin)
 
         # Build the lower inputs for the model's spin ABI. The native scheme
@@ -2132,6 +2274,7 @@ class DeepEval(DeepEvalBackend):
                 edge_schema.edge_mask,
                 spin_t,
                 fparam_t,
+                uparam_t,
                 aparam_t,
                 charge_spin_t,
             )
@@ -2143,6 +2286,7 @@ class DeepEval(DeepEvalBackend):
                 nlist_t,
                 mapping_t,
                 fparam_t,
+                uparam_t,
                 aparam_t,
                 charge_spin_t,
             )
@@ -2197,7 +2341,8 @@ class DeepEval(DeepEvalBackend):
         spins: np.ndarray,
         fparam: np.ndarray | None,
         aparam: np.ndarray | None,
-        request_defs: list[OutputVariableDef],
+        uparam: np.ndarray | None = None,
+        request_defs: list[OutputVariableDef] | None = None,
         charge_spin: np.ndarray | None = None,
     ) -> tuple[np.ndarray, ...]:
         """Evaluate a graph-form native-spin ``.pt2`` (``lower_input_kind ==
@@ -2277,9 +2422,11 @@ class DeepEval(DeepEvalBackend):
             device=DEVICE,
         )
 
-        fparam_t, aparam_t = self._prepare_optional_lower_inputs(
-            fparam, aparam, nframes, natoms, DEVICE
+        fparam_t, uparam_t, aparam_t = self._prepare_optional_lower_inputs(
+            fparam=fparam, aparam=aparam, uparam=None,
+            nframes=nframes, natoms=natoms, device=DEVICE,
         )
+        del uparam_t
         if aparam_t is not None:
             # graph-lower ABI: aparam is FLAT on the node axis, (N, nda) --
             # the same axis as ``atype``/``spin`` (mirrors _eval_model_graph).
@@ -2376,6 +2523,7 @@ class DeepEval(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         aparam: np.ndarray | None,
         request_defs: list[OutputVariableDef],
         charge_spin: np.ndarray | None = None,
@@ -2504,8 +2652,9 @@ class DeepEval(DeepEvalBackend):
                 compact.source_order,
             )
         else:
-            fparam_t, aparam_t = self._prepare_optional_lower_inputs(
-                fparam, aparam, nframes, natoms, DEVICE
+            fparam_t, uparam_t, aparam_t = self._prepare_optional_lower_inputs(
+                fparam=fparam, aparam=aparam, uparam=uparam,
+                nframes=nframes, natoms=natoms, device=DEVICE,
             )
             if aparam_t is not None:
                 # graph-lower ABI: aparam is FLAT on the node axis, (N, nda)
@@ -2525,6 +2674,7 @@ class DeepEval(DeepEvalBackend):
                 source_order_t,
                 source_row_ptr_t,
                 fparam_t,
+                uparam_t,
                 aparam_t,
                 charge_spin_t,
             )
@@ -2860,6 +3010,7 @@ class DeepEval(DeepEvalBackend):
         atom_types: np.ndarray,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         charge_spin: np.ndarray | None = None,
         **kwargs: Any,
     ) -> np.ndarray:
@@ -2909,12 +3060,13 @@ class DeepEval(DeepEvalBackend):
             nlist_t,
             mapping_t,
             fparam_t,
+            _uparam_t,
             _aparam_t,
             _lower_charge_spin_t,
             nframes,
             _natoms,
         ) = self._prepare_nlist_inputs(
-            coords, cells, atom_types, fparam, aparam, charge_spin
+            coords, cells, atom_types, fparam, aparam, uparam, charge_spin
         )
         # The lower's condition is not the one this path reads: it evaluates
         # the deserialized model, which takes the condition as an argument
@@ -2937,6 +3089,7 @@ class DeepEval(DeepEvalBackend):
         atom_types: np.ndarray,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         charge_spin: np.ndarray | None = None,
         **kwargs: Any,
     ) -> np.ndarray:
@@ -2986,12 +3139,13 @@ class DeepEval(DeepEvalBackend):
             nlist_t,
             mapping_t,
             fparam_t,
+            _uparam_t,
             aparam_t,
             _lower_charge_spin_t,
             nframes,
             natoms,
         ) = self._prepare_nlist_inputs(
-            coords, cells, atom_types, fparam, aparam, charge_spin
+            coords, cells, atom_types, fparam, aparam, uparam, charge_spin
         )
         # The lower's condition is not the one this path reads: it evaluates
         # the deserialized model, which takes the condition as an argument

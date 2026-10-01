@@ -17,6 +17,9 @@ from .invar_fitting import (
 from .make_base_fitting import (
     make_base_fitting,
 )
+from .mlu_fitting import (
+    MLUFitting,
+)
 from .polarizability_fitting import (
     PolarFitting,
 )
@@ -29,6 +32,7 @@ __all__ = [
     "DipoleFitting",
     "EnergyFittingNet",
     "InvarFitting",
+    "MLUFitting",
     "PolarFitting",
     "PropertyFittingNet",
     "SeZMEnergyFittingNet",

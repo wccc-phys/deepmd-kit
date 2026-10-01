@@ -56,6 +56,8 @@ class InvarFitting(GeneralFitting):
         Number of frame parameters.
     numb_aparam : int
         Number of atomic parameters.
+    default_uparam: float, optional
+        The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams.
     dim_case_embd : int
         (Not supported yet)
         Dimension of case specific embedding.
@@ -104,6 +106,7 @@ class InvarFitting(GeneralFitting):
         atom_ener: list[paddle.Tensor | None] | None = None,
         type_map: list[str] | None = None,
         use_aparam_as_mask: bool = False,
+        default_uparam: float | None = None,
         **kwargs: Any,
     ) -> None:
         self.dim_out = dim_out
@@ -129,6 +132,7 @@ class InvarFitting(GeneralFitting):
             else [x is not None for x in atom_ener],
             type_map=type_map,
             use_aparam_as_mask=use_aparam_as_mask,
+            default_uparam=default_uparam,
             **kwargs,
         )
 
@@ -187,6 +191,8 @@ class InvarFitting(GeneralFitting):
         -------
         - `paddle.Tensor`: Total energy with shape [nframes, natoms[0]].
         """
-        return self._forward_common(descriptor, atype, gr, g2, h2, fparam, aparam)
+        return self._forward_common(
+            descriptor, atype, gr, g2, h2, fparam, aparam, uparam
+        )
 
     exclude_types: list[int]

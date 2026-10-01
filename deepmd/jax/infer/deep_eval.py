@@ -149,6 +149,10 @@ class DeepEval(DeepEvalBackend):
         """Get the number (dimension) of frame parameters of this DP."""
         return self.dp.get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this DP."""
+        return self.dp.get_dim_uparam()
+
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this DP."""
         return self.dp.get_dim_aparam()
@@ -250,6 +254,11 @@ class DeepEval(DeepEvalBackend):
             The array can be of size :
             - nframes x dim_fparam.
             - dim_fparam. Then all frames are assumed to be provided with the same fparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         aparam
             The atomic parameter
             The array can be of size :
@@ -388,6 +397,7 @@ class DeepEval(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         aparam: np.ndarray | None,
         charge_spin: np.ndarray | None,
         request_defs: list[OutputVariableDef],
@@ -419,6 +429,17 @@ class DeepEval(DeepEvalBackend):
             )
         else:
             fparam_input = None
+        if uparam is not None:
+            uparam_input = uparam.reshape(nframes, self.get_dim_uparam())
+        elif self.dp.has_default_uparam():
+            default_uparam = self.dp.get_default_uparam()
+            assert default_uparam is not None
+            uparam_input = np.tile(
+                np.array(default_uparam, dtype=GLOBAL_NP_FLOAT_PRECISION),
+                (nframes, 1),
+            )
+        else:
+            uparam_input = None
         if aparam is not None:
             aparam_input = aparam.reshape(nframes, natoms, self.get_dim_aparam())
         else:
@@ -442,6 +463,7 @@ class DeepEval(DeepEvalBackend):
         model_kwargs = {
             "box": to_jax_array(box_input),
             "fparam": to_jax_array(fparam_input),
+            "uparam": to_jax_array(uparam_input),
             "aparam": to_jax_array(aparam_input),
             "do_atomic_virial": do_atomic_virial,
         }
@@ -538,3 +560,15 @@ class DeepEval(DeepEvalBackend):
         stability and computes the predicate directly.
         """
         return self.dp.get_default_chg_spin() is not None
+
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
+        return self.dp.has_default_uparam()
+
+    def get_default_uparam(self) -> list[float] | None:
+        """Get the default DFT+U parameters."""
+        return (
+            self.dp.get_default_uparam()
+            if hasattr(self.dp, "get_default_uparam")
+            else None
+        )

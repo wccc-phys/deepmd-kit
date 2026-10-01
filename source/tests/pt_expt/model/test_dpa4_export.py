@@ -572,7 +572,7 @@ def test_dpa4_freeze_to_pt2(tmp_path, lower_kind, expected_input_kind) -> None:
             dtype=torch.float64,
             device=torch.device("cpu"),
         )
-        atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, ap, cs = sample
+        atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, up, ap, cs = sample
 
         eager_internal = model.forward_common_lower_graph(
             atype,
@@ -631,7 +631,7 @@ def test_dpa4_freeze_to_pt2(tmp_path, lower_kind, expected_input_kind) -> None:
             d_ap,
             d_cs,
         ) = _to_artifact_device(
-            atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, ap, cs
+            atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, up, ap, cs
         )
         artifact_out = regular(
             d_atype,

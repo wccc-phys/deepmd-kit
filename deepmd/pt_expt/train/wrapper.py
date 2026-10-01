@@ -156,6 +156,7 @@ class ModelWrapper(torch.nn.Module):
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         cur_lr: float | torch.Tensor | None = None,
         label: dict[str, torch.Tensor] | None = None,
         task_key: str | None = None,
@@ -177,6 +178,7 @@ class ModelWrapper(torch.nn.Module):
             "do_atomic_virial": do_atomic_virial,
             "fparam": fparam,
             "aparam": aparam,
+            "uparam": uparam,
             "charge_spin": charge_spin,
             "n_node": n_node,
         }

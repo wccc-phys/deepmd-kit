@@ -324,6 +324,92 @@ class SummaryPrinter(BaseSummaryPrinter):
         return None
 
 
+def _autodetect_mlu_mode(
+    model_params: dict,
+    training_systems: list | str,
+) -> None:
+    """Detect MLU frame vs atomic mode by inspecting uparam.npy shape.
+
+    If ``fitting_net.type != "mlu"``, do nothing.
+
+    If ``fitting_net.intensive`` is None (unset in input.json), auto-detect:
+    iterate over training systems and read the first set's ``uparam.npy``.
+    Shape ``(N, 1)`` -> frame mode (intensive=True); shape ``(N, natoms)`` ->
+    atomic mode (intensive=False). All systems must agree.
+
+    If ``intensive`` is explicitly set, validate that all systems match the
+    expected shape; raise on mismatch.
+
+    Mutates ``model_params["fitting_net"]["intensive"]`` in place.
+    """
+    fitting = model_params.get("fitting_net", {})
+    if fitting.get("type") != "mlu":
+        return
+
+    import numpy as np
+
+    if isinstance(training_systems, str):
+        training_systems = [training_systems]
+    training_systems = list(training_systems)
+    if not training_systems:
+        return
+
+    explicit_intensive = fitting.get("intensive", None)
+    detected: bool | None = None
+    shape_record: list[tuple[str, tuple]] = []
+    for sys_path in training_systems:
+        sys_path_p = Path(sys_path)
+        # Both frame and atomic modes use set.*/uparam.npy.
+        # Frame: shape (N, 1).  Atomic: shape (N, natoms).
+        candidates = sorted(sys_path_p.glob("set.*/uparam.npy"))
+        if candidates:
+            arr = np.load(candidates[0])
+        else:
+            # Some frame datasets use uparam.raw instead.
+            raw = sys_path_p / "uparam.raw"
+            if not raw.exists():
+                continue
+            arr = np.loadtxt(raw)
+            if arr.ndim == 1:
+                arr = arr.reshape(-1, 1)
+        shape_record.append((str(sys_path_p), arr.shape))
+        if arr.ndim != 2:
+            raise ValueError(
+                f"MLU auto-detect: system {sys_path} has uparam "
+                f"shape {arr.shape}; expected 2D (N, D)."
+            )
+        # Determine mode from shape: (N, 1) -> frame, (N, >1) -> atomic
+        sys_mode = arr.shape[1] == 1  # True = frame, False = atomic
+        if detected is None:
+            detected = sys_mode
+        elif detected != sys_mode:
+            raise ValueError(
+                "MLU mode inconsistency across training systems — all "
+                "systems must share the same mode (all frame or all atomic). "
+                "Found:\n" + "\n".join(f"  {p}: {s}" for p, s in shape_record)
+            )
+
+    if detected is None:
+        log.warning(
+            "MLU auto-detect: no uparam.npy/uparam.raw found in any "
+            "training system; defaulting to frame mode (intensive=True)."
+        )
+        detected = True
+
+    if explicit_intensive is None:
+        fitting["intensive"] = detected
+        mode_str = "frame (per-frame U)" if detected else "atomic (per-atom U)"
+        log.info(f"MLU mode detected: {mode_str}")
+    else:
+        if explicit_intensive != detected:
+            raise ValueError(
+                f"MLU input.json specifies intensive={explicit_intensive}, "
+                f"but dataset shape suggests "
+                f"{'frame' if detected else 'atomic'} mode. Set intensive="
+                f"{detected} or fix the dataset."
+            )
+
+
 def train(
     input_file: str,
     init_model: str | None,
@@ -443,6 +529,23 @@ def train(
                         train_data, type_map, config["model"]["model_dict"][model_item]
                     )
                 )
+
+    # Auto-detect MLU frame vs atomic mode by inspecting uparam.npy shape
+    # in the training systems. If intensive is explicitly set in input.json,
+    # validate the dataset matches.
+    if not multi_task:
+        _autodetect_mlu_mode(
+            config["model"],
+            config["training"]["training_data"].get("systems", []),
+        )
+    else:
+        for model_item in config["model"]["model_dict"]:
+            _autodetect_mlu_mode(
+                config["model"]["model_dict"][model_item],
+                config["training"]["data_dict"][model_item]["training_data"].get(
+                    "systems", []
+                ),
+            )
 
     with open(output, "w") as fp:
         json.dump(config, fp, indent=4)

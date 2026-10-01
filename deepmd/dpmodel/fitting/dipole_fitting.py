@@ -70,6 +70,9 @@ class DipoleFitting(GeneralFitting):
             Number of frame parameter
     numb_aparam
             Number of atomic parameter
+    numb_uparam
+            Number of DFT+U parameters. Automatically set to 1 when
+            `default_uparam` is provided, otherwise 0.
     rcond
             The condition number for the regression of atomic energy.
     tot_ener_zero
@@ -104,6 +107,8 @@ class DipoleFitting(GeneralFitting):
     default_fparam: list[float], optional
             The default frame parameter. If set, when `fparam.npy` files are not included in the data system,
             this value will be used as the default value for the frame parameter in the fitting net.
+    default_uparam: float, optional
+            The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams.
     """
 
     def __init__(
@@ -114,6 +119,7 @@ class DipoleFitting(GeneralFitting):
         neuron: list[int] = [120, 120, 120],
         resnet_dt: bool = True,
         numb_fparam: int = 0,
+        numb_uparam: int = 0,
         numb_aparam: int = 0,
         dim_case_embd: int = 0,
         rcond: float | None = None,
@@ -132,6 +138,7 @@ class DipoleFitting(GeneralFitting):
         type_map: list[str] | None = None,
         seed: int | list[int] | None = None,
         default_fparam: list[float] | None = None,
+        default_uparam: float | None = None,
     ) -> None:
         if tot_ener_zero:
             raise NotImplementedError("tot_ener_zero is not implemented")
@@ -152,6 +159,7 @@ class DipoleFitting(GeneralFitting):
             neuron=neuron,
             resnet_dt=resnet_dt,
             numb_fparam=numb_fparam,
+            numb_uparam=numb_uparam,
             numb_aparam=numb_aparam,
             dim_case_embd=dim_case_embd,
             rcond=rcond,
@@ -168,6 +176,7 @@ class DipoleFitting(GeneralFitting):
             type_map=type_map,
             seed=seed,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
         )
 
     def _net_out_dim(self) -> int:
@@ -213,6 +222,7 @@ class DipoleFitting(GeneralFitting):
         g2: Array | None = None,
         h2: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
     ) -> dict[str, Array]:
         """Calculate the fitting.
@@ -234,6 +244,8 @@ class DipoleFitting(GeneralFitting):
             shape: nf x nloc x nnei x 3
         fparam
             The frame parameter. shape: nf x nfp. nfp being `numb_fparam`
+        uparam
+            The DFT+U parameter. shape: nf x nup. nup being `numb_uparam`
         aparam
             The atomic parameter. shape: nf x nloc x nap. nap being `numb_aparam`
 
@@ -242,7 +254,9 @@ class DipoleFitting(GeneralFitting):
         nframes, nloc, _ = descriptor.shape
         assert gr is not None, "Must provide the rotation matrix for dipole fitting."
         # (nframes, nloc, m1)
-        results = self._call_common(descriptor, atype, gr, g2, h2, fparam, aparam)
+        results = self._call_common(
+            descriptor, atype, gr, g2, h2, fparam, uparam, aparam
+        )
         out = results[self.var_name]
         # (nframes * nloc, 1, m1)
         out = xp.reshape(out, (-1, 1, self.embedding_width))

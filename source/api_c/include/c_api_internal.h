@@ -55,8 +55,10 @@ struct DP_DeepBaseModel {
   std::string exception;
   int dfparam;
   int daparam;
+  int duparam;
   bool aparam_nall;
   bool has_default_fparam;
+  bool has_default_uparam;
 };
 
 struct DP_DeepBaseModelDevi {
@@ -68,8 +70,10 @@ struct DP_DeepBaseModelDevi {
   std::string exception;
   int dfparam;
   int daparam;
+  int duparam;
   bool aparam_nall;
   bool has_default_fparam;
+  bool has_default_uparam;
 };
 
 struct DP_DeepPot : DP_DeepBaseModel {

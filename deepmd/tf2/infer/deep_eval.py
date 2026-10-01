@@ -72,6 +72,7 @@ class TF2SavedModelWrapper(tf.Module):
         )
         self.rcut = self.model.get_rcut().numpy().item()
         self.dim_fparam = self.model.get_dim_fparam().numpy().item()
+        self.dim_uparam = self.model.get_dim_uparam().numpy().item()
         self.dim_aparam = self.model.get_dim_aparam().numpy().item()
         self.sel_type = self.model.get_sel_type().numpy().tolist()
         self._is_aparam_nall = self.model.is_aparam_nall().numpy().item()
@@ -113,12 +114,24 @@ class TF2SavedModelWrapper(tf.Module):
             else False
         )
 
+        self._has_default_uparam = (
+            self.model.has_default_uparam().numpy().item()
+            if hasattr(self.model, "has_default_uparam")
+            else False
+        )
+        self.default_uparam = (
+            self.model.get_default_uparam().numpy().item()
+            if hasattr(self.model, "get_default_uparam")
+            else None
+        )
+
     def __call__(
         self,
         coord: np.ndarray,
         atype: np.ndarray,
         box: np.ndarray | None = None,
         fparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         do_atomic_virial: bool = False,
     ) -> dict[str, np.ndarray]:
@@ -129,6 +142,8 @@ class TF2SavedModelWrapper(tf.Module):
             box = np.empty((coord.shape[0], 0, 0), dtype=np.float64)
         if fparam is None:
             fparam = np.empty((coord.shape[0], self.get_dim_fparam()), dtype=np.float64)
+        if uparam is None:
+            uparam = np.empty((coord.shape[0], self.get_dim_uparam()), dtype=np.float64)
         if aparam is None:
             aparam = np.empty(
                 (coord.shape[0], coord.shape[1], self.get_dim_aparam()),
@@ -139,6 +154,7 @@ class TF2SavedModelWrapper(tf.Module):
             atype,
             tf.convert_to_tensor(box, dtype=tf.float64),
             tf.convert_to_tensor(fparam, dtype=tf.float64),
+            tf.convert_to_tensor(uparam, dtype=tf.float64),
             tf.convert_to_tensor(aparam, dtype=tf.float64),
         )
         return _to_numpy_dict(ret)
@@ -151,6 +167,9 @@ class TF2SavedModelWrapper(tf.Module):
 
     def get_dim_fparam(self) -> int:
         return self.dim_fparam
+
+    def get_dim_uparam(self) -> int:
+        return self.dim_uparam
 
     def get_dim_aparam(self) -> int:
         return self.dim_aparam
@@ -197,6 +216,12 @@ class TF2SavedModelWrapper(tf.Module):
     def get_intensive(self) -> bool:
         """Whether the property is intensive (property models only)."""
         return self._intensive
+
+    def has_default_uparam(self) -> bool:
+        return self._has_default_uparam
+
+    def get_default_uparam(self) -> float | None:
+        return self.default_uparam
 
 
 class DeepEval(DeepEvalBackend):
@@ -248,11 +273,23 @@ class DeepEval(DeepEvalBackend):
     def get_dim_fparam(self) -> int:
         return self.dp.get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        return self.dp.get_dim_uparam()
+
     def get_dim_aparam(self) -> int:
         return self.dp.get_dim_aparam()
 
+    def get_default_fparam(self) -> list[float] | None:
+        return self.dp.get_default_fparam()
+
     def has_default_fparam(self) -> bool:
         return self.dp.has_default_fparam()
+
+    def has_default_uparam(self) -> bool:
+        return self.dp.has_default_uparam()
+
+    def get_default_uparam(self) -> float | None:
+        return self.dp.get_default_uparam()
 
     @property
     def model_type(self) -> type["DeepEvalWrapper"]:
@@ -291,6 +328,7 @@ class DeepEval(DeepEvalBackend):
         atom_types: np.ndarray,
         atomic: bool = False,
         fparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         **kwargs: Any,
     ) -> dict[str, np.ndarray]:
@@ -303,7 +341,7 @@ class DeepEval(DeepEvalBackend):
         )
         request_defs = self._get_request_defs(atomic)
         out = self._eval_func(self._eval_model, numb_test, natoms)(
-            coords, cells, atom_types, fparam, aparam, request_defs
+            coords, cells, atom_types, fparam, uparam, aparam, request_defs
         )
         # ``AutoBatchSize.execute_all`` unwraps a single-output result out of
         # its tuple, which would make ``zip`` iterate over the array's frame
@@ -361,6 +399,7 @@ class DeepEval(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         aparam: np.ndarray | None,
         request_defs: list[OutputVariableDef],
     ) -> tuple[np.ndarray, ...]:
@@ -385,6 +424,17 @@ class DeepEval(DeepEvalBackend):
             )
         else:
             fparam_input = None
+        if uparam is not None:
+            uparam_input = uparam.reshape(nframes, self.get_dim_uparam())
+        elif self.dp.has_default_uparam():
+            default_uparam = self.dp.get_default_uparam()
+            assert default_uparam is not None
+            uparam_input = np.tile(
+                np.array(default_uparam, dtype=GLOBAL_NP_FLOAT_PRECISION),
+                (nframes, 1),
+            )
+        else:
+            uparam_input = None
         aparam_input = (
             aparam.reshape(nframes, natoms, self.get_dim_aparam())
             if aparam is not None
@@ -399,6 +449,7 @@ class DeepEval(DeepEvalBackend):
             type_input,
             box=box_input,
             fparam=fparam_input,
+            uparam=uparam_input,
             aparam=aparam_input,
             do_atomic_virial=do_atomic_virial,
         )

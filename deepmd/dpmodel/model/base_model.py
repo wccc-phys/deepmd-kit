@@ -75,6 +75,10 @@ def make_base_model() -> type[object]:
             """Get the number (dimension) of frame parameters of this atomic model."""
 
         @abstractmethod
+        def get_dim_uparam(self) -> int:
+            """Get the number (dimension) of DFT+U parameters of this atomic model."""
+
+        @abstractmethod
         def get_dim_aparam(self) -> int:
             """Get the number (dimension) of atomic parameters of this atomic model."""
 

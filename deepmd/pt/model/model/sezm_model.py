@@ -798,6 +798,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         atype: Int[Tensor, "nf nloc"],
         box: Float[Tensor, "nf 9"] | None = None,
         fparam: Float[Tensor, "nf ndf"] | None = None,
+        uparam: Float[Tensor, "nf 1"] | None = None,
         aparam: Float[Tensor, "nf nloc nda"] | None = None,
         do_atomic_virial: bool = False,
         force_input: Float[Tensor, "nf nloc 3"] | None = None,
@@ -817,6 +818,8 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             Box tensor with shape (nf, 9) in Å, or None.
         fparam
             Frame parameters with shape (nf, ndf) or None.
+        uparam
+            DFT+U parameters with shape (nf, 1) or None.
         aparam
             Atomic parameters with shape (nf, nloc, nda) or None.
         do_atomic_virial
@@ -843,6 +846,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             atype,
             box,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             do_atomic_virial=do_atomic_virial,
             force_input=force_input,
@@ -903,6 +907,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         atype: Int[Tensor, "nf nloc"],
         box: Float[Tensor, "nf 9"] | None = None,
         fparam: Float[Tensor, "nf ndf"] | None = None,
+        uparam: Float[Tensor, "nf 1"] | None = None,
         aparam: Float[Tensor, "nf nloc nda"] | None = None,
         charge_spin: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
@@ -923,6 +928,8 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             Box tensor with shape (nf, 9) in Å, or None.
         fparam
             Frame parameters with shape (nf, ndf) or None.
+        uparam
+            DFT+U parameters with shape (nf, 1) or None.
         aparam
             Atomic parameters with shape (nf, nloc, nda) or None.
         charge_spin
@@ -955,6 +962,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                 atype,
                 box,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 charge_spin=charge_spin,
                 embedding_only=True,
@@ -966,6 +974,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         atype: Int[Tensor, "nf nloc"],
         box: Float[Tensor, "nf 9"] | None = None,
         fparam: Float[Tensor, "nf ndf"] | None = None,
+        uparam: Float[Tensor, "nf 1"] | None = None,
         aparam: Float[Tensor, "nf nloc nda"] | None = None,
         do_atomic_virial: bool = False,
         force_input: Float[Tensor, "nf nloc 3"] | None = None,
@@ -988,6 +997,8 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             Box tensor with shape (nf, 9) in Å, or None.
         fparam
             Frame parameters with shape (nf, ndf) or None.
+        uparam
+            DFT+U parameters with shape (nf, 1) or None.
         aparam
             Atomic parameters with shape (nf, nloc, nda) or None.
         do_atomic_virial
@@ -1013,10 +1024,10 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         with nvtx_range("SeZM/forward_common"):
             # === Step 1. Cast inputs to correct dtype ===
             with nvtx_range("SeZM/input_type_cast"):
-                cc, bb, fp, ap, input_prec = self._input_type_cast(
-                    coord, box=box, fparam=fparam, aparam=aparam
+                cc, bb, fp, up, ap, input_prec = self._input_type_cast(
+                    coord, box=box, fparam=fparam, uparam=uparam, aparam=aparam
                 )
-                del coord, box, fparam, aparam
+                del coord, box, fparam, uparam, aparam
                 atype = atype.to(device=cc.device, dtype=torch.long)
                 nf, nloc = atype.shape[:2]
                 if cc.ndim == 2:
@@ -1046,6 +1057,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                     nlist,
                     atype,
                     fp,
+                    up,
                     ap,
                     input_prec,
                     force_input=force_input,
@@ -1060,6 +1072,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                 edge_schema.edge_scatter_index,
                 edge_schema.edge_mask,
                 fparam=fp,
+                uparam=up,
                 aparam=ap,
                 charge_spin=charge_spin,
                 spin=spin,
@@ -1077,6 +1090,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         edge_scatter_index: torch.Tensor,
         edge_mask: torch.Tensor,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         comm_dict: dict[str, torch.Tensor] | None = None,
         extended_atype: torch.Tensor | None = None,
@@ -1104,9 +1118,10 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         parallel path always runs eager: its compiled artifact is produced
         separately by the ``.pt2`` with-comm export, not by the runtime cache.
         """
-        coord, _, fp, ap, inferred_input_prec = self._input_type_cast(
+        coord, _, fp, up, ap, inferred_input_prec = self._input_type_cast(
             coord,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
         )
         if input_prec is None:
@@ -1151,8 +1166,9 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         )
         with self.tf32_precision_ctx():
             if should_compile:
-                fp, ap = self.convert_fp_ap(
+                fp, up, ap = self.convert_fp_ap(
                     fp,
+                    up,
                     ap,
                     nf=nf,
                     nloc=atype.shape[1],
@@ -1172,6 +1188,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                             edge_scatter_index,
                             edge_mask,
                             fp,
+                            up,
                             ap,
                             charge_spin,
                             embedding_only=True,
@@ -1190,6 +1207,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                             edge_scatter_index,
                             edge_mask,
                             fp,
+                            up,
                             ap,
                             charge_spin,
                             extended_coord_corr=extended_coord_corr,
@@ -1224,6 +1242,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                             edge_scatter_index,
                             edge_mask,
                             fp,
+                            up,
                             ap,
                             charge_spin,
                             *task_buf_vals,
@@ -1237,6 +1256,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                             edge_scatter_index,
                             edge_mask,
                             fp,
+                            up,
                             ap,
                             charge_spin,
                             extended_coord_corr,
@@ -1267,6 +1287,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                         edge_scatter_index,
                         edge_mask,
                         fparam=fp,
+                        uparam=up,
                         aparam=ap,
                         charge_spin=charge_spin,
                         comm_dict=comm_dict,
@@ -1286,6 +1307,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         nlist: torch.Tensor,
         atype: torch.Tensor,
         fp: torch.Tensor | None,
+        up: torch.Tensor | None,
         ap: torch.Tensor | None,
         input_prec: torch.dtype,
         *,
@@ -1310,6 +1332,8 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             Local atom types with shape (nf, nloc).
         fp
             Cast frame parameters with shape (nf, ndf), or None.
+        up
+            Cast DFT+U parameters with shape (nf, 1), or None.
         ap
             Cast atomic parameters with shape (nf, nloc, nda), or None.
         input_prec
@@ -1348,8 +1372,9 @@ class SeZMModel(DPModelCommon, SeZMModel_):
 
         with self.tf32_precision_ctx():
             if self.should_use_compile():
-                fp, ap = self.convert_fp_ap(
+                fp, up, ap = self.convert_fp_ap(
                     fp,
+                    up,
                     ap,
                     nf=nf,
                     nloc=nloc,
@@ -1367,6 +1392,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                         force_input=force_input,
                         noise_mask=noise_mask,
                         fparam=fp,
+                        uparam=up,
                         aparam=ap,
                         charge_spin=charge_spin,
                     )
@@ -1389,6 +1415,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                         force_input=force_input,
                         noise_mask=noise_mask,
                         fparam=fp,
+                        uparam=up,
                         aparam=ap,
                         charge_spin=charge_spin,
                     )
@@ -1413,6 +1440,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         edge_scatter_index: torch.Tensor,
         edge_mask: torch.Tensor,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         charge_spin: torch.Tensor | None = None,
         comm_dict: dict[str, torch.Tensor] | None = None,
@@ -1447,6 +1475,8 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             Boolean validity mask aligned with ``edge_vec``.
         fparam
             Frame parameters with shape (nf, ndf), or ``None``.
+        uparam
+            DFT+U parameters with shape (nf, 1), or ``None``.
         aparam
             Atomic parameters with shape (nf, nloc, nda), or ``None``.
         charge_spin
@@ -1583,6 +1613,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                 descriptor,
                 atype,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 vacuum_descriptor=vacuum,
                 return_atomic_feature=embedding_only,
@@ -1700,6 +1731,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         force_input: torch.Tensor,
         noise_mask: torch.Tensor,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         charge_spin: torch.Tensor | None = None,
     ) -> torch.Tensor:
@@ -1722,6 +1754,8 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             Atom-wise corruption mask with shape ``(nf, nloc)``.
         fparam
             Frame parameters with shape ``(nf, ndf)``, or ``None``.
+        uparam
+            DFT+U parameters with shape ``(nf, 1)``, or ``None``.
         aparam
             Atomic parameters with shape ``(nf, nloc, nda)``, or ``None``.
         charge_spin
@@ -1785,6 +1819,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                 atype,
                 noise_mask=noise_mask,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 vacuum_descriptor=vacuum,
                 return_components=True,
@@ -1807,6 +1842,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         edge_scatter_index: Int[Tensor, "two nedge"],
         edge_mask: torch.Tensor,
         fparam: Float[Tensor, "nf ndf"] | None = None,
+        uparam: Float[Tensor, "nf 1"] | None = None,
         aparam: Float[Tensor, "nf nloc nda"] | None = None,
         do_atomic_virial: bool = False,
         comm_dict: dict[str, torch.Tensor] | None = None,
@@ -1833,6 +1869,8 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             Boolean edge-validity mask aligned with `edge_index`.
         fparam
             Frame parameters with shape (nf, ndf) or None.
+        uparam
+            DFT+U parameters with shape (nf, 1) or None.
         aparam
             Atomic parameters with shape (nf, nall, nda) or None.
         do_atomic_virial
@@ -1872,6 +1910,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             edge_scatter_index,
             edge_mask,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             comm_dict=comm_dict,
             extended_atype=extended_atype,
@@ -1920,6 +1959,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         edge_scatter_index: torch.Tensor,
         edge_mask: torch.Tensor,
         fp: torch.Tensor,
+        up: torch.Tensor,
         ap: torch.Tensor,
         charge_spin: torch.Tensor,
         extended_coord_corr: torch.Tensor | None = None,
@@ -2096,6 +2136,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                 edge_scatter_index: torch.Tensor,
                 edge_mask: torch.Tensor,
                 fp: torch.Tensor,
+                up: torch.Tensor,
                 ap: torch.Tensor,
                 charge_spin: torch.Tensor,
                 *task_buf_vals: torch.Tensor,
@@ -2110,6 +2151,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                         edge_scatter_index,
                         edge_mask,
                         fparam=fp,
+                        uparam=up,
                         aparam=ap,
                         charge_spin=charge_spin,
                         embedding_only=embedding_only,
@@ -2127,6 +2169,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                 edge_scatter_index: torch.Tensor,
                 edge_mask: torch.Tensor,
                 fp: torch.Tensor,
+                up: torch.Tensor,
                 ap: torch.Tensor,
                 charge_spin: torch.Tensor,
                 extended_coord_corr: torch.Tensor,
@@ -2145,6 +2188,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                         edge_scatter_index,
                         edge_mask,
                         fparam=fp,
+                        uparam=up,
                         aparam=ap,
                         charge_spin=charge_spin,
                         extended_coord_corr=extended_coord_corr,
@@ -2156,7 +2200,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         # Trace dims are pairwise-distinct primes >= 5 so ``make_fx`` neither
         # unifies two axes onto one symbol (duck-shape) nor specializes an axis
         # on a literal; ``next_safe_prime`` documents why.  The forbidden set
-        # adds the model-contracted dims (fparam / aparam widths,
+        # adds the model-contracted dims (fparam / uparam / aparam widths,
         # charge_spin) and the promoted task-buffer dims so the chosen primes
         # never collide with them.
         _forbidden: set[int] = {1, 2, 3, 9}
@@ -2167,9 +2211,10 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         # Model-contracted dims kept at their real values.  Add them to the
         # forbidden set so free symbolic axes do not collide.
         _dim_fp = int(fp.shape[1])
+        _dim_up = int(up.shape[1])
         _dim_ap = int(ap.shape[2])
         _dim_cs = int(charge_spin.shape[1])
-        for _d in (_dim_fp, _dim_ap, _dim_cs):
+        for _d in (_dim_fp, _dim_up, _dim_ap, _dim_cs):
             if _d > 1:
                 _forbidden.add(_d)
         # Pick distinct primes for free axes. ``nscatter`` may be larger than
@@ -2204,6 +2249,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         edge_vec_for_trace = trace_pad_dim(edge_vec, 0, trace_nedge)
         edge_mask_for_trace = trace_pad_dim(edge_mask, 0, trace_nedge)
         fp_for_trace = trace_pad_dim(fp[:1], 0, trace_nf)
+        up_for_trace = trace_pad_dim(up[:1], 0, trace_nf)
         ap_for_trace = trace_pad_dim(ap[:1], 0, trace_nf)
         ap_for_trace = trace_pad_dim(ap_for_trace, 1, trace_nloc)
         charge_spin_for_trace = trace_pad_dim(charge_spin[:1], 0, trace_nf)
@@ -2216,6 +2262,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             edge_scatter_for_trace,
             edge_mask_for_trace,
             fp_for_trace,
+            up_for_trace,
             ap_for_trace,
             charge_spin_for_trace,
         ]
@@ -2520,6 +2567,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         edge_scatter_index: torch.Tensor,
         edge_mask: torch.Tensor,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         charge_spin: torch.Tensor | None = None,
     ) -> torch.nn.Module:
@@ -2550,6 +2598,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             edge_scatter_index_: torch.Tensor,
             edge_mask_: torch.Tensor,
             fparam_: torch.Tensor | None,
+            uparam_: torch.Tensor | None,
             aparam_: torch.Tensor | None,
             charge_spin_: torch.Tensor | None,
         ) -> dict[str, torch.Tensor]:
@@ -2568,6 +2617,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                 edge_scatter_index_,
                 edge_mask_,
                 fparam=fparam_,
+                uparam=uparam_,
                 aparam=aparam_,
                 charge_spin=charge_spin_,
                 # Export tracing must capture the eager lower graph itself.  The
@@ -2584,6 +2634,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             edge_scatter_index_: torch.Tensor,
             edge_mask_: torch.Tensor,
             fparam_: torch.Tensor | None,
+            uparam_: torch.Tensor | None,
             aparam_: torch.Tensor | None,
             charge_spin_: torch.Tensor | None,
         ) -> dict[str, torch.Tensor]:
@@ -2595,6 +2646,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                 edge_scatter_index_,
                 edge_mask_,
                 fparam_,
+                uparam_,
                 aparam_,
                 charge_spin_,
             )
@@ -2617,6 +2669,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             edge_scatter_index,
             edge_mask,
             fparam,
+            uparam,
             aparam,
             charge_spin,
         )
@@ -2636,6 +2689,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
         edge_scatter_index: torch.Tensor,
         edge_mask: torch.Tensor,
         fparam: torch.Tensor | None,
+        uparam: torch.Tensor | None,
         aparam: torch.Tensor | None,
         charge_spin: torch.Tensor | None,
         send_list: torch.Tensor,
@@ -2680,6 +2734,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             edge_scatter_index_: torch.Tensor,
             edge_mask_: torch.Tensor,
             fparam_: torch.Tensor | None,
+            uparam_: torch.Tensor | None,
             aparam_: torch.Tensor | None,
             charge_spin_: torch.Tensor | None,
             send_list_: torch.Tensor,
@@ -2714,6 +2769,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                 edge_scatter_index_,
                 edge_mask_,
                 fparam=fparam_,
+                uparam=uparam_,
                 aparam=aparam_,
                 comm_dict=comm_dict,
                 extended_atype=extended_atype_,
@@ -2737,6 +2793,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
             edge_scatter_index,
             edge_mask,
             fparam,
+            uparam,
             aparam,
             charge_spin,
             send_list,
@@ -2879,14 +2936,16 @@ class SeZMModel(DPModelCommon, SeZMModel_):
     def convert_fp_ap(
         self,
         fp: torch.Tensor | None,
+        up: torch.Tensor | None,
         ap: torch.Tensor | None,
         nf: int,
         nloc: int,
         dtype: torch.dtype,
         device: torch.device,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Convert optional fitting inputs to tensor-only compile inputs."""
         dim_fparam = self.get_dim_fparam()
+        dim_uparam = self.get_dim_uparam()
         dim_aparam = self.get_dim_aparam()
 
         # === Step 1. Canonicalize frame parameters ===
@@ -2908,7 +2967,26 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                 )
             fp = fp.to(device=device, dtype=dtype).view(nf, dim_fparam)
 
-        # === Step 2. Canonicalize atomic parameters ===
+        # === Step 1b. Canonicalize DFT+U parameters ===
+        if dim_uparam == 0:
+            up = torch.empty((nf, 0), dtype=dtype, device=device)
+        elif up is None:
+            default_uparam = self.get_default_uparam()
+            if default_uparam is None:
+                raise ValueError(
+                    "uparam is required because fitting net dim_uparam > 0"
+                )
+            up = default_uparam.to(device=device, dtype=dtype).view(1, dim_uparam)
+            up = up.expand(nf, -1)
+        else:
+            if up.numel() != nf * dim_uparam:
+                raise ValueError(
+                    f"input uparam: cannot reshape {list(up.shape)} "
+                    f"into ({nf}, {dim_uparam})."
+                )
+            up = up.to(device=device, dtype=dtype).view(nf, dim_uparam)
+
+        # === Step 2 Canonicalize atomic parameters ===
         if dim_aparam == 0:
             ap = torch.empty((nf, nloc, 0), dtype=dtype, device=device)
         elif ap is None:
@@ -2924,7 +3002,7 @@ class SeZMModel(DPModelCommon, SeZMModel_):
                 )
             ap = ap.to(device=device, dtype=dtype).view(nf, nloc, dim_aparam)
 
-        return fp, ap
+        return fp, up, ap
 
     def convert_charge_spin(
         self,

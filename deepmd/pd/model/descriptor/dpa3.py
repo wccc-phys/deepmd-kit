@@ -563,6 +563,7 @@ class DescrptDPA3(BaseDescriptor, paddle.nn.Layer):
         mapping: paddle.Tensor | None = None,
         comm_dict: list[paddle.Tensor] | None = None,
         charge_spin: paddle.Tensor | None = None,
+        fparam: paddle.Tensor | None = None,
     ) -> tuple[
         paddle.Tensor,
         paddle.Tensor | None,

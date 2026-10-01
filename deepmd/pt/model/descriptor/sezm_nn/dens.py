@@ -390,6 +390,8 @@ class SeZMDeNSFittingNet(torch.nn.Module):
         Residual time-step flag for the scalar energy branch.
     numb_fparam
         Number of frame parameters.
+    numb_uparam
+        Number of DFT+U parameters (0 or 1).
     numb_aparam
         Number of atomic parameters.
     dim_case_embd
@@ -410,6 +412,8 @@ class SeZMDeNSFittingNet(torch.nn.Module):
         Atom type names.
     default_fparam
         Default frame parameters for the scalar energy branch.
+    default_uparam
+        Default DFT+U parameter for the scalar energy branch.
     rcond
         Optional condition number used by the scalar energy branch.
     exclude_types
@@ -437,6 +441,7 @@ class SeZMDeNSFittingNet(torch.nn.Module):
         bias_atom_e: torch.Tensor | None = None,
         resnet_dt: bool = False,
         numb_fparam: int = 0,
+        numb_uparam: int = 0,
         numb_aparam: int = 0,
         dim_case_embd: int = 0,
         case_film_embd: bool = False,
@@ -447,6 +452,7 @@ class SeZMDeNSFittingNet(torch.nn.Module):
         seed: int | list[int] | None = None,
         type_map: list[str] | None = None,
         default_fparam: list[float] | None = None,
+        default_uparam: float | None = None,
         rcond: float | None = None,
         exclude_types: list[int] | None = None,
         trainable: bool | list[bool] = True,
@@ -467,6 +473,7 @@ class SeZMDeNSFittingNet(torch.nn.Module):
         self.precision = str(precision)
         self.mixed_types = bool(mixed_types)
         self.numb_fparam = int(numb_fparam)
+        self.numb_uparam = int(numb_uparam)
         self.numb_aparam = int(numb_aparam)
         self.dim_case_embd = int(dim_case_embd)
         self.case_film_embd = bool(case_film_embd and self.dim_case_embd > 0)
@@ -474,6 +481,7 @@ class SeZMDeNSFittingNet(torch.nn.Module):
         self.resnet_dt = bool(resnet_dt)
         self.type_map = None if type_map is None else list(type_map)
         self.default_fparam = default_fparam
+        self.default_uparam = default_uparam
         self.rcond = None if rcond is None else float(rcond)
         self.exclude_types = [] if exclude_types is None else list(exclude_types)
         self.trainable = copy.deepcopy(trainable)
@@ -495,6 +503,7 @@ class SeZMDeNSFittingNet(torch.nn.Module):
             bias_atom_e=bias_atom_e,
             resnet_dt=self.resnet_dt,
             numb_fparam=self.numb_fparam,
+            numb_uparam=self.numb_uparam,
             numb_aparam=self.numb_aparam,
             dim_case_embd=self.dim_case_embd,
             case_film_embd=self.case_film_embd,
@@ -505,6 +514,7 @@ class SeZMDeNSFittingNet(torch.nn.Module):
             seed=child_seed(seed, 0),
             type_map=self.type_map,
             default_fparam=self.default_fparam,
+            default_uparam=self.default_uparam,
             rcond=self.rcond,
             exclude_types=self.exclude_types,
             trainable=self.trainable,
@@ -572,9 +582,17 @@ class SeZMDeNSFittingNet(torch.nn.Module):
         """Return the frame-parameter width of the energy branch."""
         return self.energy_head.get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Return the DFT+U-parameter width of the energy branch."""
+        return self.energy_head.get_dim_uparam()
+
     def has_default_fparam(self) -> bool:
         """Return whether the energy branch has default frame parameters."""
         return self.energy_head.has_default_fparam()
+
+    def has_default_uparam(self) -> bool:
+        """Return whether the energy branch has default DFT+U parameters."""
+        return self.energy_head.has_default_uparam()
 
     def get_default_fparam(self) -> torch.Tensor | None:
         """Return default frame parameters of the energy branch."""
@@ -597,6 +615,10 @@ class SeZMDeNSFittingNet(torch.nn.Module):
     def var_name(self) -> str:
         """Output name of the scalar energy branch."""
         return self.energy_head.var_name
+
+    def get_default_uparam(self) -> torch.Tensor | None:
+        """Return default DFT+U parameters of the energy branch."""
+        return self.energy_head.get_default_uparam()
 
     def get_dim_aparam(self) -> int:
         """Return the atomic-parameter width of the energy branch."""
@@ -666,6 +688,7 @@ class SeZMDeNSFittingNet(torch.nn.Module):
         *,
         noise_mask: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         vacuum_descriptor: torch.Tensor | None = None,
         return_components: bool = False,
@@ -685,6 +708,8 @@ class SeZMDeNSFittingNet(torch.nn.Module):
             Optional corruption mask with shape `(nf, nloc)`.
         fparam
             Optional frame parameters.
+        uparam
+            Optional DFT+U parameters.
         aparam
             Optional atomic parameters.
         vacuum_descriptor
@@ -707,6 +732,7 @@ class SeZMDeNSFittingNet(torch.nn.Module):
             descriptor,
             atype,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             vacuum_descriptor=vacuum_descriptor,
         )
@@ -745,6 +771,7 @@ class SeZMDeNSFittingNet(torch.nn.Module):
                 "neuron": self.neuron.copy(),
                 "resnet_dt": self.resnet_dt,
                 "numb_fparam": self.numb_fparam,
+                "numb_uparam": self.numb_uparam,
                 "numb_aparam": self.numb_aparam,
                 "dim_case_embd": self.dim_case_embd,
                 "case_film_embd": self.case_film_embd,
@@ -754,6 +781,7 @@ class SeZMDeNSFittingNet(torch.nn.Module):
                 "mixed_types": self.mixed_types,
                 "type_map": self.type_map,
                 "default_fparam": self.default_fparam,
+                "default_uparam": self.default_uparam,
                 "rcond": self.rcond,
                 "exclude_types": self.exclude_types.copy(),
                 "trainable": self.trainable,

@@ -253,6 +253,31 @@ def convert_dp012_to_dp10(file: str) -> None:
     file_content += textwrap.dedent(
         """\
       node {
+        name: "fitting_attr/duparam"
+        op: "Const"
+        attr {
+          key: "dtype"
+          value {
+            type: DT_INT32
+          }
+        }
+        attr {
+          key: "value"
+          value {
+            tensor {
+              dtype: DT_INT32
+              tensor_shape {
+              }
+              int_val: 0
+            }
+          }
+        }
+      }
+      """
+    )
+    file_content += textwrap.dedent(
+        """\
+      node {
         name: "model_attr/model_type"
         op: "Const"
         attr {

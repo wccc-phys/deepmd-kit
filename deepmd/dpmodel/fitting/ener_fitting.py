@@ -35,6 +35,7 @@ class EnergyFittingNet(InvarFitting):
         neuron: list[int] = [120, 120, 120],
         resnet_dt: bool = True,
         numb_fparam: int = 0,
+        numb_uparam: int = 0,
         numb_aparam: int = 0,
         dim_case_embd: int = 0,
         rcond: float | None = None,
@@ -52,6 +53,8 @@ class EnergyFittingNet(InvarFitting):
         type_map: list[str] | None = None,
         seed: int | list[int] | None = None,
         default_fparam: list | None = None,
+        default_uparam: float | None = None,
+        uparam_mode: str = "frame",
     ) -> None:
         super().__init__(
             var_name="energy",
@@ -61,6 +64,8 @@ class EnergyFittingNet(InvarFitting):
             neuron=neuron,
             resnet_dt=resnet_dt,
             numb_fparam=numb_fparam,
+            numb_uparam=numb_uparam,
+            uparam_mode=uparam_mode,
             numb_aparam=numb_aparam,
             dim_case_embd=dim_case_embd,
             rcond=rcond,
@@ -78,6 +83,7 @@ class EnergyFittingNet(InvarFitting):
             type_map=type_map,
             seed=seed,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
         )
 
     @classmethod

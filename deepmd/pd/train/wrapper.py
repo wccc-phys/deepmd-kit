@@ -164,6 +164,7 @@ class ModelWrapper(paddle.nn.Layer):
             "fparam": fparam,
             "aparam": aparam,
             "charge_spin": charge_spin,
+            "uparam": uparam,
         }
         if self.model[task_key].has_spin():
             input_dict["spin"] = spin

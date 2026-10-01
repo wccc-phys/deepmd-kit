@@ -109,6 +109,13 @@ class DPAtomicModel(BaseAtomicModel):
                 paddle.to_tensor(self.fitting_net.get_dim_fparam(), dtype="int32"),
             )
             self.buffer_dfparam.name = "buffer_dfparam"
+        if hasattr(self.fitting_net, "get_dim_uparam"):
+            # register 'duparam' as buffer
+            self.register_buffer(
+                "buffer_duparam",
+                paddle.to_tensor(self.fitting_net.get_dim_uparam(), dtype="int32"),
+            )
+            self.buffer_duparam.name = "buffer_duparam"
         if hasattr(self.fitting_net, "get_dim_aparam"):
             # register 'daparam' as buffer
             self.register_buffer(
@@ -314,6 +321,8 @@ class DPAtomicModel(BaseAtomicModel):
             atomic parameter. nf x nloc x nda
         charge_spin
             charge and spin parameters. nf x 2
+        uparam
+            DFT+U parameter. nf x dim_uparam
 
         Returns
         -------
@@ -340,6 +349,7 @@ class DPAtomicModel(BaseAtomicModel):
             mapping=mapping,
             comm_dict=comm_dict,
             charge_spin=charge_spin if self.add_chg_spin_ebd else None,
+            fparam=fparam if self.add_chg_spin_ebd else None,
         )
         assert descriptor is not None
         if self.enable_eval_descriptor_hook:
@@ -453,6 +463,18 @@ class DPAtomicModel(BaseAtomicModel):
     def has_default_fparam(self) -> bool:
         """Check if the model has default frame parameters."""
         return self.fitting_net.has_default_fparam()
+
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return self.fitting_net.get_dim_uparam()
+
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default uparam."""
+        return self.fitting_net.has_default_uparam()
+
+    def get_default_uparam(self) -> paddle.Tensor | None:
+        """Get the default uparam tensor."""
+        return self.fitting_net.get_default_uparam()
 
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""

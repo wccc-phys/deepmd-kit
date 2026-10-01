@@ -89,6 +89,14 @@ def make_stat_input(
                 # for model using default fparam
                 stat_data.pop("fparam")
                 stat_data.pop("find_fparam")
+            if (
+                "find_uparam" in stat_data
+                and "uparam" in stat_data
+                and stat_data["find_uparam"] == 0.0
+            ):
+                # for model using default uparam
+                stat_data.pop("uparam")
+                stat_data.pop("find_uparam")
             for dd in stat_data:
                 if stat_data[dd] is None:
                     sys_stat[dd] = None
@@ -239,6 +247,7 @@ def _compute_model_predict(
         )
         fparam = system.get("fparam", None)
         aparam = system.get("aparam", None)
+        uparam = system.get("uparam", None)
 
         def model_forward_auto_batch_size(*args: Any, **kwargs: Any) -> paddle.Tensor:
             return auto_batch_size.execute_all(
@@ -250,7 +259,7 @@ def _compute_model_predict(
             )
 
         sample_predict = model_forward_auto_batch_size(
-            coord, atype, box, fparam=fparam, aparam=aparam
+            coord, atype, box, fparam=fparam, aparam=aparam, uparam=uparam
         )
         for kk in keys:
             model_predict[kk].append(

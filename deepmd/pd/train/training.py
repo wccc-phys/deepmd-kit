@@ -1239,6 +1239,7 @@ class Trainer:
             "fparam",
             "aparam",
             "charge_spin",
+            "uparam",
         ]
         input_dict = dict.fromkeys(input_keys)
         label_dict = {}
@@ -1341,6 +1342,22 @@ def get_additional_data_requirement(_model: Any) -> list[DataRequirementItem]:
             )
         ]
         additional_data_requirement += fparam_requirement_items
+    if _model.get_dim_uparam() > 0:
+        _uparam_default = (
+            to_numpy_array(_model.get_default_uparam())
+            if _model.has_default_uparam()
+            else None
+        )
+        uparam_requirement_items = [
+            DataRequirementItem(
+                "uparam",
+                _model.get_dim_uparam(),
+                atomic=False,
+                must=not _model.has_default_uparam(),
+                default=_uparam_default,
+            )
+        ]
+        additional_data_requirement += uparam_requirement_items
     if _model.get_dim_aparam() > 0:
         aparam_requirement_items = [
             DataRequirementItem(
@@ -1396,6 +1413,10 @@ def get_loss(
 def get_single_model(
     _model_params: dict[str, Any],
 ) -> Any:
+    if _model_params.get("fitting_net", {}).get("default_uparam") is not None:
+        raise NotImplementedError(
+            "uparam (DFT+U) is not supported by the Paddle backend."
+        )
     model = get_model(deepcopy(_model_params)).to(DEVICE)
     return model
 

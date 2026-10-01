@@ -63,6 +63,7 @@ def forward_common_atomic(
                 nlist: jnp.ndarray,
                 mapping: jnp.ndarray | None,
                 fparam: jnp.ndarray | None,
+                uparam: jnp.ndarray | None,
                 aparam: jnp.ndarray | None,
                 charge_spin_: jnp.ndarray | None,
                 *,
@@ -75,6 +76,7 @@ def forward_common_atomic(
                     nlist[None, ...],
                     mapping=mapping[None, ...] if mapping is not None else None,
                     fparam=fparam[None, ...] if fparam is not None else None,
+                    uparam=uparam[None, ...] if uparam is not None else None,
                     aparam=aparam[None, ...] if aparam is not None else None,
                     charge_spin=charge_spin_[None, ...]
                     if charge_spin_ is not None
@@ -100,6 +102,7 @@ def forward_common_atomic(
                 nlist,
                 mapping,
                 fparam,
+                uparam,
                 aparam,
                 charge_spin,
             )
@@ -136,6 +139,7 @@ def forward_common_atomic(
                         nlist,
                         mapping,
                         fparam,
+                        uparam,
                         aparam,
                         charge_spin,
                     )
@@ -165,6 +169,7 @@ def forward_common_atomic(
                         nlist: jnp.ndarray,
                         mapping: jnp.ndarray | None,
                         fparam: jnp.ndarray | None,
+                        uparam: jnp.ndarray | None,
                         aparam: jnp.ndarray | None,
                         charge_spin_: jnp.ndarray | None,
                         *,
@@ -182,6 +187,7 @@ def forward_common_atomic(
                             nlist[None, ...],
                             mapping=mapping[None, ...] if mapping is not None else None,
                             fparam=fparam[None, ...] if fparam is not None else None,
+                            uparam=uparam[None, ...] if uparam is not None else None,
                             aparam=aparam[None, ...] if aparam is not None else None,
                             charge_spin=charge_spin_[None, ...]
                             if charge_spin_ is not None
@@ -202,6 +208,7 @@ def forward_common_atomic(
                         nlist,
                         mapping,
                         fparam,
+                        uparam,
                         aparam,
                         charge_spin,
                     )

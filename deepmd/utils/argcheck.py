@@ -78,6 +78,9 @@ BACKEND_DOCUMENTATION: dict[str, BackendDocumentation] = {
 }
 
 
+doc_only_pt_supported = "(Supported Backend: PyTorch) "
+
+
 def supported_backends(*backends: str) -> str:
     """Build the standard support label for visible backend directory keys.
 
@@ -2791,9 +2794,11 @@ fitting_args_plugin = ArgsPlugin()
     doc=supported_backends("tf", "pt", "jax", "pd", "pt_expt", "tf2") + doc_ener,
 )
 def fitting_ener() -> list[Argument]:
-    doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams."
+    doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams. The uparam dimension is implicitly 0 or 1 based on `default_uparam`."
     doc_numb_aparam = "The dimension of the atomic parameter. If set to >0, file `aparam.npy` should be included to provided the input aparams."
-    doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net."
+    doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net. `default_uparam` provides the analogous default for the DFT+U parameter."
+    doc_default_uparam = "The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams. For systems without `uparam.npy`, this value is used as the default."
+    doc_uparam_mode = "The mode of the DFT+U parameters. 'frame' (default) means one scalar per frame, tiled to all atoms. 'atomic' means per-atom U values from data (shape nframes x natoms). 'orbital' is reserved for future orbital-resolved U support."
     doc_dim_case_embd = "The dimension of the case embedding embedding. When training or fine-tuning a multitask model with case embedding embeddings, this number should be set to the number of model branches."
     doc_neuron = "The number of neurons in each hidden layer of the fitting net. When two hidden layers are of the same size, a skip connection is built."
     doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
@@ -2820,6 +2825,8 @@ def fitting_ener() -> list[Argument]:
     )
 
     return [
+        # numb_uparam is not a config key; uparam dimension is implicitly
+        # 0 or 1 based on default_uparam (float or None).
         Argument("numb_fparam", int, optional=True, default=0, doc=doc_numb_fparam),
         Argument("numb_aparam", int, optional=True, default=0, doc=doc_numb_aparam),
         Argument(
@@ -2829,6 +2836,20 @@ def fitting_ener() -> list[Argument]:
             default=None,
             doc=supported_backends("pt", "jax", "pd", "pt_expt", "tf2")
             + doc_default_fparam,
+        ),
+        Argument(
+            "default_uparam",
+            float,
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported + doc_default_uparam,
+        ),
+        Argument(
+            "uparam_mode",
+            str,
+            optional=True,
+            default="frame",
+            doc=doc_only_pt_supported + doc_uparam_mode,
         ),
         Argument(
             "dim_case_embd",
@@ -2897,9 +2918,11 @@ def fitting_ener() -> list[Argument]:
     doc=supported_backends("pt", "pt_expt") + doc_ener,
 )
 def fitting_sezm_ener() -> list[Argument]:
-    doc_numb_fparam = "Dimension of frame parameters. If set to >0, each data system should provide `fparam.npy`."
+    doc_numb_fparam = "Dimension of frame parameters. If set to >0, each data system should provide `fparam.npy`. The uparam dimension is implicitly 0 or 1 based on `default_uparam`."
     doc_numb_aparam = "Dimension of atomic parameters. If set to >0, each data system should provide `aparam.npy`."
     doc_default_fparam = "Default frame parameters used when a data system does not provide `fparam.npy`."
+    doc_default_uparam = "The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams. For systems without `uparam.npy`, this value is used as the default."
+    doc_uparam_mode = "The mode of the DFT+U parameters. 'frame' (default) means one scalar per frame, tiled to all atoms. 'atomic' means per-atom U values from data (shape nframes x natoms). 'orbital' is reserved for future orbital-resolved U support."
     doc_dim_case_embd = "Dimension of the case embedding. For multitask training or fine-tuning with case embeddings, set this value to the number of model branches."
     doc_neuron = "The number of neurons in each hidden layer of the fitting net. Use 0 as an auto-width placeholder resolved from the descriptor width."
     doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
@@ -2925,6 +2948,8 @@ def fitting_sezm_ener() -> list[Argument]:
     )
     doc_case_film_embd = "Whether to use case FiLM conditioning for shared DPA4/SeZM fitting. When enabled, the case embedding modulates fitting features instead of being concatenated to the fitting input."
     return [
+        # numb_uparam is not a config key; uparam dimension is implicitly
+        # 0 or 1 based on default_uparam (float or None).
         Argument("numb_fparam", int, optional=True, default=0, doc=doc_numb_fparam),
         Argument("numb_aparam", int, optional=True, default=0, doc=doc_numb_aparam),
         Argument(
@@ -2933,6 +2958,20 @@ def fitting_sezm_ener() -> list[Argument]:
             optional=True,
             default=None,
             doc=supported_backends("pt", "pt_expt") + doc_default_fparam,
+        ),
+        Argument(
+            "default_uparam",
+            float,
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported + doc_default_uparam,
+        ),
+        Argument(
+            "uparam_mode",
+            str,
+            optional=True,
+            default="frame",
+            doc=doc_only_pt_supported + doc_uparam_mode,
         ),
         Argument(
             "dim_case_embd",
@@ -3005,9 +3044,11 @@ def fitting_sezm_ener() -> list[Argument]:
     "dos", doc=supported_backends("tf", "pt", "pt_expt", "tf2") + doc_dos
 )
 def fitting_dos() -> list[Argument]:
-    doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams."
+    doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams. The uparam dimension is implicitly 0 or 1 based on `default_uparam`."
     doc_numb_aparam = "The dimension of the atomic parameter. If set to >0, file `aparam.npy` should be included to provided the input aparams."
-    doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net."
+    doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net. `default_uparam` provides the analogous default for the DFT+U parameter."
+    doc_default_uparam = "The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams. For systems without `uparam.npy`, this value is used as the default."
+    doc_uparam_mode = "The mode of the DFT+U parameters. 'frame' (default) means one scalar per frame, tiled to all atoms. 'atomic' means per-atom U values from data (shape nframes x natoms). 'orbital' is reserved for future orbital-resolved U support."
     doc_dim_case_embd = "The dimension of the case embedding embedding. When training or fine-tuning a multitask model with case embedding embeddings, this number should be set to the number of model branches."
     doc_neuron = "The number of neurons in each hidden layer of the fitting net. When two hidden layers are of the same size, a skip connection is built."
     doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
@@ -3023,6 +3064,8 @@ def fitting_dos() -> list[Argument]:
     )
 
     return [
+        # numb_uparam is not a config key; uparam dimension is implicitly
+        # 0 or 1 based on default_uparam (float or None).
         Argument("numb_fparam", int, optional=True, default=0, doc=doc_numb_fparam),
         Argument("numb_aparam", int, optional=True, default=0, doc=doc_numb_aparam),
         Argument(
@@ -3031,6 +3074,20 @@ def fitting_dos() -> list[Argument]:
             optional=True,
             default=None,
             doc=supported_backends("pt", "pt_expt", "tf2") + doc_default_fparam,
+        ),
+        Argument(
+            "default_uparam",
+            float,
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported + doc_default_uparam,
+        ),
+        Argument(
+            "uparam_mode",
+            str,
+            optional=True,
+            default="frame",
+            doc=doc_only_pt_supported + doc_uparam_mode,
         ),
         Argument(
             "dim_case_embd",
@@ -3066,12 +3123,39 @@ def fitting_dos() -> list[Argument]:
     ]
 
 
-@fitting_args_plugin.register("population", doc=supported_backends("pt"))
 def fitting_population() -> list[Argument]:
     """Return the argument list for the population fitting network."""
     return [
+        # numb_uparam is not a config key; uparam dimension is implicitly
+        # 0 or 1 based on default_uparam (float or None).
         Argument("numb_fparam", int, optional=True, default=0),
         Argument("numb_aparam", int, optional=True, default=0),
+        Argument(
+            "default_fparam",
+            list[float],
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported
+            + "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net.",
+        ),
+        Argument(
+            "default_uparam",
+            float,
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported
+            + "The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams. For systems without `uparam.npy`, this value is used as the default.",
+        ),
+        Argument(
+            "uparam_mode",
+            str,
+            optional=True,
+            default="frame",
+            doc=doc_only_pt_supported
+            + "The mode of the DFT+U parameters. 'frame' (default) means one scalar per frame, tiled to all atoms. "
+            + "'atomic' means per-atom U values from data (shape nframes x natoms). "
+            + "'orbital' is reserved for future orbital-resolved U support.",
+        ),
         Argument(
             "dim_case_embd",
             int,
@@ -3108,9 +3192,11 @@ def fitting_population() -> list[Argument]:
     "property", doc=supported_backends("pt", "pt_expt", "tf2")
 )
 def fitting_property() -> list[Argument]:
-    doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams."
+    doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams. The uparam dimension is implicitly 0 or 1 based on `default_uparam`."
     doc_numb_aparam = "The dimension of the atomic parameter. If set to >0, file `aparam.npy` should be included to provided the input aparams."
-    doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net."
+    doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net. `default_uparam` provides the analogous default for the DFT+U parameter."
+    doc_default_uparam = "The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams. For systems without `uparam.npy`, this value is used as the default."
+    doc_uparam_mode = "The mode of the DFT+U parameters. 'frame' (default) means one scalar per frame, tiled to all atoms. 'atomic' means per-atom U values from data (shape nframes x natoms). 'orbital' is reserved for future orbital-resolved U support."
     doc_dim_case_embd = "The dimension of the case embedding embedding. When training or fine-tuning a multitask model with case embedding embeddings, this number should be set to the number of model branches."
     doc_neuron = "The number of neurons in each hidden layer of the fitting net. When two hidden layers are of the same size, a skip connection is built"
     doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
@@ -3127,6 +3213,8 @@ def fitting_property() -> list[Argument]:
 - bool: True if all parameters of the fitting net are trainable, False otherwise.\n\n\
 - list of bool: Specifies if each layer is trainable. Since the fitting net is composed of hidden layers followed by an output layer, the length of this list should be equal to len(`neuron`)+1."
     return [
+        # numb_uparam is not a config key; uparam dimension is implicitly
+        # 0 or 1 based on default_uparam (float or None).
         Argument("numb_fparam", int, optional=True, default=0, doc=doc_numb_fparam),
         Argument("numb_aparam", int, optional=True, default=0, doc=doc_numb_aparam),
         Argument(
@@ -3135,6 +3223,20 @@ def fitting_property() -> list[Argument]:
             optional=True,
             default=None,
             doc=supported_backends("pt", "pt_expt", "tf2") + doc_default_fparam,
+        ),
+        Argument(
+            "default_uparam",
+            float,
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported + doc_default_uparam,
+        ),
+        Argument(
+            "uparam_mode",
+            str,
+            optional=True,
+            default="frame",
+            doc=doc_only_pt_supported + doc_uparam_mode,
         ),
         Argument(
             "dim_case_embd",
@@ -3186,13 +3288,105 @@ def fitting_property() -> list[Argument]:
     ]
 
 
+@fitting_args_plugin.register("mlu", doc=doc_only_pt_supported)
+def fitting_mlu() -> list[Argument]:
+    """Arguments for the MLU (Machine-Learning Hubbard U) fitting net.
+
+    MLU predicts ``uparam`` from the descriptor and an external frame parameter
+    (typically temperature). Unlike ``ener``, ``uparam`` here is the *output*,
+    not an input — there is no ``default_uparam`` key.
+    """
+    doc_numb_fparam = "The dimension of the frame parameter (typically 1 for temperature). If set to >0, file `fparam.npy` should be included to provide the input fparams."
+    doc_numb_aparam = "The dimension of the atomic parameter. If set to >0, file `aparam.npy` should be included to provide the input aparams."
+    doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net."
+    doc_dim_case_embd = "The dimension of the case embedding embedding. When training or fine-tuning a multitask model with case embedding embeddings, this number should be set to the number of model branches."
+    doc_neuron = "The number of neurons in each hidden layer of the fitting net. When two hidden layers are of the same size, a skip connection is built"
+    doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
+    doc_resnet_dt = 'Whether to use a "Timestep" in the skip connection'
+    doc_precision = f"The precision of the fitting net parameters, supported options are {list_to_doc(PRECISION_DICT.keys())} Default follows the interface precision."
+    doc_seed = "Random seed for parameter initialization of the fitting net"
+    doc_task_dim = "The dimension of outputs of fitting net (always 1 for MLU)."
+    doc_intensive = (
+        "Whether the U is intensive (per-frame, mean-reduced). `True` = frame "
+        "mode (one U per frame, label shape (N,1)); `False` = atomic mode "
+        "(one U per atom, label shape (N,natoms)). If unset (None), "
+        "auto-detected from the dataset `uparam.npy` shape at training start."
+    )
+    doc_distinguish_types = (
+        "Whether to distinguish atom types when computing output statistics."
+    )
+    doc_trainable = "Whether the parameters in the fitting net are trainable. This option can be\n\n\
+- bool: True if all parameters of the fitting net are trainable, False otherwise.\n\n\
+- list of bool: Specifies if each layer is trainable. Since the fitting net is composed of hidden layers followed by an output layer, the length of this list should be equal to len(`neuron`)+1."
+    return [
+        Argument("numb_fparam", int, optional=True, default=1, doc=doc_numb_fparam),
+        Argument("numb_aparam", int, optional=True, default=0, doc=doc_numb_aparam),
+        Argument(
+            "default_fparam",
+            list[float],
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported + doc_default_fparam,
+        ),
+        Argument(
+            "dim_case_embd",
+            int,
+            optional=True,
+            default=0,
+            doc=doc_only_pt_supported + doc_dim_case_embd,
+        ),
+        Argument(
+            "neuron",
+            list[int],
+            optional=True,
+            default=[120, 120, 120],
+            alias=["n_neuron"],
+            doc=doc_neuron,
+        ),
+        Argument(
+            "activation_function",
+            str,
+            optional=True,
+            default="tanh",
+            doc=doc_activation_function,
+        ),
+        Argument("resnet_dt", bool, optional=True, default=True, doc=doc_resnet_dt),
+        Argument("precision", str, optional=True, default="default", doc=doc_precision),
+        Argument("seed", [int, None], optional=True, doc=doc_seed),
+        Argument("task_dim", int, optional=True, default=1, doc=doc_task_dim),
+        Argument(
+            "intensive",
+            bool,
+            optional=True,
+            default=None,
+            doc=doc_intensive,
+        ),
+        Argument(
+            "distinguish_types",
+            bool,
+            optional=True,
+            default=True,
+            doc=doc_distinguish_types,
+        ),
+        Argument(
+            "trainable",
+            [list[bool], bool],
+            optional=True,
+            default=True,
+            doc=doc_trainable,
+        ),
+    ]
+
+
 @fitting_args_plugin.register(
     "polar", doc=supported_backends("tf", "pt", "pt_expt", "tf2") + doc_polar
 )
 def fitting_polar() -> list[Argument]:
-    doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams."
+    doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams. The uparam dimension is implicitly 0 or 1 based on `default_uparam`."
     doc_numb_aparam = "The dimension of the atomic parameter. If set to >0, file `aparam.npy` should be included to provided the input aparams."
-    doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net."
+    doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net. `default_uparam` provides the analogous default for the DFT+U parameter."
+    doc_default_uparam = "The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams. For systems without `uparam.npy`, this value is used as the default."
+    doc_uparam_mode = "The mode of the DFT+U parameters. 'frame' (default) means one scalar per frame, tiled to all atoms. 'atomic' means per-atom U values from data (shape nframes x natoms). 'orbital' is reserved for future orbital-resolved U support."
     doc_dim_case_embd = "The dimension of the case embedding embedding. When training or fine-tuning a multitask model with case embedding embeddings, this number should be set to the number of model branches."
     doc_neuron = "The number of neurons in each hidden layer of the fitting net. When two hidden layers are of the same size, a skip connection is built."
     doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
@@ -3208,6 +3402,8 @@ def fitting_polar() -> list[Argument]:
     doc_shift_diag = "Whether to shift the diagonal of polar, which is beneficial to training. Default is true."
 
     return [
+        # numb_uparam is not a config key; uparam dimension is implicitly
+        # 0 or 1 based on default_uparam (float or None).
         Argument(
             "numb_fparam",
             int,
@@ -3228,6 +3424,20 @@ def fitting_polar() -> list[Argument]:
             optional=True,
             default=None,
             doc=supported_backends("pt", "pt_expt", "tf2") + doc_default_fparam,
+        ),
+        Argument(
+            "default_uparam",
+            float,
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported + doc_default_uparam,
+        ),
+        Argument(
+            "uparam_mode",
+            str,
+            optional=True,
+            default="frame",
+            doc=doc_only_pt_supported + doc_uparam_mode,
         ),
         Argument(
             "dim_case_embd",
@@ -3278,9 +3488,11 @@ def fitting_polar() -> list[Argument]:
     "dipole", doc=supported_backends("tf", "pt", "pt_expt", "tf2") + doc_dipole
 )
 def fitting_dipole() -> list[Argument]:
-    doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams."
+    doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams. The uparam dimension is implicitly 0 or 1 based on `default_uparam`."
     doc_numb_aparam = "The dimension of the atomic parameter. If set to >0, file `aparam.npy` should be included to provided the input aparams."
-    doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net."
+    doc_default_fparam = "The default frame parameter. If set, when `fparam.npy` files are not included in the data system, this value will be used as the default value for the frame parameter in the fitting net. `default_uparam` provides the analogous default for the DFT+U parameter."
+    doc_default_uparam = "The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams. For systems without `uparam.npy`, this value is used as the default."
+    doc_uparam_mode = "The mode of the DFT+U parameters. 'frame' (default) means one scalar per frame, tiled to all atoms. 'atomic' means per-atom U values from data (shape nframes x natoms). 'orbital' is reserved for future orbital-resolved U support."
     doc_dim_case_embd = "The dimension of the case embedding embedding. When training or fine-tuning a multitask model with case embedding embeddings, this number should be set to the number of model branches."
     doc_neuron = "The number of neurons in each hidden layer of the fitting net. When two hidden layers are of the same size, a skip connection is built."
     doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
@@ -3289,6 +3501,8 @@ def fitting_dipole() -> list[Argument]:
     doc_sel_type = "The atom types for which the atomic dipole will be provided. If not set, all types will be selected."
     doc_seed = "Random seed for parameter initialization of the fitting net"
     return [
+        # numb_uparam is not a config key; uparam dimension is implicitly
+        # 0 or 1 based on default_uparam (float or None).
         Argument(
             "numb_fparam",
             int,
@@ -3309,6 +3523,20 @@ def fitting_dipole() -> list[Argument]:
             optional=True,
             default=None,
             doc=supported_backends("pt", "pt_expt", "tf2") + doc_default_fparam,
+        ),
+        Argument(
+            "default_uparam",
+            float,
+            optional=True,
+            default=None,
+            doc=doc_only_pt_supported + doc_default_uparam,
+        ),
+        Argument(
+            "uparam_mode",
+            str,
+            optional=True,
+            default="frame",
+            doc=doc_only_pt_supported + doc_uparam_mode,
         ),
         Argument(
             "dim_case_embd",
@@ -5158,7 +5386,6 @@ def loss_ener_spin() -> list[Argument]:
     ]
 
 
-@loss_args_plugin.register("dos", doc=supported_backends("tf", "pt", "pt_expt", "tf2"))
 def loss_dos() -> list[Argument]:
     doc_start_pref_dos = start_pref("Density of State (DOS)")
     doc_limit_pref_dos = limit_pref("Density of State (DOS)")
@@ -5333,9 +5560,46 @@ def loss_population() -> list[Argument]:
     ]
 
 
-@loss_args_plugin.register("property", doc=supported_backends("pt", "pt_expt", "tf2"))
 def loss_property() -> list[Argument]:
     doc_loss_func = "The loss function to minimize, such as 'mae','smooth_mae'."
+    doc_metric = "The metric for display. This list can include 'smooth_mae', 'mae', 'mse' and 'rmse'."
+    doc_beta = "The 'beta' parameter in 'smooth_mae' loss."
+    return [
+        Argument(
+            "loss_func",
+            str,
+            optional=True,
+            default="smooth_mae",
+            doc=doc_loss_func,
+        ),
+        Argument(
+            "metric",
+            list,
+            optional=True,
+            default=["mae"],
+            doc=doc_metric,
+        ),
+        Argument(
+            "beta",
+            [float, int],
+            optional=True,
+            default=1.00,
+            doc=doc_beta,
+        ),
+    ]
+
+
+@loss_args_plugin.register("mlu")
+def loss_mlu() -> list[Argument]:
+    """Arguments for the MLU (Hubbard U) loss.
+
+    The loss compares the model's predicted ``uparam`` against the dataset
+    label. ``intensive`` and ``task_dim`` are pulled from the model and need
+    not be specified here.
+    """
+    doc_loss_func = (
+        "The loss function to minimize, such as 'mae','smooth_mae','mse','rmse','mape'."
+    )
     doc_metric = "The metric for display. This list can include 'smooth_mae', 'mae', 'mse' and 'rmse'."
     doc_beta = "The 'beta' parameter in 'smooth_mae' loss."
     return [
@@ -6542,9 +6806,10 @@ def _check_dpa3_chg_spin_migration(data: dict[str, Any]) -> None:
     Before the charge_spin decoupling, enabling ``add_chg_spin_ebd`` on DPA3
     required ``numb_fparam=2`` on the fitting net so that charge/spin could be
     carried via ``fparam``. After the decoupling, ``charge_spin`` is a
-    first-class input that is fully independent of ``fparam``, so users may
-    legitimately combine ``add_chg_spin_ebd`` with any ``numb_fparam`` for
-    genuine frame parameters.
+    first-class input that is fully independent of ``fparam`` (and also of
+    ``uparam``, the DFT+U parameter), so users may legitimately combine
+    ``add_chg_spin_ebd`` with any ``numb_fparam`` for genuine frame parameters,
+    and independently configure ``default_uparam`` for DFT+U corrections.
 
     We cannot determine from the config alone whether a user's ``numb_fparam``
     is legacy (charge/spin in disguise) or genuine (real frame parameters).

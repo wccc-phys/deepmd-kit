@@ -316,6 +316,7 @@ class TestDpa1GraphLower:
             source_order,
             source_row_ptr,
             fp,
+            up,
             ap,
             cs,
         ) = sample
@@ -350,6 +351,7 @@ class TestDpa1GraphLower:
             source_order,
             source_row_ptr,
             fp,
+            up,
             ap,
             cs,
         )

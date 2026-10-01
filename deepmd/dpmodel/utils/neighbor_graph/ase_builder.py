@@ -126,7 +126,11 @@ def build_neighbor_graph_ase(
         return np.asarray(x.detach().cpu()) if hasattr(x, "detach") else np.asarray(x)
 
     coord_np = _to_cpu_numpy(coord)
-    nf, nloc = coord_np.shape[:2]
+    if coord_np.ndim == 3:
+        nf, nloc = coord_np.shape[:2]
+    else:
+        # (nf, nloc * 3) flat layout handed over by _call_common_graph.
+        nf, nloc = coord_np.shape[0], coord_np.shape[1] // 3
     coord_np = coord_np.reshape(nf, nloc, 3)
     box_np = _to_cpu_numpy(box).reshape(nf, 3, 3) if box is not None else None
     periodic = box is not None

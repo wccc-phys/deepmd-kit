@@ -1160,10 +1160,11 @@ void NativeSpinPTExpt::computew(std::vector<double>& ener,
                                 const std::vector<int>& atype,
                                 const std::vector<double>& box,
                                 const std::vector<double>& fparam,
+                                const std::vector<double>& uparam,
                                 const std::vector<double>& aparam,
                                 const bool atomic) {
   computew(ener, force, force_mag, virial, atom_energy, atom_virial, coord,
-           spin, atype, box, fparam, aparam, std::vector<double>(), atomic);
+           spin, atype, box, fparam, uparam, aparam, std::vector<double>(), atomic);
 }
 
 void NativeSpinPTExpt::computew(std::vector<double>& ener,
@@ -1177,10 +1178,11 @@ void NativeSpinPTExpt::computew(std::vector<double>& ener,
                                 const std::vector<int>& atype,
                                 const std::vector<float>& box,
                                 const std::vector<float>& fparam,
+                                const std::vector<float>& uparam,
                                 const std::vector<float>& aparam,
                                 const bool atomic) {
   computew(ener, force, force_mag, virial, atom_energy, atom_virial, coord,
-           spin, atype, box, fparam, aparam, std::vector<double>(), atomic);
+           spin, atype, box, fparam, uparam, aparam, std::vector<double>(), atomic);
 }
 
 void NativeSpinPTExpt::computew(std::vector<double>& ener,
@@ -1197,10 +1199,11 @@ void NativeSpinPTExpt::computew(std::vector<double>& ener,
                                 const InputNlist& inlist,
                                 const int& ago,
                                 const std::vector<double>& fparam,
+                                const std::vector<double>& uparam,
                                 const std::vector<double>& aparam,
                                 const bool atomic) {
   computew(ener, force, force_mag, virial, atom_energy, atom_virial, coord,
-           spin, atype, box, nghost, inlist, ago, fparam, aparam,
+           spin, atype, box, nghost, inlist, ago, fparam, uparam, aparam,
            std::vector<double>(), atomic);
 }
 
@@ -1218,10 +1221,11 @@ void NativeSpinPTExpt::computew(std::vector<double>& ener,
                                 const InputNlist& inlist,
                                 const int& ago,
                                 const std::vector<float>& fparam,
+                                const std::vector<float>& uparam,
                                 const std::vector<float>& aparam,
                                 const bool atomic) {
   computew(ener, force, force_mag, virial, atom_energy, atom_virial, coord,
-           spin, atype, box, nghost, inlist, ago, fparam, aparam,
+           spin, atype, box, nghost, inlist, ago, fparam, uparam, aparam,
            std::vector<double>(), atomic);
 }
 
@@ -1236,6 +1240,7 @@ void NativeSpinPTExpt::computew(std::vector<double>& ener,
                                 const std::vector<int>& atype,
                                 const std::vector<double>& box,
                                 const std::vector<double>& fparam,
+                                const std::vector<double>& uparam,
                                 const std::vector<double>& aparam,
                                 const std::vector<double>& charge_spin,
                                 const bool atomic) {
@@ -1260,6 +1265,7 @@ void NativeSpinPTExpt::computew(std::vector<double>& ener,
                                 const std::vector<int>& atype,
                                 const std::vector<float>& box,
                                 const std::vector<float>& fparam,
+                                const std::vector<float>& uparam,
                                 const std::vector<float>& aparam,
                                 const std::vector<double>& charge_spin,
                                 const bool atomic) {
@@ -1287,6 +1293,7 @@ void NativeSpinPTExpt::computew(std::vector<double>& ener,
                                 const InputNlist& inlist,
                                 const int& ago,
                                 const std::vector<double>& fparam,
+                                const std::vector<double>& uparam,
                                 const std::vector<double>& aparam,
                                 const std::vector<double>& charge_spin,
                                 const bool atomic) {
@@ -1315,6 +1322,7 @@ void NativeSpinPTExpt::computew(std::vector<double>& ener,
                                 const InputNlist& inlist,
                                 const int& ago,
                                 const std::vector<float>& fparam,
+                                const std::vector<float>& uparam,
                                 const std::vector<float>& aparam,
                                 const std::vector<double>& charge_spin,
                                 const bool atomic) {

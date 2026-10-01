@@ -33,8 +33,9 @@ class PropertyTester(ModelTester):
         dp = self.dp
         var_name = dp.get_var_name()
         assert isinstance(var_name, str)
-        data.add(var_name, dp.task_dim, atomic=False, must=True, high_prec=True)
         if self.atomic:
+            # The label file stores per-atom values (e.g. uparam.npy with
+            # shape (N, natoms)); the frame-level metric is the atom mean.
             data.add(
                 f"atom_{var_name}",
                 dp.task_dim,
@@ -42,6 +43,8 @@ class PropertyTester(ModelTester):
                 must=True,
                 high_prec=True,
             )
+        else:
+            data.add(var_name, dp.task_dim, atomic=False, must=True, high_prec=True)
         if dp.get_dim_fparam() > 0:
             data.add(
                 "fparam", dp.get_dim_fparam(), atomic=False, must=True, high_prec=False
@@ -84,32 +87,55 @@ class PropertyTester(ModelTester):
         )
         prediction = ret[0].reshape([nframes, dp.task_dim])
 
-        diff = prediction - test_data[var_name]
-        errors: dict[str, tuple[float, float]] = {
-            "mae_property": (mae(diff), prediction.size),
-            "rmse_property": (rmse(diff), prediction.size),
-        }
-
         atom_prediction = None
         if self.atomic:
             atom_prediction = ret[1].reshape([nframes, natoms * dp.task_dim])
             atom_diff = atom_prediction - test_data[f"atom_{var_name}"]
-            errors["mae_aproperty"] = (mae(atom_diff), atom_prediction.size)
-            errors["rmse_aproperty"] = (rmse(atom_diff), atom_prediction.size)
+            errors: dict[str, tuple[float, float]] = {
+                "mae_aproperty": (mae(atom_diff), atom_prediction.size),
+                "rmse_aproperty": (rmse(atom_diff), atom_prediction.size),
+            }
+            # ret[0] is the extensive reduction (sum over atoms) for
+            # intensive=False models; compare the atom-level mean against
+            # the atom-level mean of the labels instead.
+            prediction = (
+                atom_prediction.reshape(nframes, natoms, dp.task_dim).mean(axis=1)
+            )
+            frame_reference = (
+                test_data[f"atom_{var_name}"]
+                .reshape(nframes, natoms, dp.task_dim)
+                .mean(axis=1)
+            )
+            diff = prediction - frame_reference
+            errors["mae_property"] = (mae(diff), prediction.size)
+            errors["rmse_property"] = (rmse(diff), prediction.size)
+        else:
+            diff = prediction - test_data[var_name]
+            errors = {
+                "mae_property": (mae(diff), prediction.size),
+                "rmse_property": (rmse(diff), prediction.size),
+            }
 
         if context.detail_path is not None:
-            _write_per_frame_details(
-                context,
-                suffix="property",
-                reference=test_data[var_name],
-                prediction=prediction,
-            )
             if self.atomic:
+                _write_per_frame_details(
+                    context,
+                    suffix="property",
+                    reference=frame_reference,
+                    prediction=prediction,
+                )
                 _write_per_frame_details(
                     context,
                     suffix="aproperty",
                     reference=test_data[f"atom_{var_name}"],
                     prediction=atom_prediction,
+                )
+            else:
+                _write_per_frame_details(
+                    context,
+                    suffix="property",
+                    reference=test_data[var_name],
+                    prediction=prediction,
                 )
 
         return errors

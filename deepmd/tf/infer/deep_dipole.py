@@ -77,6 +77,10 @@ class DeepDipoleOld(DeepTensor):
         """Unsupported in this model."""
         raise NotImplementedError("This model type does not support this attribute")
 
+    def get_dim_uparam(self) -> int:
+        """Unsupported in this model."""
+        raise NotImplementedError("This model type does not support this attribute")
+
     def get_dim_aparam(self) -> int:
         """Unsupported in this model."""
         raise NotImplementedError("This model type does not support this attribute")

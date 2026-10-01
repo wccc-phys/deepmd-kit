@@ -79,6 +79,7 @@ def forward_common_atomic(
     nlist: xp.ndarray,
     mapping: xp.ndarray | None = None,
     fparam: xp.ndarray | None = None,
+    uparam: xp.ndarray | None = None,
     aparam: xp.ndarray | None = None,
     do_atomic_virial: bool = False,
     do_deriv_c: bool = True,
@@ -105,6 +106,7 @@ def forward_common_atomic(
                 nlist,
                 mapping=mapping,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 charge_spin=charge_spin,
             )
@@ -118,6 +120,7 @@ def forward_common_atomic(
             nlist,
             mapping=mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
         )
@@ -166,6 +169,7 @@ def forward_common_atomic(
                         nlist,
                         mapping=mapping,
                         fparam=fparam,
+                        uparam=uparam,
                         aparam=aparam,
                         charge_spin=charge_spin,
                     )

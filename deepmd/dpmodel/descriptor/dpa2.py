@@ -939,6 +939,7 @@ class DescrptDPA2(NativeOP, BaseDescriptor):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         comm_dict: dict | None = None,
         charge_spin: Array | None = None,
     ) -> tuple[Array, Array, Array, Array, Array]:
@@ -1297,6 +1298,7 @@ class DescrptDPA2(NativeOP, BaseDescriptor):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         comm_dict: dict | None = None,
         charge_spin: Array | None = None,
     ) -> tuple[Array, Array, Array, Array, Array]:
@@ -1336,7 +1338,7 @@ class DescrptDPA2(NativeOP, BaseDescriptor):
             The smooth switch function. shape: nf x nloc x nnei
 
         """
-        del fparam, charge_spin
+        del fparam, uparam, charge_spin
         xp = array_api_compat.array_namespace(coord_ext, atype_ext, nlist)
         use_three_body = self.use_three_body
         nframes, nloc, nnei = nlist.shape

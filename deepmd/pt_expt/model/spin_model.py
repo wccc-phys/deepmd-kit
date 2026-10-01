@@ -57,6 +57,7 @@ class SpinModel(SpinModelDP):
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
         **make_fx_kwargs: Any,
@@ -73,7 +74,7 @@ class SpinModel(SpinModelDP):
 
         Parameters
         ----------
-        extended_coord, extended_atype, extended_spin, nlist, mapping, fparam, aparam, do_atomic_virial
+        extended_coord, extended_atype, extended_spin, nlist, mapping, fparam, aparam, uparam, do_atomic_virial
             Sample inputs with representative shapes (used for tracing).
         **make_fx_kwargs
             Extra keyword arguments forwarded to ``make_fx``
@@ -84,7 +85,7 @@ class SpinModel(SpinModelDP):
         torch.nn.Module
             A traced module whose ``forward`` accepts
             ``(extended_coord, extended_atype, extended_spin, nlist,
-            mapping, fparam, aparam)`` and returns a dict with the same
+            mapping, fparam, aparam, uparam)`` and returns a dict with the same
             keys as ``call_common_lower``.
         """
         model = self
@@ -97,6 +98,7 @@ class SpinModel(SpinModelDP):
             mapping: torch.Tensor | None,
             fparam: torch.Tensor | None,
             aparam: torch.Tensor | None,
+            uparam: torch.Tensor | None,
             charge_spin: torch.Tensor | None,
         ) -> dict[str, torch.Tensor]:
             extended_coord = extended_coord.detach().requires_grad_(True)
@@ -109,6 +111,7 @@ class SpinModel(SpinModelDP):
                 mapping,
                 fparam=fparam,
                 aparam=aparam,
+                uparam=uparam,
                 charge_spin=charge_spin,
                 do_atomic_virial=do_atomic_virial,
             )
@@ -133,6 +136,7 @@ class SpinModel(SpinModelDP):
                 mapping,
                 fparam,
                 aparam,
+                uparam,
                 charge_spin,
             )
         finally:
@@ -148,15 +152,16 @@ class SpinModel(SpinModelDP):
         mapping: torch.Tensor | None,
         fparam: torch.Tensor | None,
         aparam: torch.Tensor | None,
-        charge_spin: torch.Tensor | None,
-        send_list: torch.Tensor,
-        send_proc: torch.Tensor,
-        recv_proc: torch.Tensor,
-        send_num: torch.Tensor,
-        recv_num: torch.Tensor,
-        communicator: torch.Tensor,
-        nlocal: torch.Tensor,
-        nghost: torch.Tensor,
+        uparam: torch.Tensor | None = None,
+        charge_spin: torch.Tensor | None = None,
+        send_list: torch.Tensor = None,
+        send_proc: torch.Tensor = None,
+        recv_proc: torch.Tensor = None,
+        send_num: torch.Tensor = None,
+        recv_num: torch.Tensor = None,
+        communicator: torch.Tensor = None,
+        nlocal: torch.Tensor = None,
+        nghost: torch.Tensor = None,
         do_atomic_virial: bool = False,
         **make_fx_kwargs: Any,
     ) -> torch.nn.Module:
@@ -177,6 +182,7 @@ class SpinModel(SpinModelDP):
             mapping: torch.Tensor | None,
             fparam: torch.Tensor | None,
             aparam: torch.Tensor | None,
+            uparam: torch.Tensor | None,
             charge_spin: torch.Tensor | None,
             send_list: torch.Tensor,
             send_proc: torch.Tensor,
@@ -215,6 +221,7 @@ class SpinModel(SpinModelDP):
                 mapping,
                 fparam=fparam,
                 aparam=aparam,
+                uparam=uparam,
                 do_atomic_virial=do_atomic_virial,
                 comm_dict=comm_dict,
                 charge_spin=charge_spin,
@@ -237,6 +244,7 @@ class SpinModel(SpinModelDP):
                 mapping,
                 fparam,
                 aparam,
+                uparam,
                 charge_spin,
                 send_list,
                 send_proc,

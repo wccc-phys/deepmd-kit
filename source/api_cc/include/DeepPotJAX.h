@@ -138,6 +138,9 @@ class DeepPotJAX : public DeepPotBackend {
     has_default_chg_spin_ = true;
   };
 
+  int dim_uparam() const { return duparam; };
+  bool has_default_uparam() const { return false; };
+
   // forward to template class
   void computew(std::vector<double>& ener,
                 std::vector<double>& force,
@@ -148,6 +151,7 @@ class DeepPotJAX : public DeepPotBackend {
                 const std::vector<int>& atype,
                 const std::vector<double>& box,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const bool atomic);
   void computew(std::vector<double>& ener,
@@ -159,6 +163,7 @@ class DeepPotJAX : public DeepPotBackend {
                 const std::vector<int>& atype,
                 const std::vector<double>& box,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const std::vector<double>& charge_spin,
                 const bool atomic) override;
@@ -171,6 +176,7 @@ class DeepPotJAX : public DeepPotBackend {
                 const std::vector<int>& atype,
                 const std::vector<float>& box,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const bool atomic);
   void computew(std::vector<double>& ener,
@@ -182,6 +188,7 @@ class DeepPotJAX : public DeepPotBackend {
                 const std::vector<int>& atype,
                 const std::vector<float>& box,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const std::vector<double>& charge_spin,
                 const bool atomic) override;
@@ -197,6 +204,7 @@ class DeepPotJAX : public DeepPotBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const bool atomic);
   void computew(std::vector<double>& ener,
@@ -211,6 +219,7 @@ class DeepPotJAX : public DeepPotBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const std::vector<double>& charge_spin,
                 const bool atomic) override;
@@ -226,6 +235,7 @@ class DeepPotJAX : public DeepPotBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const bool atomic);
   void computew(std::vector<double>& ener,
@@ -240,6 +250,7 @@ class DeepPotJAX : public DeepPotBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const std::vector<double>& charge_spin,
                 const bool atomic) override;
@@ -253,6 +264,7 @@ class DeepPotJAX : public DeepPotBackend {
                            const std::vector<int>& atype,
                            const std::vector<double>& box,
                            const std::vector<double>& fparam,
+                           const std::vector<double>& uparam,
                            const std::vector<double>& aparam,
                            const bool atomic);
   void computew_mixed_type(std::vector<double>& ener,
@@ -265,6 +277,7 @@ class DeepPotJAX : public DeepPotBackend {
                            const std::vector<int>& atype,
                            const std::vector<float>& box,
                            const std::vector<float>& fparam,
+                           const std::vector<float>& uparam,
                            const std::vector<float>& aparam,
                            const bool atomic);
 
@@ -285,6 +298,7 @@ class DeepPotJAX : public DeepPotBackend {
   int ntypes;
   // the dimension of the frame parameter
   int dfparam;
+  int duparam{0};
   // the dimension of the atomic parameter
   int daparam;
   // the dimension of charge/spin condition inputs
@@ -351,6 +365,10 @@ class DeepPotJAX : public DeepPotBackend {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The DFT+U parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   *uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -367,6 +385,7 @@ class DeepPotJAX : public DeepPotBackend {
                const std::vector<int>& atype,
                const std::vector<VALUETYPE>& box,
                const std::vector<VALUETYPE>& fparam,
+               const std::vector<VALUETYPE>& uparam,
                const std::vector<VALUETYPE>& aparam,
                const std::vector<double>& charge_spin,
                const bool atomic);
@@ -391,6 +410,10 @@ class DeepPotJAX : public DeepPotBackend {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The DFT+U parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   *uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -410,6 +433,7 @@ class DeepPotJAX : public DeepPotBackend {
                const InputNlist& lmp_list,
                const int& ago,
                const std::vector<VALUETYPE>& fparam,
+               const std::vector<VALUETYPE>& uparam,
                const std::vector<VALUETYPE>& aparam,
                const std::vector<double>& charge_spin,
                const bool atomic);

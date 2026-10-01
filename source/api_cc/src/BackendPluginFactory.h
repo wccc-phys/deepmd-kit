@@ -8,6 +8,7 @@
 
 #include "BackendPlugin.h"
 #include "DataModifier.h"
+#include "DeepMLU.h"
 #include "DeepPot.h"
 #include "DeepSpin.h"
 #include "DeepTensor.h"
@@ -120,6 +121,31 @@ inline void delete_deepspin_backend(void* backend) {
 
 inline void delete_deeptensor_backend(void* backend) {
   delete static_cast<DeepTensorBase*>(backend);
+}
+
+template <typename Backend>
+void* create_deepmlu_backend(const char* model,
+                             int gpu_rank,
+                             const char* file_content,
+                             std::size_t file_content_size,
+                             char** error_message) {
+  try {
+    const std::string content(file_content == nullptr ? "" : file_content,
+                              file_content_size);
+    return static_cast<DeepMLUBackend*>(
+        new Backend(model == nullptr ? "" : model, gpu_rank, content));
+  } catch (const deepmd::deepmd_exception& e) {
+    set_error_message(error_message, e.what());
+  } catch (const std::exception& e) {
+    set_error_message(error_message, e.what());
+  } catch (...) {
+    set_error_message(error_message, "unknown backend plugin error");
+  }
+  return nullptr;
+}
+
+inline void delete_deepmlu_backend(void* backend) {
+  delete static_cast<DeepMLUBackend*>(backend);
 }
 
 inline void delete_dipole_charge_modifier_backend(void* backend) {

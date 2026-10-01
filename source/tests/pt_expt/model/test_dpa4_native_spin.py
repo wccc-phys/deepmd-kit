@@ -574,7 +574,22 @@ def _build_spin_graph_sample(
         device=torch.device("cpu"),
         want_charge_spin=False,
     )
-    (atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, ap, _cs) = sample
+    (
+        atype,
+        n_node,
+        n_local,
+        ei,
+        ev,
+        em,
+        do,
+        drp,
+        so,
+        srp,
+        fp,
+        _up0,
+        ap,
+        _cs,
+    ) = sample
     generator = torch.Generator(device="cpu").manual_seed(GLOBAL_SEED)
     spin = 0.1 + torch.rand(atype.shape[0], 3, dtype=torch.float64, generator=generator)
     return atype, n_node, n_local, ei, ev, em, do, drp, so, srp, spin, fp, ap, _cs

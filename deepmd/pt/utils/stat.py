@@ -200,6 +200,14 @@ def make_stat_input(
                     # for model using default fparam
                     stat_data.pop("fparam")
                     stat_data.pop("find_fparam")
+                if (
+                    "find_uparam" in stat_data
+                    and "uparam" in stat_data
+                    and stat_data["find_uparam"] == 0.0
+                ):
+                    # for model using default uparam
+                    stat_data.pop("uparam")
+                    stat_data.pop("find_uparam")
                 for dd in stat_data:
                     if stat_data[dd] is None:
                         sys_stat[dd] = None
@@ -382,6 +390,7 @@ def _compute_model_predict(
             system.get("box"),
         )
         fparam = system.get("fparam", None)
+        uparam = system.get("uparam", None)
         aparam = system.get("model_aparam", system.get("aparam", None))
         charge_spin = system.get("charge_spin", None)
         spin = system.get("model_spin", system.get("spin", None))
@@ -397,6 +406,7 @@ def _compute_model_predict(
 
         model_kwargs = {
             "fparam": fparam,
+            "uparam": uparam,
             "aparam": aparam,
             "charge_spin": charge_spin,
         }

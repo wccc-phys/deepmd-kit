@@ -92,6 +92,7 @@ def _run_graph(
         source_order,
         source_row_ptr,
         fparam,
+        uparam,
         aparam,
         charge_spin,
     ) = sample
@@ -588,7 +589,8 @@ def test_the_graph_lower_conditions_each_frame_on_its_own_charge_state() -> None
             destination_sorted=True,
             do_atomic_virial=True,
             fparam=sample[10],
-            aparam=sample[11],
+            uparam=sample[11],
+            aparam=sample[12],
             charge_spin=torch.tensor(
                 [[0.0, 1.0], second_state],
                 dtype=torch.float64,

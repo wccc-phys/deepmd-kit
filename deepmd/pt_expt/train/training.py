@@ -61,6 +61,9 @@ from deepmd.dpmodel.train import (
     change_model_out_bias_by_task,
     resolve_step_schedule,
 )
+from deepmd.dpmodel.utils.fitting_params import (
+    FittingParams,
+)
 from deepmd.dpmodel.utils.batch import (
     normalize_batch,
     split_batch,
@@ -360,33 +363,24 @@ def get_loss(
         loss_params["var_name"] = var_name
         loss_params["intensive"] = intensive
         return PropertyLoss(**loss_params)
+    elif loss_type == "mlu":
+        # MLU predicts the Hubbard U (var_name "uparam"); the loss is the
+        # property loss over that single output.
+        loss_params.pop("type", None)
+        loss_params["task_dim"] = _model.get_task_dim()
+        loss_params["var_name"] = _model.get_var_name()
+        loss_params["intensive"] = _model.get_intensive()
+        return PropertyLoss(**loss_params)
     else:
         raise ValueError(f"Unsupported loss type for pt_expt: {loss_type}")
 
 
 def get_additional_data_requirement(_model: Any) -> list[DataRequirementItem]:
-    additional_data_requirement: list[DataRequirementItem] = []
-    if _model.get_dim_fparam() > 0:
-        has_default_fparam = _model.has_default_fparam()
-        fparam_default = (
-            np.asarray(_model.get_default_fparam()) if has_default_fparam else 0.0
-        )
-        additional_data_requirement.append(
-            DataRequirementItem(
-                "fparam",
-                _model.get_dim_fparam(),
-                atomic=False,
-                must=not has_default_fparam,
-                default=fparam_default,
-                source_policy="default" if has_default_fparam else "tracked",
-            )
-        )
-    if _model.get_dim_aparam() > 0:
-        additional_data_requirement.append(
-            DataRequirementItem(
-                "aparam", _model.get_dim_aparam(), atomic=True, must=True
-            )
-        )
+    # Conditioning parameters (fparam/uparam/aparam/charge_spin) come from
+    # the FittingParams registry -- one place to add a new parameter.
+    additional_data_requirement: list[DataRequirementItem] = (
+        FittingParams.requirement_items(_model, DataRequirementItem)
+    )
     if _model.has_spin():
         # ``model.spin.allow_missing_label`` relaxes the spin label from
         # mandatory to optional with a zero default, so a system without a
@@ -402,26 +396,6 @@ def get_additional_data_requirement(_model: Any) -> list[DataRequirementItem]:
                 must=not allow_missing_spin,
                 default=0.0,
                 source_policy="default" if allow_missing_spin else "tracked",
-            )
-        )
-    if _model.has_chg_spin_ebd():
-        default_cs = _model.get_default_chg_spin()
-        has_default_cs = default_cs is not None
-        if has_default_cs:
-            if hasattr(default_cs, "cpu"):
-                default_cs = default_cs.cpu().numpy()
-            else:
-                default_cs = np.asarray(default_cs)
-        else:
-            default_cs = 0.0
-        additional_data_requirement.append(
-            DataRequirementItem(
-                "charge_spin",
-                ndof=2,
-                atomic=False,
-                must=not has_default_cs,
-                default=default_cs,
-                source_policy="default" if has_default_cs else "tracked",
             )
         )
     return additional_data_requirement
@@ -453,7 +427,7 @@ def _forbidden_dims_from_model(
     Collects every ``> 1`` dim of the model's parameters/buffers (so
     ``_next_safe_prime`` never aliases an internal dim like ``g2_dim`` /
     ``axis_neuron`` / ``attn_head`` without a hardcoded list), plus
-    ``dim_fparam``/``dim_aparam`` and the task-buffer dims.  Shared by the dense
+    ``dim_fparam``/``dim_aparam``/``dim_uparam`` and the task-buffer dims.  Shared by the dense
     :func:`_trace_and_compile` and the graph :func:`_trace_and_compile_graph`;
     each caller adds its path-specific dims (nall/nloc/nsel for dense,
     charge_spin for both) on top of this base set.
@@ -465,7 +439,7 @@ def _forbidden_dims_from_model(
         for _d in _p.shape
         if _d > 1
     }
-    for _getter in (model.get_dim_fparam, model.get_dim_aparam):
+    for _getter in (model.get_dim_fparam, model.get_dim_aparam, model.get_dim_uparam):
         try:
             _dim = _getter()
             if _dim > 1:
@@ -488,6 +462,7 @@ def _trace_and_compile(
     mapping: torch.Tensor,
     fparam: torch.Tensor | None,
     aparam: torch.Tensor | None,
+    uparam: torch.Tensor | None = None,
     compile_opts: dict[str, Any] | None = None,
     charge_spin: torch.Tensor | None = None,
     task_buffers: dict[str, torch.Tensor] | None = None,
@@ -556,6 +531,7 @@ def _trace_and_compile(
         mapping: torch.Tensor | None,
         fparam: torch.Tensor | None,
         aparam: torch.Tensor | None,
+        uparam: torch.Tensor | None,
         charge_spin: torch.Tensor | None,
         *task_buf_vals: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
@@ -595,6 +571,7 @@ def _trace_and_compile(
                 mapping,
                 fparam=fparam,
                 aparam=aparam,
+                uparam=uparam,
                 charge_spin=charge_spin,
             )
         finally:
@@ -648,6 +625,8 @@ def _trace_and_compile(
         fparam = _trace_pad_dim(fparam[:1], 0, trace_nf)
     if aparam is not None:
         aparam = _trace_pad_dim(aparam[:1], 0, trace_nf)
+    if uparam is not None:
+        uparam = _trace_pad_dim(uparam[:1], 0, trace_nf)
     if charge_spin is not None:
         charge_spin = _trace_pad_dim(charge_spin[:1], 0, trace_nf)
 
@@ -674,6 +653,7 @@ def _trace_and_compile(
         mapping,
         fparam,
         aparam,
+        uparam,
         charge_spin,
         *task_buf_vals_trace,
     )
@@ -734,6 +714,7 @@ def _trace_and_compile_graph(
     model: torch.nn.Module,
     fparam: torch.Tensor | None,
     aparam: torch.Tensor | None,
+    uparam: torch.Tensor | None,
     charge_spin: torch.Tensor | None,
     spin: torch.Tensor | None,
     compile_opts: dict[str, Any] | None = None,
@@ -868,6 +849,7 @@ def _trace_and_compile_graph(
         device=_trace_device,
         want_fparam=fparam is not None,
         want_aparam=aparam is not None,
+        want_uparam=uparam is not None,
         want_charge_spin=charge_spin is not None,
         want_spin=spin is not None,
         canonicalize=False,
@@ -888,7 +870,7 @@ def _trace_and_compile_graph(
     # The synthetic native-spin ABI puts spin before the optional conditioning
     # tensors, while forward_common_lower_graph takes it after them.
     s_spin = s_conditioning.pop(0) if spin is not None else None
-    s_fparam, s_aparam, s_charge_spin = s_conditioning
+    s_fparam, s_uparam, s_aparam, s_charge_spin = s_conditioning
 
     def fn(
         atype: torch.Tensor,
@@ -903,6 +885,7 @@ def _trace_and_compile_graph(
         source_row_ptr: torch.Tensor | None,
         fparam: torch.Tensor | None,
         aparam: torch.Tensor | None,
+        uparam: torch.Tensor | None,
         charge_spin: torch.Tensor | None,
         spin: torch.Tensor | None,
         *task_buf_vals: torch.Tensor,
@@ -938,6 +921,7 @@ def _trace_and_compile_graph(
                 do_atomic_virial=False,
                 fparam=fparam,
                 aparam=aparam,
+                uparam=uparam,
                 charge_spin=charge_spin,
                 spin=spin,
             )
@@ -983,6 +967,7 @@ def _trace_and_compile_graph(
         s_source_order,
         s_source_row_ptr,
         s_fparam,
+        s_uparam,
         s_aparam,
         s_charge_spin,
         s_spin,
@@ -1149,6 +1134,7 @@ class _CompiledModel(torch.nn.Module):
         atype: torch.Tensor,
         box: torch.Tensor | None,
         fparam: torch.Tensor | None,
+        uparam: torch.Tensor | None,
         aparam: torch.Tensor | None,
         do_atomic_virial: bool,
         charge_spin: torch.Tensor | None,
@@ -1159,6 +1145,7 @@ class _CompiledModel(torch.nn.Module):
         kwargs = {
             "box": box,
             "fparam": fparam,
+            "uparam": uparam,
             "aparam": aparam,
             "do_atomic_virial": do_atomic_virial,
             "charge_spin": charge_spin,
@@ -1181,6 +1168,7 @@ class _CompiledModel(torch.nn.Module):
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
         spin: torch.Tensor | None = None,
@@ -1191,6 +1179,7 @@ class _CompiledModel(torch.nn.Module):
                 atype,
                 box,
                 fparam,
+                uparam,
                 aparam,
                 do_atomic_virial,
                 charge_spin,
@@ -1221,6 +1210,7 @@ class _CompiledModel(torch.nn.Module):
                 box,
                 fparam,
                 aparam,
+                uparam,
                 charge_spin,
                 spin,
                 nframes,
@@ -1274,7 +1264,7 @@ class _CompiledModel(torch.nn.Module):
 
         # Mirror the uncompiled path's optional-input defaulting (see
         # ``SeZMModel._forward_common`` -> ``convert_fparam_aparam`` /
-        # ``convert_charge_spin``): a model configured with fparam or
+        # ``convert_charge_spin``): a model configured with fparam, uparam, or
         # charge_spin (``dim > 0``) substitutes its default when the data
         # omits it.  The compiled ``forward_lower`` is frozen to the *traced*
         # branch -- a present optional input bakes ``aten._to_copy(x, ...)``
@@ -1316,6 +1306,19 @@ class _CompiledModel(torch.nn.Module):
                     .reshape(1, _dim_cs)
                     .expand(nframes, -1)
                 )
+        _dim_uparam = (
+            _model.get_dim_uparam() if hasattr(_model, "get_dim_uparam") else 0
+        )
+        if uparam is None and _dim_uparam > 0:
+            _default_uparam = _model.get_default_uparam()
+            if _default_uparam is not None:
+                uparam = (
+                    torch.as_tensor(
+                        _default_uparam, dtype=ext_coord.dtype, device=ext_coord.device
+                    )
+                    .reshape(1, _dim_uparam)
+                    .expand(nframes, -1)
+                )
 
         # Lazy compile: trace on the first real forward call using this
         # batch's tensors (prime-padded inside _trace_and_compile).
@@ -1340,6 +1343,7 @@ class _CompiledModel(torch.nn.Module):
                     mapping,
                     fparam,
                     aparam,
+                    uparam,
                     charge_spin=charge_spin,
                     task_buffers=self._task_buffers,
                     compile_opts=self._compile_opts,
@@ -1382,6 +1386,7 @@ class _CompiledModel(torch.nn.Module):
                 mapping,
                 fparam,
                 aparam,
+                uparam,
                 charge_spin,
                 *task_buf_vals,
             )
@@ -1427,6 +1432,7 @@ class _CompiledModel(torch.nn.Module):
         n_node: torch.Tensor,
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
@@ -1478,6 +1484,7 @@ class _CompiledModel(torch.nn.Module):
                 atype,
                 box,
                 fparam,
+                uparam,
                 aparam,
                 do_atomic_virial,
                 charge_spin,
@@ -1499,6 +1506,7 @@ class _CompiledModel(torch.nn.Module):
             box,
             fparam,
             aparam,
+            uparam,
             charge_spin,
             spin,
             int(n_node.shape[0]),
@@ -1514,6 +1522,7 @@ class _CompiledModel(torch.nn.Module):
         box: torch.Tensor | None,
         fparam: torch.Tensor | None,
         aparam: torch.Tensor | None,
+        uparam: torch.Tensor | None,
         charge_spin: torch.Tensor | None,
         spin: torch.Tensor | None,
         nframes: int,
@@ -1572,8 +1581,8 @@ class _CompiledModel(torch.nn.Module):
                 spin = spin.reshape(n_padded, 3)
 
         # Mirror the optional-input defaulting of the dense path / eager
-        # call_common: a model configured with fparam / charge_spin substitutes
-        # its default when the data omits it, so the compiled (frozen) branch
+        # call_common: a model configured with fparam / uparam / charge_spin
+        # substitutes its default when the data omits it, so the compiled (frozen) branch
         # always sees a tensor.
         _dim_fparam = (
             _model.get_dim_fparam() if hasattr(_model, "get_dim_fparam") else 0
@@ -1597,6 +1606,19 @@ class _CompiledModel(torch.nn.Module):
                         _default_cs, dtype=coord_3d.dtype, device=coord_3d.device
                     )
                     .reshape(1, _dim_cs)
+                    .expand(nframes, -1)
+                )
+        _dim_uparam = (
+            _model.get_dim_uparam() if hasattr(_model, "get_dim_uparam") else 0
+        )
+        if uparam is None and _dim_uparam > 0:
+            _default_uparam = _model.get_default_uparam()
+            if _default_uparam is not None:
+                uparam = (
+                    torch.as_tensor(
+                        _default_uparam, dtype=coord_3d.dtype, device=coord_3d.device
+                    )
+                    .reshape(1, _dim_uparam)
                     .expand(nframes, -1)
                 )
 
@@ -1638,6 +1660,7 @@ class _CompiledModel(torch.nn.Module):
                     _model,
                     fparam,
                     aparam,
+                    uparam,
                     charge_spin,
                     spin,
                     task_buffers=self._task_buffers,
@@ -1692,6 +1715,7 @@ class _CompiledModel(torch.nn.Module):
                 ng.source_row_ptr,
                 fparam,
                 aparam,
+                uparam,
                 charge_spin,
                 spin,
                 *task_buf_vals,
@@ -2638,17 +2662,12 @@ class Trainer(AbstractTrainer):
             return {}, {}
 
         batch = normalize_batch(data_sys.get_batch())
-        input_dict, label_dict = split_batch(batch)
-
-        # Drop optional inputs whose find_* flag is False so the model sees None.
-        for opt_key in ("fparam", "charge_spin"):
-            find_key = f"find_{opt_key}"
-            if (
-                opt_key in input_dict
-                and find_key in label_dict
-                and not bool(label_dict[find_key])
-            ):
-                input_dict.pop(opt_key)
+        # Registry-driven: conditioning membership, the MLU uparam->label
+        # rule and the find_* optional pruning all live in FittingParams.
+        input_dict, label_dict = FittingParams.split(
+            batch, self.models[task_key], base_split=split_batch
+        )
+        FittingParams.prune_optionals(input_dict, label_dict)
 
         # Convert numpy values to torch tensors.
         for dd in (input_dict, label_dict):

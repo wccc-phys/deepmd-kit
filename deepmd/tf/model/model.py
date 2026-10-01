@@ -457,6 +457,10 @@ class Model(ABC, make_plugin_registry("model")):
         """Get the number of atomic parameters."""
         return 0
 
+    def get_numb_uparam(self) -> int | dict:
+        """Get the number of DFT+U parameters."""
+        return 0
+
     def get_numb_dos(self) -> int | dict:
         """Get the number of gridpoints in energy space."""
         return 0
@@ -528,6 +532,8 @@ class Model(ABC, make_plugin_registry("model")):
             feed_dict["t_fparam:0"] = kwargs["fparam"]
         if kwargs.get("aparam") is not None:
             feed_dict["t_aparam:0"] = kwargs["aparam"]
+        if kwargs.get("uparam") is not None:
+            feed_dict["t_uparam:0"] = kwargs["uparam"]
         return feed_dict
 
     @classmethod

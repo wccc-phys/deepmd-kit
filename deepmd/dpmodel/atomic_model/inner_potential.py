@@ -377,6 +377,10 @@ class InnerPotentialAtomicModel(BaseAtomicModel):
         """No frame parameters."""
         return 0
 
+    def get_dim_uparam(self) -> int:
+        """No DFT+U parameters."""
+        return 0
+
     def get_dim_aparam(self) -> int:
         """No atomic parameters."""
         return 0
@@ -412,6 +416,7 @@ class InnerPotentialAtomicModel(BaseAtomicModel):
         graph: Any,
         atype: Any,
         fparam: Any = None,
+        uparam: Any = None,
         aparam: Any = None,
         charge_spin: Any = None,
         spin: Any = None,
@@ -419,7 +424,7 @@ class InnerPotentialAtomicModel(BaseAtomicModel):
     ) -> dict:
         """Evaluate the analytical per-atom energy on the flat node axis.
 
-        ``fparam``/``aparam``/``charge_spin``/``spin``/``comm_dict`` are
+        ``fparam``/``uparam``/``aparam``/``charge_spin``/``spin``/``comm_dict`` are
         accepted for pipeline-signature compatibility and ignored (the
         analytical term conditions on geometry and types only).
 
@@ -449,6 +454,32 @@ class InnerPotentialAtomicModel(BaseAtomicModel):
             real_type_count=len(self.type_map),
         )
         return {"energy": xp.reshape(energy, (n_node, 1))}
+
+    def enable_compression(
+        self,
+        min_nbor_dist: float,
+        table_extrapolate: float = 5,
+        table_stride_1: float = 0.01,
+        table_stride_2: float = 0.1,
+        check_frequency: int = -1,
+    ) -> None:
+        """The potential is analytic -- there is no embedding net to tabulate.
+
+        Compression of a bridged composition therefore only tabulates the
+        learned submodel; this term keeps its exact evaluation.
+        """
+        pass
+
+    def compression_needs_min_nbor_dist(self) -> bool:
+        """Return whether compression consumes the minimum neighbor distance.
+
+        Returns
+        -------
+        bool
+            Always ``False``. The analytic potential has no lookup table, so
+            compression never reads ``min_nbor_dist`` from this submodel.
+        """
+        return False
 
     def serialize(self) -> dict:
         data = super().serialize()

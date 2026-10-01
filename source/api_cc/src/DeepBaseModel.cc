@@ -38,6 +38,16 @@ bool DeepBaseModel::has_default_fparam() const {
   return dpbase->has_default_fparam();
 }
 
+int DeepBaseModel::dim_uparam() const { return dpbase->dim_uparam(); }
+
+bool DeepBaseModel::has_default_uparam() const {
+  return dpbase->has_default_uparam();
+}
+
+void DeepBaseModel::set_uparam(const std::vector<double>& uparam) {
+  dpbase->set_uparam(uparam);
+}
+
 DeepBaseModelDevi::DeepBaseModelDevi() : inited(false), numb_models(0) {}
 
 // DeepBaseModelDevi::DeepBaseModelDevi(

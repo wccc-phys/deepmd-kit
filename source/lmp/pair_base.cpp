@@ -280,6 +280,81 @@ void PairDeepBaseModel::make_aparam_from_compute(vector<double>& aparam) {
   }
 }
 
+void PairDeepBaseModel::make_uparam_from_compute(vector<double>& uparam) {
+  assert(do_compute_uparam);
+
+  int icompute = modify->find_compute(compute_uparam_id);
+  Compute* compute = modify->compute[icompute];
+
+  if (!compute) {
+    error->all(FLERR, "compute id is not found: " + compute_uparam_id);
+  }
+  uparam.resize(dim_uparam);
+
+  if (dim_uparam == 1) {
+    if (!(compute->invoked_flag & Compute::INVOKED_SCALAR)) {
+      compute->compute_scalar();
+      compute->invoked_flag |= Compute::INVOKED_SCALAR;
+    }
+    uparam[0] = compute->scalar;
+  } else if (dim_uparam > 1) {
+    if (!(compute->invoked_flag & Compute::INVOKED_VECTOR)) {
+      compute->compute_vector();
+      compute->invoked_flag |= Compute::INVOKED_VECTOR;
+    }
+    double* cvector = compute->vector;
+    for (int jj = 0; jj < dim_uparam; ++jj) {
+      uparam[jj] = cvector[jj];
+    }
+  }
+}
+
+void PairDeepBaseModel::make_uparam_from_fix(vector<double>& uparam) {
+  assert(do_fix_uparam);
+
+  int ifix = modify->find_fix(fix_uparam_id);
+  if (ifix < 0) {
+    error->all(FLERR, "fix id is not found: " + fix_uparam_id);
+  }
+  Fix* fix = modify->fix[ifix];
+
+  if (!fix) {
+    error->all(FLERR, "fix id is not found: " + fix_uparam_id);
+  }
+  uparam.resize(dim_uparam);
+
+  if (fix_uparam_index < 0) {
+    if (dim_uparam == 1) {
+      if (!fix->scalar_flag) {
+        error->all(FLERR, "fix " + fix_uparam_id +
+                              " does not provide a scalar for uparam");
+      }
+      uparam[0] = fix->compute_scalar();
+    } else if (dim_uparam > 1) {
+      if (!fix->scalar_flag) {
+        error->all(FLERR, "fix " + fix_uparam_id +
+                              " does not provide a scalar for uparam");
+      }
+      double value = fix->compute_scalar();
+      for (int jj = 0; jj < dim_uparam; ++jj) {
+        uparam[jj] = value;
+      }
+    }
+  } else {
+    if (!fix->vector_flag) {
+      error->all(FLERR, "fix " + fix_uparam_id +
+                            " does not provide a vector for uparam");
+    }
+    if (fix_uparam_index > fix->size_vector - dim_uparam) {
+      error->all(FLERR, "fix " + fix_uparam_id +
+                            " vector is shorter than uparam dimension");
+    }
+    for (int jj = 0; jj < dim_uparam; ++jj) {
+      uparam[jj] = fix->compute_vector(fix_uparam_index + jj);
+    }
+  }
+}
+
 #ifdef USE_TTM
 void PairDeepBaseModel::make_ttm_fparam(vector<double>& fparam) {
   assert(do_ttm);
@@ -430,10 +505,16 @@ PairDeepBaseModel::PairDeepBaseModel(
   do_ttm = false;
   dim_fparam = 0;
   dim_aparam = 0;
+  dim_uparam = 0;
   dim_chg_spin = 0;
   do_compute_fparam = false;
   do_fix_fparam = false;
   fix_fparam_index = -1;
+  do_compute_uparam = false;
+  do_fix_uparam = false;
+  do_mlu_model = false;
+  mlu_predicted_u = 0.0;
+  fix_uparam_index = -1;
   do_compute_aparam = false;
   single_model = false;
   multi_models_mod_devi = false;
@@ -582,6 +663,10 @@ void* PairDeepBaseModel::extract(const char* str, int& dim) {
   if (strcmp(str, "scale") == 0) {
     dim = 2;
     return (void*)scale;
+  }
+  if (strcmp(str, "u") == 0) {
+    dim = 0;
+    return (void*)&mlu_predicted_u;
   }
   return NULL;
 }

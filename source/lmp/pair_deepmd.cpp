@@ -225,8 +225,113 @@ double PairDeepMD::eval_energy_with_fparam(
     }
 
     try {
+      deep_pot.set_uparam(uparam);
       deep_pot.compute(dener, dforce, dvirial, dcoord, dtype, dbox, nghost,
-                       lmp_list, ago, fparam_override, daparam);
+                       lmp_list, ago, fparam_override, uparam, daparam);
+    } catch (deepmd_compat::deepmd_exception& e) {
+      error->one(FLERR, e.what());
+    }
+  } else {
+    error->all(FLERR, "unknown computational branch");
+  }
+
+  return scale[1][1] * dener * ener_unit_cvt_factor;
+}
+
+double PairDeepMD::eval_energy_with_uparam(
+    const std::vector<double>& uparam_override) {
+  if (numb_models != 1) {
+    error->all(FLERR,
+               "deepmd/uparam/dedn currently supports single-model pair_style "
+               "only");
+  }
+  if (atom->sp_flag) {
+    error->all(FLERR,
+               "Pair style 'deepmd' does not support spin atoms, please use "
+               "pair style 'deepspin' instead.");
+  }
+
+  bool do_ghost = true;
+  commdata_ = (CommBrickDeepMD*)comm;
+  double** x = atom->x;
+  int* type = atom->type;
+  int nlocal = atom->nlocal;
+  int nghost = 0;
+  if (do_ghost) {
+    nghost = atom->nghost;
+  }
+  int nall = nlocal + nghost;
+
+  std::vector<int> dtype(nall);
+  for (int ii = 0; ii < nall; ++ii) {
+    dtype[ii] = type_idx_map[type[ii] - 1];
+  }
+
+  double dener(0);
+  std::vector<double> dforce(nall * 3);
+  std::vector<double> dvirial(9, 0);
+  std::vector<double> dcoord(nall * 3, 0.);
+  std::vector<double> dbox(9, 0);
+  std::vector<double> daparam;
+
+  if (uparam_override.size() != static_cast<size_t>(dim_uparam) &&
+      uparam_override.size() != static_cast<size_t>(dim_uparam * nlocal)) {
+    error->all(FLERR, "uparam override has the wrong dimension");
+  }
+
+  dbox[0] = domain->h[0] / dist_unit_cvt_factor;
+  dbox[4] = domain->h[1] / dist_unit_cvt_factor;
+  dbox[8] = domain->h[2] / dist_unit_cvt_factor;
+  dbox[7] = domain->h[3] / dist_unit_cvt_factor;
+  dbox[6] = domain->h[4] / dist_unit_cvt_factor;
+  dbox[3] = domain->h[5] / dist_unit_cvt_factor;
+
+  for (int ii = 0; ii < nall; ++ii) {
+    for (int dd = 0; dd < 3; ++dd) {
+      dcoord[ii * 3 + dd] =
+          (x[ii][dd] - domain->boxlo[dd]) / dist_unit_cvt_factor;
+    }
+  }
+
+  std::vector<int> mapping_vec(nall, -1);
+  if (comm->nprocs == 1 && atom->map_style != Atom::MAP_NONE) {
+    for (size_t ii = 0; ii < nall; ++ii) {
+      mapping_vec[ii] = atom->map(atom->tag[ii]);
+    }
+  }
+
+  if (do_compute_aparam) {
+    make_aparam_from_compute(daparam);
+  } else if (aparam.size() > 0) {
+    make_uniform_aparam(daparam, aparam, nlocal);
+  } else if (do_ttm) {
+#ifdef USE_TTM
+    if (dim_aparam > 0) {
+      make_ttm_aparam(daparam);
+    }
+#endif
+  }
+  int ago = neighbor->ago;
+
+  if (do_ghost) {
+    if (!list) {
+      error->all(FLERR,
+                 "deepmd/uparam/dedn requires an available pair neighbor list");
+    }
+    deepmd_compat::InputNlist lmp_list(
+        list->inum, list->ilist, list->numneigh, list->firstneigh,
+        commdata_->nswap, commdata_->sendnum, commdata_->recvnum,
+        commdata_->firstrecv, commdata_->sendlist, commdata_->sendproc,
+        commdata_->recvproc, &world, comm->nprocs);
+    lmp_list.set_mask(NEIGHMASK);
+    if (comm->nprocs == 1 && atom->map_style != Atom::MAP_NONE) {
+      lmp_list.set_mapping(mapping_vec.data());
+    }
+
+    try {
+      deep_pot.set_uparam(uparam_override);
+      deep_pot.compute(dener, dforce, dvirial, dcoord, dtype, dbox, nghost,
+                       lmp_list, ago, fparam, uparam_override, daparam);
     } catch (deepmd_compat::deepmd_exception& e) {
       error->one(FLERR, e.what());
     }
@@ -337,6 +442,73 @@ void PairDeepMD::compute(int eflag, int vflag) {
   }
 
   int ago = neighbor->ago;
+  if (do_compute_uparam) {
+    make_uparam_from_compute(uparam);
+  }
+  if (do_mlu_model) {
+#if DEEPMD_HAS_MLU_MODEL
+    // Build coord, atype, box from LAMMPS atom data (mirrors the beginning of
+    // PairDeepMD::compute).
+    double** x = atom->x;
+    int* type = atom->type;
+    int nall = nlocal + atom->nghost;
+    std::vector<double> mlu_coord(nall * 3);
+    std::vector<int> mlu_atype(nall);
+    for (int ii = 0; ii < nall; ++ii) {
+      int iidx = ii * 3;
+      mlu_coord[iidx + 0] = x[ii][0] * dist_unit_cvt_factor;
+      mlu_coord[iidx + 1] = x[ii][1] * dist_unit_cvt_factor;
+      mlu_coord[iidx + 2] = x[ii][2] * dist_unit_cvt_factor;
+      mlu_atype[ii] = type[ii] - 1;  // LAMMPS types are 1-based
+    }
+    std::vector<double> mlu_box(9);
+    mlu_box[0] = domain->h[0] * dist_unit_cvt_factor;
+    mlu_box[1] = domain->h[1] * dist_unit_cvt_factor;
+    mlu_box[2] = domain->h[2] * dist_unit_cvt_factor;
+    mlu_box[3] = domain->h[3] * dist_unit_cvt_factor;
+    mlu_box[4] = domain->h[4] * dist_unit_cvt_factor;
+    mlu_box[5] = domain->h[5] * dist_unit_cvt_factor;
+    mlu_box[6] = domain->h[6] * dist_unit_cvt_factor;
+    mlu_box[7] = domain->h[7] * dist_unit_cvt_factor;
+    mlu_box[8] = domain->h[8] * dist_unit_cvt_factor;
+    // Build LAMMPS neighbor list for the lower compute path
+    deepmd_compat::InputNlist mlu_lmp_list(
+        list->inum, list->ilist, list->numneigh, list->firstneigh,
+        commdata_->nswap, commdata_->sendnum, commdata_->recvnum,
+        commdata_->firstrecv, commdata_->sendlist, commdata_->sendproc,
+        commdata_->recvproc, &world, comm->nprocs);
+    int nghost = nall - nlocal;
+    std::vector<double> mlu_fparam;
+    if (dim_fparam > 0) {
+      mlu_fparam = fparam;  // use the same fparam fed to the DP model
+    }
+    std::vector<double> u_predict;
+    mlu_model.compute(u_predict, mlu_coord, mlu_atype, mlu_box, nghost,
+                      mlu_lmp_list, ago, mlu_fparam);
+    // Frame mode: u_predict has 1 element (per-frame scalar).
+    // Atomic mode: u_predict has nlocal elements (per-atom values).
+    if (u_predict.size() != 1 &&
+        u_predict.size() != static_cast<size_t>(nlocal)) {
+      error->all(FLERR, "MLU model returned unexpected number of U values");
+    }
+    uparam = u_predict;
+    if (u_predict.size() == 1) {
+      mlu_predicted_u = u_predict[0];
+    } else {
+      // Atomic mode: report the average U.
+      double usum = 0.0;
+      for (size_t ii = 0; ii < u_predict.size(); ++ii) {
+        usum += u_predict[ii];
+      }
+      mlu_predicted_u = usum / static_cast<double>(u_predict.size());
+    }
+#else
+    error->all(FLERR, "mlu_model requires the C++ API (DP_USE_CXX_API)");
+#endif
+  }
+
+  // int ago = numb_models > 1 ? 0 : neighbor->ago;
+  ago = neighbor->ago;
   if (numb_models > 1) {
     if (multi_models_no_mod_devi &&
         (out_freq > 0 && update->ntimestep % out_freq == 0)) {
@@ -367,8 +539,9 @@ void PairDeepMD::compute(int eflag, int vflag) {
       // cvflag_atom is the right flag for the cvatom matrix
       if (!(eflag_atom || cvflag_atom)) {
         try {
+          deep_pot.set_uparam(uparam);
           deep_pot.compute(dener, dforce, dvirial, dcoord, dtype, dbox, nghost,
-                           lmp_list, ago, fparam, daparam, charge_spin);
+                           lmp_list, ago, fparam, uparam, daparam, charge_spin);
         } catch (deepmd_compat::deepmd_exception& e) {
           error->one(FLERR, e.what());
         }
@@ -378,9 +551,10 @@ void PairDeepMD::compute(int eflag, int vflag) {
         vector<double> deatom(nall * 1, 0);
         vector<double> dvatom(nall * 9, 0);
         try {
+          deep_pot.set_uparam(uparam);
           deep_pot.compute(dener, dforce, dvirial, deatom, dvatom, dcoord,
-                           dtype, dbox, nghost, lmp_list, ago, fparam, daparam,
-                           charge_spin);
+                           dtype, dbox, nghost, lmp_list, ago, fparam, uparam,
+                           daparam, charge_spin);
         } catch (deepmd_compat::deepmd_exception& e) {
           error->one(FLERR, e.what());
         }
@@ -423,18 +597,20 @@ void PairDeepMD::compute(int eflag, int vflag) {
       vector<vector<double>> all_atom_virial;
       if (!(eflag_atom || cvflag_atom)) {
         try {
+          deep_pot_model_devi.set_uparam(uparam);
           deep_pot_model_devi.compute(all_energy, all_force, all_virial, dcoord,
                                       dtype, dbox, nghost, lmp_list, ago,
-                                      fparam, daparam, charge_spin);
+                                      fparam, uparam, daparam, charge_spin);
         } catch (deepmd_compat::deepmd_exception& e) {
           error->one(FLERR, e.what());
         }
       } else {
         try {
+          deep_pot_model_devi.set_uparam(uparam);
           deep_pot_model_devi.compute(all_energy, all_force, all_virial,
                                       all_atom_energy, all_atom_virial, dcoord,
                                       dtype, dbox, nghost, lmp_list, ago,
-                                      fparam, daparam, charge_spin);
+                                      fparam, uparam, daparam, charge_spin);
         } catch (deepmd_compat::deepmd_exception& e) {
           error->one(FLERR, e.what());
         }
@@ -630,6 +806,10 @@ static bool is_key(const string& input) {
   keys.push_back("fparam_from_compute");
   keys.push_back("fparam_from_fix");
   keys.push_back("aparam_from_compute");
+  keys.push_back("uparam");
+  keys.push_back("uparam_from_compute");
+  keys.push_back("uparam_from_fix");
+  keys.push_back("mlu_model");
   keys.push_back("charge_spin");
   keys.push_back("ttm");
   keys.push_back("atomic");
@@ -674,6 +854,7 @@ void PairDeepMD::settings(int narg, char** arg) {
     numb_types_spin = deep_pot.numb_types_spin();
     dim_fparam = deep_pot.dim_fparam();
     dim_aparam = deep_pot.dim_aparam();
+    dim_uparam = deep_pot.dim_uparam();
     dim_chg_spin = deep_pot.dim_chg_spin();
   } else {
     try {
@@ -688,6 +869,7 @@ void PairDeepMD::settings(int narg, char** arg) {
     numb_types_spin = deep_pot_model_devi.numb_types_spin();
     dim_fparam = deep_pot_model_devi.dim_fparam();
     dim_aparam = deep_pot_model_devi.dim_aparam();
+    dim_uparam = deep_pot_model_devi.dim_uparam();
     dim_chg_spin = deep_pot_model_devi.dim_chg_spin();
     assert(cutoff == deep_pot.cutoff() * dist_unit_cvt_factor);
     assert(numb_types == deep_pot.numb_types());
@@ -703,6 +885,7 @@ void PairDeepMD::settings(int narg, char** arg) {
   out_rel = 0;
   eps = 0.;
   fparam.clear();
+  uparam.clear();
   aparam.clear();
   charge_spin.clear();
   while (iarg < narg) {
@@ -744,6 +927,17 @@ void PairDeepMD::settings(int narg, char** arg) {
         aparam.push_back(atof(arg[iarg + 1 + ii]));
       }
       iarg += 1 + dim_aparam;
+    } else if (string(arg[iarg]) == string("uparam")) {
+      for (int ii = 0; ii < dim_uparam; ++ii) {
+        if (iarg + 1 + ii >= narg || is_key(arg[iarg + 1 + ii])) {
+          char tmp[1024];
+          sprintf(tmp, "Illegal uparam, the dimension should be %d",
+                  dim_uparam);
+          error->all(FLERR, tmp);
+        }
+        uparam.push_back(atof(arg[iarg + 1 + ii]));
+      }
+      iarg += 1 + dim_uparam;
     } else if (string(arg[iarg]) == string("ttm")) {
 #ifdef USE_TTM
       for (int ii = 0; ii < 1; ++ii) {
@@ -823,6 +1017,26 @@ void PairDeepMD::settings(int narg, char** arg) {
         charge_spin.push_back(atof(arg[iarg + 1 + ii]));
       }
       iarg += 1 + dim_chg_spin;
+    } else if (string(arg[iarg]) == string("uparam_from_compute")) {
+      for (int ii = 0; ii < 1; ++ii) {
+        if (iarg + 1 + ii >= narg || is_key(arg[iarg + 1 + ii])) {
+          error->all(FLERR,
+                     "invalid uparam_from_compute key: should be "
+                     "uparam_from_compute compute_uparam_id(str)");
+        }
+      }
+      do_compute_uparam = true;
+      compute_uparam_id = arg[iarg + 1];
+      iarg += 1 + 1;
+    } else if (string(arg[iarg]) == string("mlu_model")) {
+      if (iarg + 1 >= narg || is_key(arg[iarg + 1])) {
+        error->all(FLERR,
+                   "invalid mlu_model key: should be "
+                   "mlu_model model_path(str)");
+      }
+      do_mlu_model = true;
+      mlu_model_file = arg[iarg + 1];
+      iarg += 2;
     } else if (string(arg[iarg]) == string("atomic")) {
       out_each = 1;
       iarg += 1;
@@ -871,6 +1085,59 @@ void PairDeepMD::settings(int narg, char** arg) {
     error->all(FLERR,
                "fparam_from_compute and fparam_from_fix should NOT be set "
                "simultaneously");
+  }
+  if (do_compute_uparam && uparam.size() > 0) {
+    error->all(
+        FLERR,
+        "uparam and uparam_from_compute should NOT be set simultaneously");
+  }
+  if (do_fix_uparam && uparam.size() > 0) {
+    error->all(FLERR,
+               "uparam and uparam_from_fix should NOT be set simultaneously");
+  }
+  if (do_fix_uparam && do_compute_uparam) {
+    error->all(FLERR,
+               "uparam_from_compute and uparam_from_fix should NOT be set "
+               "simultaneously");
+  }
+  if (do_mlu_model && uparam.size() > 0) {
+    error->all(FLERR, "uparam and mlu_model should NOT be set simultaneously");
+  }
+  if (do_mlu_model && do_compute_uparam) {
+    error->all(FLERR,
+               "uparam_from_compute and mlu_model should NOT be set "
+               "simultaneously");
+  }
+  if (do_mlu_model && do_fix_uparam) {
+    error->all(FLERR,
+               "uparam_from_fix and mlu_model should NOT be set "
+               "simultaneously");
+  }
+  if (do_mlu_model) {
+#if DEEPMD_HAS_MLU_MODEL
+    try {
+      mlu_model.init(mlu_model_file, get_node_rank(),
+                     get_file_content(mlu_model_file));
+    } catch (deepmd_compat::deepmd_exception& e) {
+      error->one(FLERR, e.what());
+    }
+    if (mlu_model.get_task_dim() != 1) {
+      error->all(FLERR,
+                 "MLU model task_dim is not 1 — expected a scalar U model");
+    }
+    if (mlu_model.get_var_name() != "uparam") {
+      error->all(FLERR,
+                 "MLU model var_name is not 'uparam' — expected an MLU model");
+    }
+#else
+    error->all(FLERR, "mlu_model requires the C++ API (DP_USE_CXX_API)");
+#endif
+  }
+
+  // Store the initial uparam value so it's accessible via extract("u")
+  // even in non-MLU mode (user-provided constant).
+  if (uparam.size() > 0) {
+    mlu_predicted_u = uparam[0];
   }
 
   // A charge/spin condition named on the pair_style line holds for the whole
@@ -927,6 +1194,16 @@ void PairDeepMD::settings(int narg, char** arg) {
         cout << fparam[ii] << "  ";
       }
       cout << endl;
+    }
+    if (uparam.size() > 0) {
+      cout << pre << "using uparam(s):    ";
+      for (int ii = 0; ii < dim_uparam; ++ii) {
+        cout << uparam[ii] << "  ";
+      }
+      cout << endl;
+    }
+    if (do_mlu_model) {
+      cout << pre << "using mlu model:    " << mlu_model_file << endl;
     }
     if (do_compute_fparam) {
       cout << pre << "using compute id (fparam):      ";

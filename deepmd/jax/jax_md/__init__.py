@@ -73,6 +73,7 @@ def energy_fn(
     default_atom_types = _normalize_atom_types(jax_model, atom_types)
     default_box = _normalize_box(box)
     default_fparam = fparam
+    default_uparam = uparam
     default_aparam = aparam
     default_charge_spin = charge_spin
 
@@ -83,6 +84,7 @@ def energy_fn(
         atom_types: Sequence[int | str] | Array | None = None,
         box: Array | Sequence[float] | object | None = _JAX_MD_SENTINEL,
         fparam: Array | Sequence[float] | object | None = _JAX_MD_SENTINEL,
+        uparam: Array | Sequence[float] | object | None = _JAX_MD_SENTINEL,
         aparam: Array | Sequence[float] | object | None = _JAX_MD_SENTINEL,
         charge_spin: Array | Sequence[float] | object | None = _JAX_MD_SENTINEL,
         **kwargs: Any,
@@ -96,11 +98,13 @@ def energy_fn(
         )
         current_box = default_box if box is _JAX_MD_SENTINEL else _normalize_box(box)
         current_fparam = default_fparam if fparam is _JAX_MD_SENTINEL else fparam
+        current_uparam = default_uparam if uparam is _JAX_MD_SENTINEL else uparam
         current_aparam = default_aparam if aparam is _JAX_MD_SENTINEL else aparam
         current_charge_spin = (
             default_charge_spin if charge_spin is _JAX_MD_SENTINEL else charge_spin
         )
         fparam_batch = _normalize_fparam(jax_model, current_fparam, coord.dtype)
+        uparam_batch = _normalize_uparam(jax_model, current_uparam, coord.dtype)
         aparam_batch = _normalize_aparam(
             jax_model, current_aparam, coord.shape[0], coord.dtype
         )
@@ -110,6 +114,7 @@ def energy_fn(
             model_kwargs = {
                 "box": None if current_box is None else current_box[None, ...],
                 "fparam": fparam_batch,
+                "uparam": uparam_batch,
                 "aparam": aparam_batch,
             }
             if charge_spin_batch is not None:
@@ -129,6 +134,7 @@ def energy_fn(
                 neighbor,
                 displacement_fn,
                 fparam_batch,
+                uparam_batch,
                 aparam_batch,
                 charge_spin_batch,
                 kwargs,
@@ -192,6 +198,7 @@ def as_jax_md(
         box=_normalize_box(box),
         displacement_fn=displacement_or_metric,
         fparam=kwargs.pop("fparam", None),
+        uparam=kwargs.pop("uparam", None),
         aparam=kwargs.pop("aparam", None),
         charge_spin=kwargs.pop("charge_spin", None),
     )
@@ -275,6 +282,22 @@ def _normalize_fparam(
     return jnp.asarray(fparam, dtype=dtype).reshape(1, dim_fparam)
 
 
+def _normalize_uparam(
+    model: Any, uparam: Array | Sequence[float] | None, dtype: Any
+) -> Array | None:
+    """Convert DFT+U parameters to DeePMD's batched JAX input shape."""
+    dim_uparam = model.get_dim_uparam()
+    if dim_uparam == 0:
+        return None
+    if uparam is None:
+        if getattr(model, "has_default_uparam", lambda: False)():
+            default_uparam = model.get_default_uparam()
+            if default_uparam is not None:
+                return jnp.asarray(default_uparam, dtype=dtype).reshape(1, dim_uparam)
+        raise ValueError("This model requires uparam, but none was provided.")
+    return jnp.asarray(uparam, dtype=dtype).reshape(1, dim_uparam)
+
+
 def _normalize_aparam(
     model: Any,
     aparam: Array | Sequence[float] | None,
@@ -309,6 +332,7 @@ def _eval_with_jax_md_neighbor(
     neighbor: Any,
     displacement_fn: Callable[..., Array] | None,
     fparam: Array | None,
+    uparam: Array | None,
     aparam: Array | None,
     charge_spin: Array | None,
     displacement_kwargs: dict[str, Any],

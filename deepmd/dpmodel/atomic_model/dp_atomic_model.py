@@ -6,6 +6,9 @@ from typing import (
     TYPE_CHECKING,
     Any,
 )
+from deepmd.dpmodel.utils.fitting_params import (
+    FittingParams,
+)
 
 if TYPE_CHECKING:
     from deepmd.dpmodel.utils.neighbor_graph import (
@@ -322,10 +325,18 @@ class DPAtomicModel(BaseAtomicModel):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         comm_dict: dict | None = None,
         charge_spin: Array | None = None,
+        cond: "FittingParams | None" = None,
     ) -> dict[str, Array]:
+        # Registry container: fill any missing conditioning parameter
+        # from ``cond`` (explicit arguments win).
+        if cond is not None:
+            fparam = fparam if fparam is not None else cond.fparam
+            uparam = uparam if uparam is not None else cond.uparam
+            aparam = aparam if aparam is not None else cond.aparam
         """Models' atomic predictions.
 
         Parameters
@@ -339,7 +350,9 @@ class DPAtomicModel(BaseAtomicModel):
         mapping
             mapps the extended indices to local indices. nf x nall
         fparam
-            frame parameter. nf x ndf
+            frame parameter. nf x ndf. ndf being ``numb_fparam``
+        uparam
+            DFT+U parameter. nf x nup. nup being ``numb_uparam``
         aparam
             atomic parameter. nf x nloc x nda
         comm_dict
@@ -389,6 +402,7 @@ class DPAtomicModel(BaseAtomicModel):
             g2=g2,
             h2=h2,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             **vacuum_kwargs,
         )
@@ -530,17 +544,26 @@ class DPAtomicModel(BaseAtomicModel):
         graph: "NeighborGraph",
         atype: Array,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         charge_spin: Array | None = None,
         spin: Array | None = None,
         comm_dict: dict | None = None,
+        cond: "FittingParams | None" = None,
     ) -> dict[str, Array]:
+        # Registry container: fill any missing conditioning parameter
+        # from ``cond`` (explicit arguments win).
+        if cond is not None:
+            fparam = fparam if fparam is not None else cond.fparam
+            uparam = uparam if uparam is not None else cond.uparam
+            aparam = aparam if aparam is not None else cond.aparam
+            charge_spin = charge_spin if charge_spin is not None else cond.charge_spin
         """Graph analogue of :meth:`forward_atomic` on the flat node axis.
 
         Runs the descriptor ``call_graph`` then the fitting ``call_graph`` PER NODE
         and returns the raw fitting dict on the flat ``(N, *)`` axis (no reduction
-        or masking; the wrapper handles those). ``fparam`` is gathered to nodes by
-        ``frame_id`` so each node sees its frame's parameter.
+        or masking; the wrapper handles those). ``fparam`` and ``uparam`` are
+        gathered to nodes by ``frame_id`` so each node sees its frame's parameter.
 
         Parameters
         ----------
@@ -550,6 +573,8 @@ class DPAtomicModel(BaseAtomicModel):
             flat local atom types. N
         fparam
             frame parameter. nf x ndf
+        uparam
+            DFT+U parameter. nf x 1
         aparam
             atomic parameter. N x nda
         charge_spin
@@ -581,14 +606,39 @@ class DPAtomicModel(BaseAtomicModel):
         n_real = atype.shape[0]
         # === Step 1. Conditioning of the real nodes ===
         fparam_node = None
-        if fparam is not None:
+        frame_id = None
+        if fparam is not None or uparam is not None:
             # Pass the STATIC flat node count (``atype.shape[0] == N``) so the
             # helper does not fall back to ``int(sum(n_node))``: that int() on a
             # traced tensor breaks make_fx / torch.export
             # (``GuardOnDataDependentSymNode``) for the graph .pt2 export and
             # compiled-training paths when ``numb_fparam > 0``.
             frame_id = frame_id_from_n_node(graph.n_node, n_total=atype.shape[0])
+        if fparam is not None:
             fparam_node = xp.take(fparam, frame_id, axis=0)  # (N, ndf)
+        else:
+            fparam_node = None
+        import os
+        if os.environ.get("DP_DBG_SHAPE"):
+            print("DBG nodes:", tuple(atype.shape), "fparam",
+                  tuple(fparam.shape) if fparam is not None else None,
+                  "uparam", tuple(uparam.shape) if uparam is not None else None,
+                  "n_node", "dyn",
+                  flush=True)
+        if uparam is not None:
+            # atomic mode: uparam arrives per-atom, (nf, nloc, ndu) 3D or
+            # (nf, nloc*ndu) 2D from the data loader; the graph route works
+            # on the flat node axis in the same frame-major order, so a
+            # plain reshape pairs every node with its U. frame mode: gather
+            # the single per-frame row onto each node.
+            if self.get_uparam_mode() == "atomic" and uparam.ndim >= 2:
+                uparam_node = xp.reshape(uparam, (-1, uparam.shape[-1]))
+            elif uparam.ndim == 3:
+                uparam_node = xp.reshape(uparam, (-1, uparam.shape[-1]))
+            else:
+                uparam_node = xp.take(uparam, frame_id, axis=0)  # (N, ndu)
+        else:
+            uparam_node = None
         aparam_node = aparam
         if aparam is not None and graph.n_local is not None and aparam.ndim == 3:
             aparam_node = _extend_graph_aparam(
@@ -639,6 +689,7 @@ class DPAtomicModel(BaseAtomicModel):
             g2=None,
             h2=None,
             fparam=fparam_node,
+            uparam=uparam_node,
             aparam=aparam_node,
             **vacuum_kwargs,
         )
@@ -758,6 +809,14 @@ class DPAtomicModel(BaseAtomicModel):
         """Get the number (dimension) of frame parameters of this atomic model."""
         return self.fitting_net.get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return self.fitting_net.get_dim_uparam()
+
+    def get_uparam_mode(self) -> str:
+        """Get the mode of DFT+U parameters ('frame', 'atomic', or 'orbital')."""
+        return self.fitting_net.get_uparam_mode()
+
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""
         return self.fitting_net.get_dim_aparam()
@@ -769,6 +828,14 @@ class DPAtomicModel(BaseAtomicModel):
     def get_default_fparam(self) -> list[float] | None:
         """Get the default frame parameters."""
         return self.fitting_net.get_default_fparam()
+
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
+        return self.fitting_net.has_default_uparam()
+
+    def get_default_uparam(self) -> float | None:
+        """Get the default DFT+U parameters."""
+        return self.fitting_net.get_default_uparam()
 
     def get_sel_type(self) -> list[int]:
         """Get the selected atom types of this model.

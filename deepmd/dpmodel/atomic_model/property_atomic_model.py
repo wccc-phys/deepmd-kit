@@ -6,6 +6,9 @@ from typing import (
 from deepmd.dpmodel.array_api import (
     Array,
 )
+from deepmd.dpmodel.fitting.mlu_fitting import (
+    MLUFitting,
+)
 from deepmd.dpmodel.fitting.property_fitting import (
     PropertyFittingNet,
 )
@@ -13,6 +16,8 @@ from deepmd.dpmodel.fitting.property_fitting import (
 from .dp_atomic_model import (
     DPAtomicModel,
 )
+
+_ALLOWED_PROPERTY_FITTINGS = (PropertyFittingNet, MLUFitting)
 
 
 class DPPropertyAtomicModel(DPAtomicModel):
@@ -24,9 +29,10 @@ class DPPropertyAtomicModel(DPAtomicModel):
     def __init__(
         self, descriptor: Any, fitting: Any, type_map: list[str], **kwargs: Any
     ) -> None:
-        if not isinstance(fitting, PropertyFittingNet):
+        if not isinstance(fitting, _ALLOWED_PROPERTY_FITTINGS):
             raise TypeError(
-                "fitting must be an instance of PropertyFittingNet for DPPropertyAtomicModel"
+                "fitting must be an instance of PropertyFittingNet or "
+                "MLUFitting for DPPropertyAtomicModel"
             )
         super().__init__(descriptor, fitting, type_map, **kwargs)
 

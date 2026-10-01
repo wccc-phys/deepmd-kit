@@ -57,6 +57,8 @@ class PropertyFittingNet(InvarFitting):
         Using time-step in the ResNet construction.
     numb_fparam : int
         Number of frame parameters.
+    numb_uparam : int
+        Number of DFT+U parameters.
     numb_aparam : int
         Number of atomic parameters.
     dim_case_embd : int
@@ -85,6 +87,7 @@ class PropertyFittingNet(InvarFitting):
         intensive: bool = False,
         resnet_dt: bool = True,
         numb_fparam: int = 0,
+        numb_uparam: int = 0,
         numb_aparam: int = 0,
         dim_case_embd: int = 0,
         activation_function: str = "tanh",
@@ -93,6 +96,7 @@ class PropertyFittingNet(InvarFitting):
         trainable: bool | list[bool] = True,
         seed: int | None = None,
         default_fparam: list | None = None,
+        default_uparam: float | None = None,
         distinguish_types: bool = True,
         **kwargs: Any,
     ) -> None:
@@ -108,6 +112,7 @@ class PropertyFittingNet(InvarFitting):
             bias_atom_e=bias_atom_p,
             resnet_dt=resnet_dt,
             numb_fparam=numb_fparam,
+            numb_uparam=numb_uparam,
             numb_aparam=numb_aparam,
             dim_case_embd=dim_case_embd,
             activation_function=activation_function,
@@ -116,6 +121,7 @@ class PropertyFittingNet(InvarFitting):
             trainable=trainable,
             seed=seed,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
             **kwargs,
         )
 

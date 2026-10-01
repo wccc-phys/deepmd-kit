@@ -1195,6 +1195,7 @@ class DescrptSeZM(BaseDescriptor, nn.Module):
         edge_mask: torch.Tensor | None = None,
         comm_dict: dict[str, torch.Tensor] | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         force_embedding: torch.Tensor | None = None,
         charge_spin: torch.Tensor | None = None,
         spin: torch.Tensor | None = None,
@@ -1231,6 +1232,9 @@ class DescrptSeZM(BaseDescriptor, nn.Module):
             Communication dictionary for parallel inference (unused).
         fparam
             Frame parameters with shape (nf, nfp). Not used by SeZM, kept for
+            interface compatibility.
+        uparam
+            DFT+U parameters with shape (nf, 1). Not used by SeZM, kept for
             interface compatibility.
         force_embedding
             Optional precomputed equivariant force embedding with shape

@@ -1281,6 +1281,7 @@ class DescrptDPA4(NativeOP, BaseDescriptor):
         mapping: Array | None = None,
         comm_dict: dict[str, Array] | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         force_embedding: Array | None = None,
         charge_spin: Array | None = None,
         spin: Array | None = None,
@@ -1311,6 +1312,9 @@ class DescrptDPA4(NativeOP, BaseDescriptor):
             build.
         fparam
             Frame parameters with shape (nf, nfp). Not used by SeZM, kept for
+            interface compatibility.
+        uparam
+            DFT+U parameters with shape (nf, 1). Not used by SeZM, kept for
             interface compatibility.
         force_embedding
             Optional precomputed equivariant force embedding with shape

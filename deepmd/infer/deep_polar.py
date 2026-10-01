@@ -53,6 +53,7 @@ class DeepGlobalPolar(OldDeepTensor):
         atomic: bool = False,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         mixed_type: bool = False,
         **kwargs: Any,
     ) -> np.ndarray:
@@ -77,6 +78,8 @@ class DeepGlobalPolar(OldDeepTensor):
             Not used in this model
         aparam
             Not used in this model
+        uparam
+            Not used in this model
         mixed_type
             Whether to perform the mixed_type mode.
             If True, the input data has the mixed_type format (see doc/model/train_se_atten.md),
@@ -96,6 +99,7 @@ class DeepGlobalPolar(OldDeepTensor):
             atomic=atomic,
             fparam=fparam,
             aparam=aparam,
+            uparam=uparam,
             mixed_type=mixed_type,
             **kwargs,
         )

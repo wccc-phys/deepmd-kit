@@ -127,6 +127,10 @@ class DeepEval(DeepEvalBackend):
         """Get the number (dimension) of frame parameters of this DP."""
         return self.dp.get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this DP."""
+        return self.dp.get_dim_uparam()
+
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this DP."""
         return self.dp.get_dim_aparam()
@@ -134,6 +138,10 @@ class DeepEval(DeepEvalBackend):
     def has_default_fparam(self) -> bool:
         """Check if the model has default frame parameters."""
         return self.dp.has_default_fparam()
+
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
+        return self.dp.has_default_uparam()
 
     @property
     def model_type(self) -> type["DeepEvalWrapper"]:
@@ -194,6 +202,7 @@ class DeepEval(DeepEvalBackend):
         atomic: bool = False,
         fparam: Array | None = None,
         aparam: Array | None = None,
+        uparam: Array | None = None,
         **kwargs: Any,
     ) -> dict[str, Array]:
         """Evaluate the energy, force and virial by using this DP.
@@ -217,6 +226,11 @@ class DeepEval(DeepEvalBackend):
             The array can be of size :
             - nframes x dim_fparam.
             - dim_fparam. Then all frames are assumed to be provided with the same fparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         aparam
             The atomic parameter
             The array can be of size :
@@ -246,6 +260,8 @@ class DeepEval(DeepEvalBackend):
         # into concrete model ``call`` signatures.
         model_kwargs = {}
         charge_spin = kwargs.get("charge_spin")
+        if uparam is not None:
+            model_kwargs["uparam"] = uparam
         if charge_spin is not None:
             model_kwargs["charge_spin"] = charge_spin
         if self.get_has_spin():
@@ -377,6 +393,7 @@ class DeepEval(DeepEvalBackend):
         atom_types: Array,
         fparam: Array | None,
         aparam: Array | None,
+        uparam: Array | None,
         request_defs: list[OutputVariableDef],
         **model_kwargs: Any,
     ) -> dict[str, Array]:
@@ -403,6 +420,10 @@ class DeepEval(DeepEvalBackend):
             aparam_input = aparam.reshape(nframes, natoms, self.get_dim_aparam())
         else:
             aparam_input = None
+        if uparam is not None:
+            uparam_input = uparam.reshape(nframes, self.get_dim_uparam())
+        else:
+            uparam_input = None
 
         do_atomic_virial = any(
             x.category == OutputVariableCategory.DERV_C_REDU for x in request_defs
@@ -413,6 +434,7 @@ class DeepEval(DeepEvalBackend):
             box=box_input,
             fparam=fparam_input,
             aparam=aparam_input,
+            uparam=uparam_input,
             do_atomic_virial=do_atomic_virial,
         )
         batch_output = model(coord_input, type_input, **model_kwargs)

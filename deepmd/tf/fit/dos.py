@@ -145,6 +145,7 @@ class DOSFitting(Fitting):
         mixed_types: bool = False,
         type_map: list[str] | None = None,  # to be compat with input
         default_fparam: list[float] | None = None,  # to be compat with input
+        default_uparam: float | None = None,  # to be compat with input
         **kwargs: Any,
     ) -> None:
         """Constructor."""
@@ -155,8 +156,10 @@ class DOSFitting(Fitting):
 
         self.numb_fparam = numb_fparam
         self.numb_aparam = numb_aparam
+        self.numb_uparam = int(default_uparam is not None)
         self.dim_case_embd = dim_case_embd
         self.default_fparam = default_fparam
+        self.default_uparam = default_uparam
         if dim_case_embd > 0:
             raise ValueError("dim_case_embd is not supported in TensorFlow.")
         if default_fparam is not None:
@@ -190,6 +193,9 @@ class DOSFitting(Fitting):
         self.aparam_avg = None
         self.aparam_std = None
         self.aparam_inv_std = None
+        self.uparam_avg = None
+        self.uparam_std = None
+        self.uparam_inv_std = None
 
         self.fitting_net_variables = None
         self.mixed_prec = None
@@ -209,6 +215,10 @@ class DOSFitting(Fitting):
     def get_numb_aparam(self) -> int:
         """Get the number of atomic parameters."""
         return self.numb_aparam
+
+    def get_numb_uparam(self) -> int:
+        """Get the number of DFT+U parameters."""
+        return self.numb_uparam
 
     def get_numb_dos(self) -> int:
         """Get the number of gridpoints in energy space."""
@@ -310,6 +320,16 @@ class DOSFitting(Fitting):
                 save_param_stats(stat_file_path, "aparam", aparam_stats)
             self.aparam_avg, self.aparam_std = stats_avg_std(aparam_stats, protection)
             self.aparam_inv_std = 1.0 / self.aparam_std
+        # stat uparam
+        if self.numb_uparam > 0:
+            cat_data = np.concatenate(all_stat["uparam"], axis=0)
+            cat_data = np.reshape(cat_data, [-1, self.numb_uparam])
+            self.uparam_avg = np.average(cat_data, axis=0)
+            self.uparam_std = np.std(cat_data, axis=0)
+            for ii in range(self.uparam_std.size):
+                if self.uparam_std[ii] < protection:
+                    self.uparam_std[ii] = protection
+            self.uparam_inv_std = 1.0 / self.uparam_std
 
     def _compute_std(
         self, sumv2: np.ndarray, sumv: np.ndarray, sumn: np.ndarray
@@ -323,6 +343,7 @@ class DOSFitting(Fitting):
         natoms: int,
         inputs: tf.Tensor,
         fparam: tf.Tensor | None = None,
+        uparam: tf.Tensor | None = None,
         aparam: tf.Tensor | None = None,
         bias_dos: float = 0.0,
         type_suffix: str = "",
@@ -338,6 +359,11 @@ class DOSFitting(Fitting):
             ext_fparam = tf.reshape(ext_fparam, [-1, self.numb_fparam])
             ext_fparam = tf.cast(ext_fparam, self.fitting_precision)
             layer = tf.concat([layer, ext_fparam], axis=1)
+        if uparam is not None:
+            ext_uparam = tf.tile(uparam, [1, natoms])
+            ext_uparam = tf.reshape(ext_uparam, [-1, self.numb_uparam])
+            ext_uparam = tf.cast(ext_uparam, self.fitting_precision)
+            layer = tf.concat([layer, ext_uparam], axis=1)
         if aparam is not None:
             ext_aparam = tf.slice(
                 aparam,
@@ -459,6 +485,11 @@ class DOSFitting(Fitting):
                 self.fparam_avg = 0.0
             if self.fparam_inv_std is None:
                 self.fparam_inv_std = 1.0
+        if self.numb_uparam > 0:
+            if self.uparam_avg is None:
+                self.uparam_avg = 0.0
+            if self.uparam_inv_std is None:
+                self.uparam_inv_std = 1.0
         if self.numb_aparam > 0:
             if self.aparam_avg is None:
                 self.aparam_avg = 0.0
@@ -467,6 +498,7 @@ class DOSFitting(Fitting):
 
         with tf.variable_scope("fitting_attr" + suffix, reuse=reuse):
             t_dfparam = tf.constant(self.numb_fparam, name="dfparam", dtype=tf.int32)
+            t_duparam = tf.constant(self.numb_uparam, name="duparam", dtype=tf.int32)
             t_daparam = tf.constant(self.numb_aparam, name="daparam", dtype=tf.int32)
             t_numb_dos = tf.constant(self.numb_dos, name="numb_dos", dtype=tf.int32)
 
@@ -491,6 +523,21 @@ class DOSFitting(Fitting):
                     dtype=GLOBAL_TF_FLOAT_PRECISION,
                     trainable=False,
                     initializer=tf.constant_initializer(self.fparam_inv_std),
+                )
+            if self.numb_uparam > 0:
+                t_uparam_avg = tf.get_variable(
+                    "t_uparam_avg",
+                    self.numb_uparam,
+                    dtype=GLOBAL_TF_FLOAT_PRECISION,
+                    trainable=False,
+                    initializer=tf.constant_initializer(self.uparam_avg),
+                )
+                t_uparam_istd = tf.get_variable(
+                    "t_uparam_istd",
+                    self.numb_uparam,
+                    dtype=GLOBAL_TF_FLOAT_PRECISION,
+                    trainable=False,
+                    initializer=tf.constant_initializer(self.uparam_inv_std),
                 )
             if self.numb_aparam > 0:
                 t_aparam_avg = tf.get_variable(
@@ -518,6 +565,12 @@ class DOSFitting(Fitting):
             fparam = input_dict["fparam"]
             fparam = tf.reshape(fparam, [-1, self.numb_fparam])
             fparam = (fparam - t_fparam_avg) * t_fparam_istd
+
+        uparam = None
+        if self.numb_uparam > 0:
+            uparam = input_dict["uparam"]
+            uparam = tf.reshape(uparam, [-1, self.numb_uparam])
+            uparam = (uparam - t_uparam_avg) * t_uparam_istd
 
         aparam = None
         if not self.use_aparam_as_mask:
@@ -556,6 +609,7 @@ class DOSFitting(Fitting):
                     natoms[2 + type_i],
                     inputs,
                     fparam,
+                    uparam,
                     aparam,
                     bias_dos=0.0,
                     type_suffix="_type_" + str(type_i),
@@ -584,6 +638,7 @@ class DOSFitting(Fitting):
                 natoms[0],
                 inputs,
                 fparam,
+                uparam,
                 aparam,
                 bias_dos=0.0,
                 suffix=suffix,
@@ -638,6 +693,13 @@ class DOSFitting(Fitting):
             )
             self.fparam_inv_std = get_tensor_by_name_from_graph(
                 graph, f"fitting_attr{suffix}/t_fparam_istd"
+            )
+        if self.numb_uparam > 0:
+            self.uparam_avg = get_tensor_by_name_from_graph(
+                graph, f"fitting_attr{suffix}/t_uparam_avg"
+            )
+            self.uparam_inv_std = get_tensor_by_name_from_graph(
+                graph, f"fitting_attr{suffix}/t_uparam_istd"
             )
         if self.numb_aparam > 0:
             self.aparam_avg = get_tensor_by_name_from_graph(
@@ -715,6 +777,9 @@ class DOSFitting(Fitting):
         if fitting.numb_fparam > 0:
             fitting.fparam_avg = data["@variables"]["fparam_avg"]
             fitting.fparam_inv_std = data["@variables"]["fparam_inv_std"]
+        if fitting.numb_uparam > 0:
+            fitting.uparam_avg = data["@variables"]["uparam_avg"]
+            fitting.uparam_inv_std = data["@variables"]["uparam_inv_std"]
         if fitting.numb_aparam > 0:
             fitting.aparam_avg = data["@variables"]["aparam_avg"]
             fitting.aparam_inv_std = data["@variables"]["aparam_inv_std"]
@@ -741,8 +806,10 @@ class DOSFitting(Fitting):
             "resnet_dt": self.resnet_dt,
             "numb_fparam": self.numb_fparam,
             "numb_aparam": self.numb_aparam,
+            "numb_uparam": self.numb_uparam,
             "dim_case_embd": self.dim_case_embd,
             "default_fparam": self.default_fparam,
+            "default_uparam": self.default_uparam,
             "rcond": self.rcond,
             "trainable": self.trainable,
             "vacuum_ref": False,
@@ -752,7 +819,10 @@ class DOSFitting(Fitting):
             "nets": self.serialize_network(
                 ntypes=self.ntypes,
                 ndim=0 if self.mixed_types else 1,
-                in_dim=self.dim_descrpt + self.numb_fparam + self.numb_aparam,
+                in_dim=self.dim_descrpt
+                + self.numb_fparam
+                + self.numb_uparam
+                + self.numb_aparam,
                 out_dim=self.numb_dos,
                 neuron=self.n_neuron,
                 activation_function=self.activation_function,
@@ -765,6 +835,8 @@ class DOSFitting(Fitting):
                 "bias_atom_e": self.bias_dos,
                 "fparam_avg": self.fparam_avg,
                 "fparam_inv_std": self.fparam_inv_std,
+                "uparam_avg": self.uparam_avg,
+                "uparam_inv_std": self.uparam_inv_std,
                 "aparam_avg": self.aparam_avg,
                 "aparam_inv_std": self.aparam_inv_std,
                 "case_embd": None,
@@ -786,6 +858,12 @@ class DOSFitting(Fitting):
             data_requirement.append(
                 DataRequirementItem(
                     "fparam", self.numb_fparam, atomic=False, must=True, high_prec=False
+                )
+            )
+        if self.numb_uparam > 0:
+            data_requirement.append(
+                DataRequirementItem(
+                    "uparam", self.numb_uparam, atomic=False, must=True, high_prec=False
                 )
             )
         if self.numb_aparam > 0:

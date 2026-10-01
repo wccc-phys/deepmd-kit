@@ -86,6 +86,7 @@ class PretrainedDeepEvalBackend(DeepEvalBackend):
         atom_types: np.ndarray,
         atomic: bool = False,
         fparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         **kwargs: Any,
     ) -> dict[str, np.ndarray]:
@@ -95,6 +96,7 @@ class PretrainedDeepEvalBackend(DeepEvalBackend):
             atom_types,
             atomic,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             **kwargs,
         )
@@ -105,6 +107,7 @@ class PretrainedDeepEvalBackend(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         efield: np.ndarray | None = None,
         mixed_type: bool = False,
@@ -115,6 +118,7 @@ class PretrainedDeepEvalBackend(DeepEvalBackend):
             cells,
             atom_types,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             efield=efield,
             mixed_type=mixed_type,
@@ -127,6 +131,7 @@ class PretrainedDeepEvalBackend(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         **kwargs: Any,
     ) -> np.ndarray:
@@ -135,6 +140,7 @@ class PretrainedDeepEvalBackend(DeepEvalBackend):
             cells,
             atom_types,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             **kwargs,
         )
@@ -151,8 +157,14 @@ class PretrainedDeepEvalBackend(DeepEvalBackend):
     def get_dim_fparam(self) -> int:
         return self._backend.get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        return self._backend.get_dim_uparam()
+
     def has_default_fparam(self) -> bool:
         return self._backend.has_default_fparam()
+
+    def has_default_uparam(self) -> bool:
+        return self._backend.has_default_uparam()
 
     def get_dim_aparam(self) -> int:
         return self._backend.get_dim_aparam()

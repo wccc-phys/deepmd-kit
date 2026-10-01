@@ -165,6 +165,9 @@ def embedding(
             fparam = None
             if dp.get_dim_fparam() > 0 and "fparam" in test_data:
                 fparam = test_data["fparam"]
+            uparam = None
+            if dp.get_dim_uparam() > 0 and "uparam" in test_data:
+                uparam = test_data["uparam"]
             aparam = None
             if dp.get_dim_aparam() > 0 and "aparam" in test_data:
                 aparam = test_data["aparam"]
@@ -175,6 +178,7 @@ def embedding(
                 box,
                 atype,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 mixed_type=mixed_type,
                 dtype=dtype,

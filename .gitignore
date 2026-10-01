@@ -48,6 +48,7 @@ libdeepmd_c/
 libtorch/
 uv.lock
 buildcxx/
+buildcxx2/
 node_modules/
 *.bib.original
 
@@ -74,3 +75,7 @@ frozen_model.*
 # Test system directories
 system/
 *.expected
+
+# local build artifacts
+buildcxx2/
+deepmd/lib/

@@ -74,6 +74,10 @@ class FrozenModel(NativeOP, BaseModel):
         """Get the number (dimension) of frame parameters of this atomic model."""
         return self.model.get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return self.model.get_dim_uparam()
+
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""
         return self.model.get_dim_aparam()

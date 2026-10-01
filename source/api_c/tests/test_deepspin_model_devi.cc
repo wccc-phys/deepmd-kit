@@ -19,7 +19,7 @@ void compute_atomic_virial(DP_DeepSpin* dp,
                            const double* box,
                            double* atomic_virial) {
   DP_DeepSpinCompute2(dp, 1, natoms, coord, spin, atype, box, nullptr, nullptr,
-                      nullptr, nullptr, nullptr, nullptr, nullptr,
+                      nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
                       atomic_virial);
 }
 
@@ -31,8 +31,8 @@ void compute_atomic_virial(DP_DeepSpin* dp,
                            const float* box,
                            float* atomic_virial) {
   DP_DeepSpinComputef2(dp, 1, natoms, coord, spin, atype, box, nullptr, nullptr,
-                       nullptr, nullptr, nullptr, nullptr, nullptr,
-                       atomic_virial);
+                       nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+                      atomic_virial);
 }
 
 void compute_model_devi_atomic_virial(DP_DeepSpinModelDevi* dp,
@@ -44,7 +44,7 @@ void compute_model_devi_atomic_virial(DP_DeepSpinModelDevi* dp,
                                       double* atomic_virial) {
   DP_DeepSpinModelDeviCompute2(dp, 1, natoms, coord, spin, atype, box, nullptr,
                                nullptr, nullptr, nullptr, nullptr, nullptr,
-                               nullptr, atomic_virial);
+                               nullptr, nullptr,  atomic_virial);
 }
 
 void compute_model_devi_atomic_virial(DP_DeepSpinModelDevi* dp,
@@ -56,7 +56,7 @@ void compute_model_devi_atomic_virial(DP_DeepSpinModelDevi* dp,
                                       float* atomic_virial) {
   DP_DeepSpinModelDeviComputef2(dp, 1, natoms, coord, spin, atype, box, nullptr,
                                 nullptr, nullptr, nullptr, nullptr, nullptr,
-                                nullptr, atomic_virial);
+                                nullptr, nullptr,  atomic_virial);
 }
 
 template <class VALUETYPE>

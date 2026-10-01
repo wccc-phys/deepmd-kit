@@ -299,6 +299,7 @@ def _collect_metadata(
         "sel": [int(s) for s in model.get_sel()],
         "lower_input_kind": model.export_lower_input_kind(),
         "dim_fparam": int(model.get_dim_fparam()),
+        "dim_uparam": int(model.get_dim_uparam()),
         "dim_aparam": int(model.get_dim_aparam()),
         "dim_chg_spin": int(model.get_dim_chg_spin()),
         "mixed_types": bool(model.mixed_types()),
@@ -308,6 +309,8 @@ def _collect_metadata(
         "nnei": int(sum(model.get_sel())),
         "has_default_fparam": bool(model.has_default_fparam()),
         "default_fparam": _to_py_list(model.get_default_fparam()),
+        "has_default_uparam": bool(model.has_default_uparam()),
+        "default_uparam": _to_py_list(model.get_default_uparam()),
         "default_chg_spin": _to_py_list(model.get_default_chg_spin()),
         "output_keys": list(output_keys),
         "fitting_output_defs": fitting_output_defs,
@@ -398,7 +401,7 @@ def _build_sample_extended(
 ) -> tuple[torch.Tensor | None, ...]:
     """Build the extended-region sample tensors shared by the lower builders.
 
-    Returns ``(ext_coord, ext_atype, nlist, mapping, ext_spin, fparam, aparam,
+    Returns ``(ext_coord, ext_atype, nlist, mapping, ext_spin, fparam, uparam, aparam,
     charge_spin)``; tensors are float64 / int64 (matching the ``.pt2`` I/O
     contract). ``ext_spin`` is ``None`` unless ``has_spin``.
     """
@@ -410,6 +413,7 @@ def _build_sample_extended(
     if ntypes <= 0:
         raise ValueError("SeZM .pt2 freeze requires at least one atom type.")
     dim_fparam = int(model.get_dim_fparam())
+    dim_uparam = int(model.get_dim_uparam())
     dim_aparam = int(model.get_dim_aparam())
     dim_chg_spin = int(model.get_dim_chg_spin())
     mixed_types = bool(model.mixed_types())
@@ -467,6 +471,11 @@ def _build_sample_extended(
         if dim_aparam > 0
         else None
     )
+    uparam = (
+        torch.zeros(nframes, dim_uparam, dtype=torch.float64, device=device)
+        if dim_uparam > 0
+        else None
+    )
     charge_spin = (
         torch.zeros(nframes, dim_chg_spin, dtype=torch.float64, device=device)
         if dim_chg_spin > 0
@@ -479,6 +488,7 @@ def _build_sample_extended(
         mapping_t,
         ext_spin,
         fparam,
+        uparam,
         aparam,
         charge_spin,
     )
@@ -509,6 +519,7 @@ def _make_sample_inputs(
         mapping_t,
         ext_spin,
         fparam,
+        uparam,
         aparam,
         charge_spin,
     ) = _build_sample_extended(model, nframes, nloc, device, has_spin)
@@ -520,6 +531,7 @@ def _make_sample_inputs(
             nlist_t,
             mapping_t,
             fparam,
+            uparam,
             aparam,
             charge_spin,
         )
@@ -551,6 +563,7 @@ def _make_sample_inputs(
         edge_schema.edge_scatter_index,
         edge_schema.edge_mask,
         fparam,
+        uparam,
         aparam,
         charge_spin,
     )
@@ -609,6 +622,7 @@ def _make_comm_sample_inputs(
         mapping_t,
         ext_spin,
         fparam,
+        uparam,
         aparam,
         charge_spin,
     ) = _build_sample_extended(
@@ -632,8 +646,8 @@ def _make_comm_sample_inputs(
     )
     comm_tensors = _make_edge_comm_tensors(mapping_t, nloc, device)
     if has_spin:
-        return (*edge_inputs, ext_spin, fparam, aparam, charge_spin, *comm_tensors)
-    return (*edge_inputs, fparam, aparam, charge_spin, *comm_tensors)
+        return (*edge_inputs, ext_spin, fparam, uparam, aparam, charge_spin, *comm_tensors)
+    return (*edge_inputs, fparam, uparam, aparam, charge_spin, *comm_tensors)
 
 
 def _resolve_nframes(
@@ -698,8 +712,9 @@ def _build_dynamic_shapes(
     if is_nlist_spin:
         nall_dim = torch.export.Dim("nall", min=4)
         fparam = sample_inputs[5]
-        aparam = sample_inputs[6]
-        charge_spin = sample_inputs[7] if len(sample_inputs) == 8 else None
+        uparam = sample_inputs[6]
+        aparam = sample_inputs[7]
+        charge_spin = sample_inputs[8] if len(sample_inputs) == 9 else None
         shapes = (
             {0: nframes_dim, 1: nall_dim},  # extended_coord
             {0: nframes_dim, 1: nall_dim},  # extended_atype
@@ -707,9 +722,10 @@ def _build_dynamic_shapes(
             {0: nframes_dim, 1: nloc_dim},  # nlist
             {0: nframes_dim, 1: nall_dim},  # mapping
             {0: nframes_dim} if fparam is not None else None,
+            {0: nframes_dim} if uparam is not None else None,
             {0: nframes_dim, 1: nloc_dim} if aparam is not None else None,
         )
-        if len(sample_inputs) == 8:
+        if len(sample_inputs) == 9:
             shapes = (*shapes, {0: nframes_dim} if charge_spin is not None else None)
         return shapes
 
@@ -743,9 +759,10 @@ def _build_dynamic_shapes(
     shapes = (
         *edge_shapes,
         {0: nframes_dim} if fparam is not None else None,
+        {0: nframes_dim} if uparam is not None else None,
         {0: nframes_dim, 1: nloc_dim} if aparam is not None else None,
     )
-    if len(sample_inputs) == 9:
+    if len(sample_inputs) == 10:
         shapes = (*shapes, {0: nframes_dim} if charge_spin is not None else None)
     return shapes
 
@@ -795,6 +812,7 @@ def _build_with_comm_dynamic_shapes(
     base = (
         *edge_base,
         None if fparam is None else {},  # fparam: (1, ndf) static
+        None if uparam is None else {},  # uparam: (1, nup) static
         None if aparam is None else {1: nloc_dim},  # aparam: (1, nloc, nda)
         None if charge_spin is None else {},  # charge_spin: (1, nchg) static
     )

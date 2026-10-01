@@ -53,6 +53,8 @@ class InvarFitting(GeneralFitting):
         Using time-step in the ResNet construction.
     numb_fparam : int
         Number of frame parameters.
+    numb_uparam : int
+        Number of DFT+U parameters.
     numb_aparam : int
         Number of atomic parameters.
     dim_case_embd : int
@@ -87,6 +89,8 @@ class InvarFitting(GeneralFitting):
     default_fparam: list[float], optional
         The default frame parameter. If set, when `fparam.npy` files are not included in the data system,
         this value will be used as the default value for the frame parameter in the fitting net.
+    default_uparam: float, optional
+        The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams.
     """
 
     def __init__(
@@ -99,6 +103,7 @@ class InvarFitting(GeneralFitting):
         bias_atom_e: torch.Tensor | None = None,
         resnet_dt: bool = True,
         numb_fparam: int = 0,
+        numb_uparam: int = 0,
         numb_aparam: int = 0,
         dim_case_embd: int = 0,
         activation_function: str = "tanh",
@@ -112,6 +117,8 @@ class InvarFitting(GeneralFitting):
         type_map: list[str] | None = None,
         use_aparam_as_mask: bool = False,
         default_fparam: list[float] | None = None,
+        default_uparam: float | None = None,
+        uparam_mode: str = "frame",
         **kwargs: Any,
     ) -> None:
         self.dim_out = dim_out
@@ -133,7 +140,9 @@ class InvarFitting(GeneralFitting):
             bias_atom_e=bias_atom_e,
             resnet_dt=resnet_dt,
             numb_fparam=numb_fparam,
+            numb_uparam=numb_uparam,
             numb_aparam=numb_aparam,
+            uparam_mode=uparam_mode,
             dim_case_embd=dim_case_embd,
             activation_function=activation_function,
             precision=precision,
@@ -148,6 +157,7 @@ class InvarFitting(GeneralFitting):
             type_map=type_map,
             use_aparam_as_mask=use_aparam_as_mask,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
             **kwargs,
         )
 
@@ -189,6 +199,7 @@ class InvarFitting(GeneralFitting):
         g2: torch.Tensor | None = None,
         h2: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         vacuum_descriptor: torch.Tensor | None = None,
         return_atomic_feature: bool = False,
@@ -214,6 +225,7 @@ class InvarFitting(GeneralFitting):
             g2,
             h2,
             fparam,
+            uparam,
             aparam,
             vacuum_descriptor=vacuum_descriptor,
             return_atomic_feature=return_atomic_feature,

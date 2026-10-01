@@ -15,6 +15,7 @@ set(DEEPMD_BACKEND_IMPL_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/DeepSpinPT.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/DeepSpinPTExpt.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/DeepSpinTF.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/DeepMLUPT.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/DeepTensorPT.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/DeepTensorTF.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NativeSpinPTExpt.cc)
@@ -108,8 +109,10 @@ if(ENABLE_TENSORFLOW)
 endif()
 
 if(ENABLE_PYTORCH AND "${OP_CXX_ABI_PT}" EQUAL "${OP_CXX_ABI}")
-  add_library(deepmd_backend_pt SHARED src/DeepPotPT.cc src/DeepPotPTPlugin.cc
-                                       src/DeepSpinPT.cc src/DeepTensorPT.cc)
+  add_library(
+    deepmd_backend_pt SHARED
+    src/DeepMLUPT.cc src/DeepPotPT.cc src/DeepPotPTPlugin.cc src/DeepSpinPT.cc
+    src/DeepTensorPT.cc)
   deepmd_configure_backend_plugin(deepmd_backend_pt)
   target_link_libraries(deepmd_backend_pt PRIVATE "${TORCH_LIBRARIES}")
   target_compile_definitions(deepmd_backend_pt PRIVATE BUILD_PYTORCH)

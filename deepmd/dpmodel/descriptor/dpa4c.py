@@ -31,6 +31,9 @@ from typing import (
 )
 
 import array_api_compat
+from deepmd.dpmodel.descriptor.dpa4_nn.radial import (
+    InnerClamp,
+)
 import numpy as np
 
 from deepmd.dpmodel import (
@@ -250,6 +253,8 @@ class DescrptDPA4C(NativeOP, BaseDescriptor):
         add_chg_spin_ebd: bool = False,
         default_chg_spin: list[float] | None = None,
         spin: None = None,
+        inner_clamp_r_inner: float | None = None,
+        inner_clamp_r_outer: float | None = None,
     ) -> None:
         # === Step 1. Validate the public architecture contract ===
         if spin is not None:
@@ -295,6 +300,26 @@ class DescrptDPA4C(NativeOP, BaseDescriptor):
         self.type_map = type_map
         self.seed = seed
         self.use_spin = None if use_spin is None else [bool(flag) for flag in use_spin]
+        # === Zone bridging (analytic ZBL): C3-continuous inner distance
+        # clamp, mirroring DescrptDPA4. When both radii are given, pair
+        # distances below r_inner freeze and transition smoothly back to
+        # identity at r_outer; the linear_ener composition pairs this with
+        # an inner_potential (ZBL) child that repels inside the window. ===
+        self.inner_clamp_r_inner = (
+            float(inner_clamp_r_inner) if inner_clamp_r_inner is not None else None
+        )
+        self.inner_clamp_r_outer = (
+            float(inner_clamp_r_outer) if inner_clamp_r_outer is not None else None
+        )
+        if (
+            self.inner_clamp_r_inner is not None
+            and self.inner_clamp_r_outer is not None
+        ):
+            self.inner_clamp: InnerClamp | None = InnerClamp(
+                self.inner_clamp_r_inner, self.inner_clamp_r_outer
+            )
+        else:
+            self.inner_clamp = None
         self.add_chg_spin_ebd = bool(add_chg_spin_ebd)
         self.default_chg_spin = default_chg_spin
         # The spin branch reads the leading channels of the shared radial map,
@@ -568,6 +593,7 @@ class DescrptDPA4C(NativeOP, BaseDescriptor):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         comm_dict: dict | None = None,
         charge_spin: Array | None = None,
     ) -> tuple[Array, None, None, None, Array]:
@@ -592,6 +618,8 @@ class DescrptDPA4C(NativeOP, BaseDescriptor):
             denotes the identity mapping.
         fparam
             Frame parameters accepted by the common descriptor ABI; unused.
+        uparam
+            DFT+U parameters accepted by the common descriptor ABI; unused.
         comm_dict
             Communication metadata accepted by the common descriptor ABI;
             unused.
@@ -619,7 +647,7 @@ class DescrptDPA4C(NativeOP, BaseDescriptor):
             graph_from_dense_quartet,
         )
 
-        del fparam, comm_dict
+        del fparam, uparam, comm_dict
         xp = array_api_compat.array_namespace(coord_ext, atype_ext, nlist)
         nf, nloc, nnei = nlist.shape
 
@@ -930,7 +958,17 @@ class DescrptDPA4C(NativeOP, BaseDescriptor):
             keepdims=True,
         )
         distance = xp.sqrt(distance_squared + self._EPS * self._EPS)
-        direction = graph.edge_vec / distance
+        if self.inner_clamp is not None:
+            # Zone bridging: freeze distances below r_inner and transition
+            # smoothly back to identity at r_outer. The raw edge vector is
+            # rescaled by the same ratio so the direction stays unit-length.
+            clamped = self.inner_clamp(distance)
+            scale = clamped / distance
+            edge_vec = graph.edge_vec * scale
+            distance = clamped
+        direction = (graph.edge_vec if self.inner_clamp is None else edge_vec) / (
+            distance
+        )
         real_type = (center_type < self.ntypes) & (neighbor_type < self.ntypes)
         edge_mask = graph.edge_mask & real_type
         mask = xp.astype(edge_mask[:, None], graph.edge_vec.dtype)

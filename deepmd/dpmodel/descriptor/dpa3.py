@@ -702,6 +702,7 @@ class DescrptDPA3(NativeOP, BaseDescriptor):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         comm_dict: dict | None = None,
         charge_spin: Array | None = None,
     ) -> tuple[Array, Array, Array, Array, Array]:

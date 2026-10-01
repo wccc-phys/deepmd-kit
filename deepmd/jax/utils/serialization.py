@@ -274,6 +274,7 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
                 nlist: jnp.ndarray,
                 mapping: jnp.ndarray,
                 fparam: jnp.ndarray,
+                uparam: jnp.ndarray,
                 aparam: jnp.ndarray,
             ) -> dict[str, jnp.ndarray]:
                 return call_lower(
@@ -282,6 +283,7 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
                     nlist,
                     mapping,
                     fparam,
+                    uparam,
                     aparam,
                     do_atomic_virial=do_atomic_virial,
                 )
@@ -301,6 +303,9 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
                 jax.ShapeDtypeStruct((nf, model.get_dim_fparam()), jnp.float64)
                 if model.get_dim_fparam()
                 else None,  # fparam
+                jax.ShapeDtypeStruct((nf, model.get_dim_uparam()), jnp.float64)
+                if model.get_dim_uparam()
+                else None,  # uparam
                 jax.ShapeDtypeStruct((nf, nloc, model.get_dim_aparam()), jnp.float64)
                 if model.get_dim_aparam()
                 else None,  # aparam
@@ -341,6 +346,7 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
             "rcut": model.get_rcut(),
             "numb_dos": model.get_numb_dos(),
             "dim_fparam": model.get_dim_fparam(),
+            "dim_uparam": model.get_dim_uparam(),
             "dim_aparam": model.get_dim_aparam(),
             "sel_type": model.get_sel_type(),
             "is_aparam_nall": model.is_aparam_nall(),
@@ -356,6 +362,9 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
             "var_name": model.get_var_name(),
             "task_dim": model.get_task_dim() if is_property_model else None,
             "intensive": model.get_intensive() if is_property_model else False,
+
+            "has_default_uparam": model.has_default_uparam(),
+            "default_uparam": model.get_default_uparam(),
         }
         save_dp_model(filename=model_file, model_dict=data)
     elif model_file.endswith(".savedmodel"):

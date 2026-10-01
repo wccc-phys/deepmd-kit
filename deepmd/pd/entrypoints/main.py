@@ -396,6 +396,7 @@ def freeze(
                 InputSpec([-1, 9], dtype="float64", name="box"),  # box
                 None,  # fparam
                 None,  # aparam
+                None,  # uparam
                 # InputSpec([], dtype="bool", name="do_atomic_virial"),  # do_atomic_virial
                 do_atomic_virial,  # do_atomic_virial
             ],
@@ -418,6 +419,7 @@ def freeze(
                 InputSpec([-1, -1], dtype="int64", name="mapping"),  # mapping
                 None,  # fparam
                 None,  # aparam
+                None,  # uparam
                 # InputSpec([], dtype="bool", name="do_atomic_virial"),  # do_atomic_virial
                 do_atomic_virial,  # do_atomic_virial
                 (
@@ -436,6 +438,7 @@ def freeze(
         "get_buffer_rcut",
         "get_buffer_type_map",
         "get_buffer_dim_fparam",
+        "get_buffer_dim_uparam",
         "get_buffer_dim_aparam",
         "get_buffer_intensive",
         "get_buffer_sel_type",

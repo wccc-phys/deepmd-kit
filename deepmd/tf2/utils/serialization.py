@@ -293,6 +293,7 @@ def deserialize_to_savedmodel(
             nlist: tf.Tensor,
             mapping: tf.Tensor,
             fparam: tf.Tensor,
+            uparam: tf.Tensor,
             aparam: tf.Tensor,
         ) -> dict[str, tf.Tensor]:
             return unwrap_value(
@@ -302,6 +303,7 @@ def deserialize_to_savedmodel(
                     nlist,
                     mapping,
                     fparam,
+                    uparam,
                     aparam,
                     do_atomic_virial=do_atomic_virial,
                 )
@@ -318,6 +320,7 @@ def deserialize_to_savedmodel(
             tf.TensorSpec([None, None, None], tf.int64),
             tf.TensorSpec([None, None], tf.int64),
             tf.TensorSpec([None, model.get_dim_fparam()], tf.float64),
+            tf.TensorSpec([None, model.get_dim_uparam()], tf.float64),
             tf.TensorSpec([None, None, model.get_dim_aparam()], tf.float64),
         ],
     )
@@ -327,11 +330,12 @@ def deserialize_to_savedmodel(
         nlist: tf.Tensor,
         mapping: tf.Tensor,
         fparam: tf.Tensor,
+        uparam: tf.Tensor,
         aparam: tf.Tensor,
     ) -> dict[str, tf.Tensor]:
         nlist = format_nlist(coord, nlist, model.get_nnei(), model.get_rcut())
         return call_lower_with_fixed_do_atomic_virial(False)(
-            coord, atype, nlist, mapping, fparam, aparam
+            coord, atype, nlist, mapping, fparam, uparam, aparam
         )
 
     tf_model.call_lower = call_lower_without_atomic_virial
@@ -345,6 +349,7 @@ def deserialize_to_savedmodel(
             tf.TensorSpec([None, None, None], tf.int64),
             tf.TensorSpec([None, None], tf.int64),
             tf.TensorSpec([None, model.get_dim_fparam()], tf.float64),
+            tf.TensorSpec([None, model.get_dim_uparam()], tf.float64),
             tf.TensorSpec([None, None, model.get_dim_aparam()], tf.float64),
         ],
     )
@@ -354,11 +359,12 @@ def deserialize_to_savedmodel(
         nlist: tf.Tensor,
         mapping: tf.Tensor,
         fparam: tf.Tensor,
+        uparam: tf.Tensor,
         aparam: tf.Tensor,
     ) -> dict[str, tf.Tensor]:
         nlist = format_nlist(coord, nlist, model.get_nnei(), model.get_rcut())
         return call_lower_with_fixed_do_atomic_virial(True)(
-            coord, atype, nlist, mapping, fparam, aparam
+            coord, atype, nlist, mapping, fparam, uparam, aparam
         )
 
     tf_model.call_lower_atomic_virial = call_lower_with_atomic_virial
@@ -375,6 +381,7 @@ def deserialize_to_savedmodel(
             atype: tf.Tensor,
             box: tf.Tensor,
             fparam: tf.Tensor,
+            uparam: tf.Tensor,
             aparam: tf.Tensor,
         ) -> dict[str, tf.Tensor]:
             # exclusion is a nlist-BUILD transform (decision #18/A4); the
@@ -392,6 +399,7 @@ def deserialize_to_savedmodel(
                     atype=atype,
                     box=box,
                     fparam=fparam,
+                    uparam=uparam,
                     aparam=aparam,
                     do_atomic_virial=do_atomic_virial,
                     pair_excl=am.pair_excl if am is not None else None,
@@ -407,6 +415,7 @@ def deserialize_to_savedmodel(
             tf.TensorSpec([None, None], tf.int32),
             tf.TensorSpec([None, None, None], tf.float64),
             tf.TensorSpec([None, model.get_dim_fparam()], tf.float64),
+            tf.TensorSpec([None, model.get_dim_uparam()], tf.float64),
             tf.TensorSpec([None, None, model.get_dim_aparam()], tf.float64),
         ],
     )
@@ -415,10 +424,11 @@ def deserialize_to_savedmodel(
         atype: tf.Tensor,
         box: tf.Tensor,
         fparam: tf.Tensor,
+        uparam: tf.Tensor,
         aparam: tf.Tensor,
     ) -> dict[str, tf.Tensor]:
         return make_call_whether_do_atomic_virial(True)(
-            coord, atype, box, fparam, aparam
+            coord, atype, box, fparam, uparam, aparam
         )
 
     tf_model.call_atomic_virial = call_with_atomic_virial
@@ -430,6 +440,7 @@ def deserialize_to_savedmodel(
             tf.TensorSpec([None, None], tf.int32),
             tf.TensorSpec([None, None, None], tf.float64),
             tf.TensorSpec([None, model.get_dim_fparam()], tf.float64),
+            tf.TensorSpec([None, model.get_dim_uparam()], tf.float64),
             tf.TensorSpec([None, None, model.get_dim_aparam()], tf.float64),
         ],
     )
@@ -438,10 +449,11 @@ def deserialize_to_savedmodel(
         atype: tf.Tensor,
         box: tf.Tensor,
         fparam: tf.Tensor,
+        uparam: tf.Tensor,
         aparam: tf.Tensor,
     ) -> dict[str, tf.Tensor]:
         return make_call_whether_do_atomic_virial(False)(
-            coord, atype, box, fparam, aparam
+            coord, atype, box, fparam, uparam, aparam
         )
 
     tf_model.call = call_without_atomic_virial
@@ -463,6 +475,12 @@ def deserialize_to_savedmodel(
         return tf.constant(model.get_dim_fparam(), dtype=tf.int64)
 
     tf_model.get_dim_fparam = get_dim_fparam
+
+    @tf.function
+    def get_dim_uparam() -> tf.Tensor:
+        return tf.constant(model.get_dim_uparam(), dtype=tf.int64)
+
+    tf_model.get_dim_uparam = get_dim_uparam
 
     @tf.function
     def get_dim_aparam() -> tf.Tensor:
@@ -579,6 +597,21 @@ def deserialize_to_savedmodel(
             return tf.constant(model.get_intensive(), dtype=tf.bool)
 
         tf_model.get_intensive = get_intensive
+
+    @tf.function
+    def has_default_uparam() -> tf.Tensor:
+        return tf.constant(model.has_default_uparam(), dtype=tf.bool)
+
+    tf_model.has_default_uparam = has_default_uparam
+
+    @tf.function
+    def get_default_uparam() -> tf.Tensor:
+        default_uparam = model.get_default_uparam()
+        if default_uparam is None:
+            return tf.constant([], dtype=tf.double)
+        return tf.constant(default_uparam, dtype=tf.double)
+
+    tf_model.get_default_uparam = get_default_uparam
 
     tf.saved_model.save(
         tf_model,

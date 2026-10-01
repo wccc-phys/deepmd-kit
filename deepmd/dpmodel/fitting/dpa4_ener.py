@@ -330,6 +330,7 @@ def _resolve_auto_neuron(
     *,
     dim_descrpt: int,
     numb_fparam: int,
+    numb_uparam: int,
     numb_aparam: int,
     dim_case_embd: int,
     case_film_embd: bool,
@@ -345,6 +346,7 @@ def _resolve_auto_neuron(
     dim_in = (
         int(dim_descrpt)
         + int(numb_fparam)
+        + int(numb_uparam)
         + (0 if use_aparam_as_mask else int(numb_aparam))
         + case_dim
     )
@@ -359,7 +361,9 @@ class SeZMEnergyFittingNet(InvarFitting):
     SeZM energy fitting with GLU hidden layers.
 
     This uses the same configuration keys as the standard energy fitting
-    but replaces hidden MLP layers with GLU blocks.
+    (including frame parameters ``fparam`` and DFT+U parameters ``uparam``)
+    but replaces hidden MLP layers with GLU blocks. The ``numb_uparam``
+    controls the number of input channels.
     """
 
     def __init__(
@@ -370,6 +374,7 @@ class SeZMEnergyFittingNet(InvarFitting):
         bias_atom_e: Array | None = None,
         resnet_dt: bool = False,
         numb_fparam: int = 0,
+        numb_uparam: int = 0,
         numb_aparam: int = 0,
         dim_case_embd: int = 0,
         case_film_embd: bool = False,
@@ -380,6 +385,7 @@ class SeZMEnergyFittingNet(InvarFitting):
         seed: int | list[int] | None = None,
         type_map: list[str] | None = None,
         default_fparam: list | None = None,
+        default_uparam: float | None = None,
         **kwargs: Any,
     ) -> None:
         if int(dim_case_embd) > 0:
@@ -394,6 +400,7 @@ class SeZMEnergyFittingNet(InvarFitting):
             neuron,
             dim_descrpt=dim_descrpt,
             numb_fparam=numb_fparam,
+            numb_uparam=int(default_uparam is not None),
             numb_aparam=numb_aparam,
             dim_case_embd=dim_case_embd,
             case_film_embd=case_film_embd,
@@ -408,6 +415,7 @@ class SeZMEnergyFittingNet(InvarFitting):
             bias_atom=bias_atom_e,
             resnet_dt=resnet_dt,
             numb_fparam=numb_fparam,
+            numb_uparam=numb_uparam,
             numb_aparam=numb_aparam,
             dim_case_embd=dim_case_embd,
             activation_function=activation_function,
@@ -416,6 +424,7 @@ class SeZMEnergyFittingNet(InvarFitting):
             seed=seed,
             type_map=type_map,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
             **kwargs,
         )
         self.seed = seed
@@ -429,6 +438,7 @@ class SeZMEnergyFittingNet(InvarFitting):
         in_dim = (
             self.dim_descrpt
             + self.numb_fparam
+            + self.numb_uparam
             + (0 if self.use_aparam_as_mask else self.numb_aparam)
             + case_dim
         )

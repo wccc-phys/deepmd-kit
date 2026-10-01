@@ -48,6 +48,7 @@ class EnergyFittingNet(InvarFitting):
         bias_atom_e: torch.Tensor | None = None,
         resnet_dt: bool = True,
         numb_fparam: int = 0,
+        numb_uparam: int = 0,
         numb_aparam: int = 0,
         dim_case_embd: int = 0,
         activation_function: str = "tanh",
@@ -56,6 +57,7 @@ class EnergyFittingNet(InvarFitting):
         seed: int | list[int] | None = None,
         type_map: list[str] | None = None,
         default_fparam: list | None = None,
+        default_uparam: float | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -67,6 +69,7 @@ class EnergyFittingNet(InvarFitting):
             bias_atom_e=bias_atom_e,
             resnet_dt=resnet_dt,
             numb_fparam=numb_fparam,
+            numb_uparam=numb_uparam,
             numb_aparam=numb_aparam,
             dim_case_embd=dim_case_embd,
             activation_function=activation_function,
@@ -75,6 +78,7 @@ class EnergyFittingNet(InvarFitting):
             seed=seed,
             type_map=type_map,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
             **kwargs,
         )
 
@@ -203,6 +207,7 @@ class EnergyFittingNetDirect(Fitting):
         g2: torch.Tensor | None = None,
         h2: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         return_atomic_feature: bool = False,
     ) -> tuple[torch.Tensor, None]:

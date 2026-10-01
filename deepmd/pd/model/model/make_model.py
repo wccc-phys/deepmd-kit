@@ -153,6 +153,8 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type[BaseModel]:
                 frame parameter. nf x ndf
             aparam
                 atomic parameter. nf x nloc x nda
+            uparam
+                DFT+U parameter. nf x dim_uparam
             do_atomic_virial
                 If calculate the atomic virial.
             charge_spin
@@ -165,10 +167,10 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type[BaseModel]:
                 The keys are defined by the `ModelOutputDef`.
 
             """
-            cc, bb, fp, ap, input_prec = self._input_type_cast(
-                coord, box=box, fparam=fparam, aparam=aparam
+            cc, bb, fp, ap, up, input_prec = self._input_type_cast(
+                coord, box=box, fparam=fparam, aparam=aparam, uparam=uparam
             )
-            del coord, box, fparam, aparam
+            del coord, box, fparam, aparam, uparam
             (
                 extended_coord,
                 extended_atype,
@@ -193,6 +195,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type[BaseModel]:
                 fparam=fp,
                 aparam=ap,
                 charge_spin=charge_spin,
+                uparam=up,
             )
             model_predict = communicate_extended_output(
                 model_predict_lower,
@@ -286,6 +289,8 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type[BaseModel]:
                 frame parameter. nf x ndf
             aparam
                 atomic parameter. nf x nloc x nda
+            uparam
+                DFT+U parameter. nf x dim_uparam
             do_atomic_virial
                 whether calculate atomic virial.
             comm_dict
@@ -306,10 +311,10 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type[BaseModel]:
             nlist = self.format_nlist(
                 extended_coord, extended_atype, nlist, extra_nlist_sort=extra_nlist_sort
             )
-            cc_ext, _, fp, ap, input_prec = self._input_type_cast(
-                extended_coord, fparam=fparam, aparam=aparam
+            cc_ext, _, fp, ap, up, input_prec = self._input_type_cast(
+                extended_coord, fparam=fparam, aparam=aparam, uparam=uparam
             )
-            del extended_coord, fparam, aparam
+            del extended_coord, fparam, aparam, uparam
             atomic_ret = self.atomic_model.forward_common_atomic(
                 cc_ext,
                 extended_atype,
@@ -317,6 +322,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type[BaseModel]:
                 mapping=mapping,
                 fparam=fp,
                 aparam=ap,
+                uparam=up,
                 comm_dict=comm_dict,
                 charge_spin=charge_spin,
             )
@@ -341,6 +347,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type[BaseModel]:
             paddle.Tensor | None,
             paddle.Tensor | None,
             paddle.Tensor | None,
+            paddle.Tensor | None,
             str,
         ]:
             """Cast the input data to global float type."""
@@ -357,14 +364,14 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type[BaseModel]:
             #         )
             _lst: list[paddle.Tensor | None] = [
                 vv.astype(coord.dtype) if vv is not None else None
-                for vv in [box, fparam, aparam]
+                for vv in [box, fparam, aparam, uparam]
             ]
-            box, fparam, aparam = _lst
+            box, fparam, aparam, uparam = _lst
             if (
                 input_prec
                 == self.reverse_precision_dict[self.global_pd_float_precision]
             ):
-                return coord, box, fparam, aparam, input_prec
+                return coord, box, fparam, aparam, uparam, input_prec
             else:
                 pp = self.global_pd_float_precision
                 return (
@@ -372,6 +379,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type[BaseModel]:
                     box.to(pp) if box is not None else None,
                     fparam.to(pp) if fparam is not None else None,
                     aparam.to(pp) if aparam is not None else None,
+                    uparam.to(pp) if uparam is not None else None,
                     input_prec,
                 )
 
@@ -565,6 +573,17 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type[BaseModel]:
         def get_default_chg_spin(self) -> paddle.Tensor | None:
             """Get the default charge_spin values."""
             return self.atomic_model.get_default_chg_spin()
+        def get_dim_uparam(self) -> int:
+            """Get the number (dimension) of DFT+U parameters of this atomic model."""
+            return self.atomic_model.get_dim_uparam()
+
+        def has_default_uparam(self) -> bool:
+            """Check if the model has default uparam."""
+            return self.atomic_model.has_default_uparam()
+
+        def get_default_uparam(self) -> paddle.Tensor | None:
+            """Get the default uparam tensor."""
+            return self.atomic_model.get_default_uparam()
 
         def get_dim_aparam(self) -> int:
             """Get the number (dimension) of atomic parameters of this atomic model."""
@@ -573,6 +592,10 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]) -> type[BaseModel]:
         def get_buffer_dim_fparam(self) -> paddle.Tensor:
             """Get the number (dimension) of frame parameters of this atomic model as a buffer-style Tensor."""
             return self.atomic_model.get_buffer_dim_fparam()
+
+        def get_buffer_dim_uparam(self) -> paddle.Tensor:
+            """Get the number (dimension) of DFT+U parameters of this atomic model as a buffer-style Tensor."""
+            return self.atomic_model.get_buffer_dim_uparam()
 
         def get_buffer_dim_aparam(self) -> paddle.Tensor:
             """Get the number (dimension) of atomic parameters of this atomic model as a buffer-style Tensor."""

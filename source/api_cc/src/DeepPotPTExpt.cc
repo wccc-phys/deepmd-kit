@@ -5,6 +5,8 @@
 #include <ATen/core/dispatch/Dispatcher.h>
 #include <c10/core/DeviceGuard.h>
 #include <torch/csrc/inductor/aoti_package/model_package_loader.h>
+#include <torch/serialize.h>
+#include <cstdlib>
 
 #include <algorithm>
 #include <cstdint>
@@ -191,6 +193,9 @@ void DeepPotPTExpt::init(const std::string& model,
                : static_cast<int>(metadata["type_map"].as_array().size());
   dfparam = metadata["dim_fparam"].as_int();
   daparam = metadata["dim_aparam"].as_int();
+  duparam = metadata.obj_val.count("dim_uparam")
+                ? metadata["dim_uparam"].as_int()
+                : 0;
   dchgspin = metadata.obj_val.count("dim_chg_spin")
                  ? metadata["dim_chg_spin"].as_int()
                  : 0;
@@ -221,6 +226,17 @@ void DeepPotPTExpt::init(const std::string& model,
                    "Empty fparam will not be substituted. Please regenerate "
                    "the .pt2 model with an updated version of deepmd-kit."
                 << std::endl;
+    }
+  }
+  if (metadata.obj_val.count("has_default_uparam")) {
+    has_default_uparam_ = metadata["has_default_uparam"].as_bool();
+  } else {
+    has_default_uparam_ = false;
+  }
+  if (has_default_uparam_ && metadata.obj_val.count("default_uparam")) {
+    default_uparam_.clear();
+    for (const auto& v : metadata["default_uparam"].as_array()) {
+      default_uparam_.push_back(v.as_double());
     }
   }
   default_chg_spin_ = read_default_chg_spin(metadata, dchgspin);
@@ -459,20 +475,34 @@ std::vector<torch::Tensor> DeepPotPTExpt::run_model(
     const torch::Tensor& nlist,
     const torch::Tensor& mapping,
     const torch::Tensor& fparam,
+    const torch::Tensor& uparam,
     const torch::Tensor& aparam,
     const torch::Tensor& charge_spin) {
   // Only include fparam/aparam/charge_spin if the model was exported with them.
   // When they are None at export time, AOTInductor compiles with fewer inputs.
   std::vector<torch::Tensor> inputs = {coord, atype, nlist, mapping};
-  if (dfparam > 0) {
-    inputs.push_back(fparam);
-  }
-  if (daparam > 0) {
-    inputs.push_back(aparam);
-  }
-  if (dchgspin > 0) {
-    inputs.push_back(charge_spin);
-  }
+  // uparam falls back to the model default when the caller supplies none
+  // (the only parameter with a default at this seam).
+  at::Tensor uparam_tensor =
+      uparam_.empty()
+          ? (has_default_uparam_
+                 ? torch::from_blob(
+                       const_cast<double*>(default_uparam_.data()),
+                       {1, static_cast<std::int64_t>(default_uparam_.size())},
+                       torch::TensorOptions().dtype(torch::kFloat64))
+                       .clone()
+                       .to(coord.device())
+                 : torch::zeros({1, 1}, torch::TensorOptions()
+                                            .dtype(torch::kFloat64)
+                                            .device(coord.device())))
+          : torch::from_blob(const_cast<double*>(uparam_.data()),
+                             {1, static_cast<std::int64_t>(uparam_.size())},
+                             torch::TensorOptions().dtype(torch::kFloat64))
+                .clone()
+                .to(coord.device());
+  ConditioningInputs cond{dfparam,       fparam,        duparam, uparam_tensor,
+                          daparam,       aparam,        dchgspin, charge_spin};
+  cond.append_to(inputs);
   return loader->run(inputs);
 }
 
@@ -484,19 +514,14 @@ std::vector<torch::Tensor> DeepPotPTExpt::run_model_edges(
     const torch::Tensor& edge_scatter_index,
     const torch::Tensor& edge_mask,
     const torch::Tensor& fparam,
+    const torch::Tensor& uparam,
     const torch::Tensor& aparam,
     const torch::Tensor& charge_spin) {
   std::vector<torch::Tensor> inputs = {
       coord, atype, edge_index, edge_vec, edge_scatter_index, edge_mask};
-  if (dfparam > 0) {
-    inputs.push_back(fparam);
-  }
-  if (daparam > 0) {
-    inputs.push_back(aparam);
-  }
-  if (dchgspin > 0) {
-    inputs.push_back(charge_spin);
-  }
+  ConditioningInputs cond{dfparam,   fparam, duparam,   uparam,
+                          daparam,     aparam, dchgspin,  charge_spin};
+  cond.append_to(inputs);
   return loader->run(inputs);
 }
 
@@ -512,6 +537,7 @@ std::vector<torch::Tensor> DeepPotPTExpt::run_model_graph(
     const torch::Tensor& source_order,
     const torch::Tensor& source_row_ptr,
     const torch::Tensor& fparam,
+    const torch::Tensor& uparam,
     const torch::Tensor& aparam,
     const torch::Tensor& charge_spin) {
   // Graph-input ABI: original edge payload plus destination/source CSR views.
@@ -520,14 +546,23 @@ std::vector<torch::Tensor> DeepPotPTExpt::run_model_graph(
       atype,        n_node,        n_local,           edge_index,
       edge_vec,     edge_mask,     destination_order, destination_row_ptr,
       source_order, source_row_ptr};
-  if (dfparam > 0) {
-    inputs.push_back(fparam);
-  }
-  if (daparam > 0) {
-    inputs.push_back(aparam);
-  }
-  if (dchgspin > 0) {
-    inputs.push_back(charge_spin);
+  ConditioningInputs cond{dfparam,   fparam, duparam,   uparam,
+                          daparam,     aparam, dchgspin,  charge_spin};
+  cond.append_to(inputs);
+  // Debug: dump the exact tensors handed to the AOTI module so the call can
+  // be replayed verbatim from Python (DP_PTEXPT_DUMP=<dir-prefix>).
+  if (const char* dump_prefix = std::getenv("DP_PTEXPT_DUMP_INPUTS")) {
+    static std::int64_t dump_seq = 0;
+    if (dump_seq % 50 == 0) {
+      for (size_t i = 0; i < inputs.size(); ++i) {
+        std::string path = std::string(dump_prefix) + std::to_string(dump_seq) +
+                           "_" + std::to_string(i) + ".pt";
+        torch::save(inputs[i].detach().cpu().contiguous(), path);
+      }
+      std::cerr << "[ptexpt-dump] wrote " << inputs.size()
+                << " input tensors with seq " << dump_seq << std::endl;
+    }
+    ++dump_seq;
   }
   return loader->run(inputs);
 }
@@ -551,6 +586,7 @@ std::vector<torch::Tensor> DeepPotPTExpt::run_model_with_comm(
     const torch::Tensor& nlist,
     const torch::Tensor& mapping,
     const torch::Tensor& fparam,
+    const torch::Tensor& uparam,
     const torch::Tensor& aparam,
     const torch::Tensor& charge_spin,
     const std::vector<at::Tensor>& comm_tensors) {
@@ -568,15 +604,28 @@ std::vector<torch::Tensor> DeepPotPTExpt::run_model_with_comm(
         std::to_string(comm_tensors.size()) + ".");
   }
   std::vector<torch::Tensor> inputs = {coord, atype, nlist, mapping};
-  if (dfparam > 0) {
-    inputs.push_back(fparam);
-  }
-  if (daparam > 0) {
-    inputs.push_back(aparam);
-  }
-  if (dchgspin > 0) {
-    inputs.push_back(charge_spin);
-  }
+  // uparam falls back to the model default when the caller supplies none
+  // (the only parameter with a default at this seam).
+  at::Tensor uparam_tensor =
+      uparam_.empty()
+          ? (has_default_uparam_
+                 ? torch::from_blob(
+                       const_cast<double*>(default_uparam_.data()),
+                       {1, static_cast<std::int64_t>(default_uparam_.size())},
+                       torch::TensorOptions().dtype(torch::kFloat64))
+                       .clone()
+                       .to(coord.device())
+                 : torch::zeros({1, 1}, torch::TensorOptions()
+                                            .dtype(torch::kFloat64)
+                                            .device(coord.device())))
+          : torch::from_blob(const_cast<double*>(uparam_.data()),
+                             {1, static_cast<std::int64_t>(uparam_.size())},
+                             torch::TensorOptions().dtype(torch::kFloat64))
+                .clone()
+                .to(coord.device());
+  ConditioningInputs cond{dfparam,       fparam,        duparam, uparam_tensor,
+                          daparam,       aparam,        dchgspin, charge_spin};
+  cond.append_to(inputs);
   for (const auto& t : comm_tensors) {
     inputs.push_back(t);
   }
@@ -592,6 +641,7 @@ std::vector<torch::Tensor> DeepPotPTExpt::run_model_edges_with_comm(
     const torch::Tensor& edge_scatter_index,
     const torch::Tensor& edge_mask,
     const torch::Tensor& fparam,
+    const torch::Tensor& uparam,
     const torch::Tensor& aparam,
     const torch::Tensor& charge_spin,
     const std::vector<at::Tensor>& comm_tensors) {
@@ -611,15 +661,9 @@ std::vector<torch::Tensor> DeepPotPTExpt::run_model_edges_with_comm(
   std::vector<torch::Tensor> inputs = {coord,      atype,    extended_atype,
                                        edge_index, edge_vec, edge_scatter_index,
                                        edge_mask};
-  if (dfparam > 0) {
-    inputs.push_back(fparam);
-  }
-  if (daparam > 0) {
-    inputs.push_back(aparam);
-  }
-  if (dchgspin > 0) {
-    inputs.push_back(charge_spin);
-  }
+  ConditioningInputs cond{dfparam,   fparam, duparam,   uparam,
+                          daparam,     aparam, dchgspin,  charge_spin};
+  cond.append_to(inputs);
   for (const auto& t : comm_tensors) {
     inputs.push_back(t);
   }
@@ -638,6 +682,7 @@ std::vector<torch::Tensor> DeepPotPTExpt::run_model_graph_with_comm(
     const torch::Tensor& source_order,
     const torch::Tensor& source_row_ptr,
     const torch::Tensor& fparam,
+    const torch::Tensor& uparam,
     const torch::Tensor& aparam,
     const torch::Tensor& charge_spin,
     const std::vector<at::Tensor>& comm_tensors) {
@@ -681,6 +726,9 @@ std::vector<torch::Tensor> DeepPotPTExpt::run_model_graph_with_comm(
       atype,        n_node,        n_local,           edge_index,
       edge_vec,     edge_mask,     destination_order, destination_row_ptr,
       source_order, source_row_ptr};
+  // NOTE: the spin with-comm ABI has NO uparam slot (spin models carry no
+  // DFT+U input), and its conditional order is fparam/aparam/charge_spin --
+  // intentionally NOT the registry order used by the regular run_model*.
   if (dfparam > 0) {
     inputs.push_back(fparam);
   }
@@ -723,6 +771,7 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
                             const InputNlist& lmp_list,
                             const int& ago,
                             const std::vector<VALUETYPE>& fparam,
+                            const std::vector<VALUETYPE>& uparam,
                             const std::vector<VALUETYPE>& aparam,
                             const std::vector<double>& charge_spin,
                             const bool atomic) {
@@ -967,8 +1016,41 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
     throw deepmd::deepmd_exception(
         "fparam is empty and default_fparam values are missing from the .pt2 "
         "metadata. Please regenerate the model or provide fparam explicitly.");
+  } else if (dfparam > 0) {
+    // The exported graph reads fparam as a REQUIRED (1, dfparam) input; an
+    // empty tensor here is an out-of-bounds read inside the conditioning
+    // kernels (observed as a host SIGSEGV / CUDA illegal access), never a
+    // graceful degradation. Fail loudly instead.
+    throw deepmd::deepmd_exception(
+        "fparam is required (dim_fparam=" + std::to_string(dfparam) +
+        ") but was not provided and the model has no default_fparam. Under "
+        "LAMMPS, pass `fparam <values>` to pair_style deepmd.");
   } else {
     fparam_tensor = torch::zeros({0}, options).to(device);
+  }
+
+  at::Tensor uparam_tensor;
+  if (duparam > 0) {
+    auto uparam_default =
+        has_default_uparam_
+            ? torch::from_blob(
+                  const_cast<double*>(default_uparam_.data()),
+                  {1, static_cast<std::int64_t>(default_uparam_.size())},
+                  torch::TensorOptions().dtype(torch::kFloat64))
+                  .clone()
+                  .to(device)
+            : torch::zeros(
+                  {1, 1},
+                  torch::TensorOptions().dtype(torch::kFloat64).device(device));
+    uparam_tensor =
+        uparam.empty()
+            ? uparam_default
+            : torch::from_blob(const_cast<VALUETYPE*>(uparam.data()),
+                               {1, static_cast<std::int64_t>(uparam.size())},
+                               valuetype_options)
+                  .to(torch::kFloat64)
+                  .clone()
+                  .to(device);
   }
 
   at::Tensor aparam_tensor = make_aparam_tensor(aparam_, nloc, daparam, device);
@@ -1090,8 +1172,8 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
                 : aparam_tensor;
         flat_outputs = run_model_edges_with_comm(
             ph_coord, ph_loc_atype, ph_ext_atype, ph_edge_index, ph_edge_vec,
-            ph_edge_index, ph_edge_mask, fparam_tensor, ph_aparam,
-            charge_spin_tensor, comm_tensors);
+            ph_edge_index, ph_edge_mask, fparam_tensor, uparam_tensor,
+            ph_aparam, charge_spin_tensor, comm_tensors);
       } else {
         // Edge-input schema: edge_index already indexes the extended node set
         // (fold_to_local=false above), so it doubles as the force-scatter
@@ -1105,7 +1187,7 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
             coord_Tensor, atype_Tensor.slice(1, 0, nloc), atype_Tensor,
             edge_tensors.edge_index, edge_tensors.edge_vec,
             edge_tensors.edge_index_ext, edge_tensors.edge_mask, fparam_tensor,
-            aparam_tensor, charge_spin_tensor, comm_tensors);
+            uparam_tensor, aparam_tensor, charge_spin_tensor, comm_tensors);
       }
     } else if (lower_input_is_graph_) {
       // Message-passing NeighborGraph route (DPA2/DPA3), multi-rank, with-comm
@@ -1192,6 +1274,7 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
           graph_pack.edge_vec, graph_pack.edge_mask,
           graph_pack.destination_order, graph_pack.destination_row_ptr,
           graph_pack.source_order, graph_pack.source_row_ptr, fparam_tensor,
+          uparam_tensor,
           extend_graph_aparam(aparam_tensor, n_node_count, nloc, daparam),
           charge_spin_tensor, comm_tensors);
     } else {
@@ -1208,7 +1291,7 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
           firstneigh_tensor, atype_Tensor, pair_exclude_table_, ntypes);
       flat_outputs = run_model_with_comm(
           coord_Tensor, atype_Tensor, excl_nlist, mapping_tensor, fparam_tensor,
-          aparam_tensor, charge_spin_tensor, comm_tensors);
+          uparam_tensor, aparam_tensor, charge_spin_tensor, comm_tensors);
     }
   } else {
     if (lower_input_is_edge_) {
@@ -1219,7 +1302,8 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
           run_model_edges(coord_Tensor, atype_Tensor.slice(1, 0, nloc),
                           edge_tensors.edge_index, edge_tensors.edge_vec,
                           edge_tensors.edge_index_ext, edge_tensors.edge_mask,
-                          fparam_tensor, aparam_tensor, charge_spin_tensor);
+                          fparam_tensor, uparam_tensor, aparam_tensor,
+                          charge_spin_tensor);
     } else if (lower_input_is_graph_ || lower_input_is_canonical_) {
       if (nall_real == 0) {
         // Truly-empty rank (no local atoms AND no ghosts): the graph would emit
@@ -1280,7 +1364,7 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
             graph_pack.edge_vec, graph_pack.edge_mask,
             graph_pack.destination_order, graph_pack.destination_row_ptr,
             graph_pack.source_order, graph_pack.source_row_ptr, fparam_tensor,
-            graph_aparam, charge_spin_tensor);
+            uparam_tensor, graph_aparam, charge_spin_tensor);
       }
     } else {
       // Model-level pair exclusion is a BUILD-time transform (decision
@@ -1291,7 +1375,8 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
           firstneigh_tensor, atype_Tensor, pair_exclude_table_, ntypes);
       flat_outputs =
           run_model(coord_Tensor, atype_Tensor, excl_nlist, mapping_tensor,
-                    fparam_tensor, aparam_tensor, charge_spin_tensor);
+                    fparam_tensor, uparam_tensor, aparam_tensor,
+                    charge_spin_tensor);
     }
   }
 
@@ -1408,6 +1493,7 @@ template void DeepPotPTExpt::compute<double, std::vector<ENERGYTYPE>>(
     const InputNlist& lmp_list,
     const int& ago,
     const std::vector<double>& fparam,
+    const std::vector<double>& uparam,
     const std::vector<double>& aparam,
     const std::vector<double>& charge_spin,
     const bool atomic);
@@ -1424,6 +1510,7 @@ template void DeepPotPTExpt::compute<float, std::vector<ENERGYTYPE>>(
     const InputNlist& lmp_list,
     const int& ago,
     const std::vector<float>& fparam,
+    const std::vector<float>& uparam,
     const std::vector<float>& aparam,
     const std::vector<double>& charge_spin,
     const bool atomic);
@@ -1438,6 +1525,7 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
                             const std::vector<int>& atype,
                             const std::vector<VALUETYPE>& box,
                             const std::vector<VALUETYPE>& fparam,
+                            const std::vector<VALUETYPE>& uparam,
                             const std::vector<VALUETYPE>& aparam,
                             const std::vector<double>& charge_spin,
                             const bool atomic) {
@@ -1465,7 +1553,8 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
   if (nframes > 1) {
     // Multi-frame: loop over frames and concatenate
     compute_nframes(ener, force, virial, atom_energy, atom_virial, nframes,
-                    coord, atype, box, fparam, aparam, charge_spin, atomic);
+                    coord, atype, box, fparam, uparam, aparam, charge_spin,
+                    atomic);
     return;
   }
   // A single-frame call names at most one charge state, and only one this
@@ -1606,8 +1695,41 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
     throw deepmd::deepmd_exception(
         "fparam is empty and default_fparam values are missing from the .pt2 "
         "metadata. Please regenerate the model or provide fparam explicitly.");
+  } else if (dfparam > 0) {
+    // The exported graph reads fparam as a REQUIRED (1, dfparam) input; an
+    // empty tensor here is an out-of-bounds read inside the conditioning
+    // kernels (observed as a host SIGSEGV / CUDA illegal access), never a
+    // graceful degradation. Fail loudly instead.
+    throw deepmd::deepmd_exception(
+        "fparam is required (dim_fparam=" + std::to_string(dfparam) +
+        ") but was not provided and the model has no default_fparam. Under "
+        "LAMMPS, pass `fparam <values>` to pair_style deepmd.");
   } else {
     fparam_tensor = torch::zeros({0}, options).to(device);
+  }
+
+  at::Tensor uparam_tensor;
+  if (duparam > 0) {
+    auto uparam_default =
+        has_default_uparam_
+            ? torch::from_blob(
+                  const_cast<double*>(default_uparam_.data()),
+                  {1, static_cast<std::int64_t>(default_uparam_.size())},
+                  torch::TensorOptions().dtype(torch::kFloat64))
+                  .clone()
+                  .to(device)
+            : torch::zeros(
+                  {1, 1},
+                  torch::TensorOptions().dtype(torch::kFloat64).device(device));
+    uparam_tensor =
+        uparam.empty()
+            ? uparam_default
+            : torch::from_blob(const_cast<VALUETYPE*>(uparam.data()),
+                               {1, static_cast<std::int64_t>(uparam.size())},
+                               valuetype_options)
+                  .to(torch::kFloat64)
+                  .clone()
+                  .to(device);
   }
 
   at::Tensor aparam_tensor =
@@ -1639,7 +1761,8 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
         run_model_edges(coord_Tensor, atype_Tensor.slice(1, 0, nloc),
                         edge_tensors.edge_index, edge_tensors.edge_vec,
                         edge_tensors.edge_index_ext, edge_tensors.edge_mask,
-                        fparam_tensor, aparam_tensor, charge_spin_tensor);
+                        fparam_tensor, uparam_tensor, aparam_tensor,
+                    charge_spin_tensor);
   } else if (lower_input_is_graph_ || lower_input_is_canonical_) {
     graph_tensors.edge_mask = deepmd::applyPairExclusion(
         graph_tensors.edge_index, graph_tensors.edge_mask, graph_tensors.atype,
@@ -1660,7 +1783,7 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
           graph_tensors.edge_index, graph_tensors.edge_vec,
           graph_tensors.edge_mask, graph_tensors.destination_order,
           graph_tensors.destination_row_ptr, graph_tensors.source_order,
-          graph_tensors.source_row_ptr, fparam_tensor,
+          graph_tensors.source_row_ptr, fparam_tensor, uparam_tensor,
           // standalone path is single-rank (every node owned): this only
           // normalizes the rectangular runtime aparam to the flat
           // (N, daparam) node axis of the graph ABI.
@@ -1676,7 +1799,8 @@ void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
         nlist_tensor, atype_Tensor, pair_exclude_table_, ntypes);
     flat_outputs =
         run_model(coord_Tensor, atype_Tensor, excl_nlist, mapping_tensor,
-                  fparam_tensor, aparam_tensor, charge_spin_tensor);
+                  fparam_tensor, uparam_tensor, aparam_tensor,
+                  charge_spin_tensor);
   }
 
   // 6. Map flat outputs to internal keys
@@ -1754,6 +1878,7 @@ void DeepPotPTExpt::compute_nframes(ENERGYVTYPE& ener,
                                     const std::vector<int>& atype,
                                     const std::vector<VALUETYPE>& box,
                                     const std::vector<VALUETYPE>& fparam,
+                                    const std::vector<VALUETYPE>& uparam,
                                     const std::vector<VALUETYPE>& aparam,
                                     const std::vector<double>& charge_spin,
                                     const bool atomic) {
@@ -1796,6 +1921,12 @@ void DeepPotPTExpt::compute_nframes(ENERGYVTYPE& ener,
       frame_fparam.assign(fparam.begin() + offset,
                           fparam.begin() + offset + fparam_layout.frame_size);
     }
+    std::vector<VALUETYPE> frame_uparam;
+    if (!uparam.empty()) {
+      size_t s_du = static_cast<size_t>(duparam);
+      frame_uparam.assign(uparam.begin() + s_ff * s_du,
+                          uparam.begin() + (s_ff + 1) * s_du);
+    }
     std::vector<VALUETYPE> frame_aparam;
     if (aparam_layout.frame_size > 0) {
       const std::size_t offset =
@@ -1817,8 +1948,8 @@ void DeepPotPTExpt::compute_nframes(ENERGYVTYPE& ener,
     std::vector<ENERGYTYPE> frame_ener;
     std::vector<VALUETYPE> frame_force, frame_virial, frame_ae, frame_av;
     compute(frame_ener, frame_force, frame_virial, frame_ae, frame_av,
-            frame_coord, atype, frame_box, frame_fparam, frame_aparam,
-            frame_chg_spin, atomic);
+            frame_coord, atype, frame_box, frame_fparam, frame_uparam,
+            frame_aparam, frame_chg_spin, atomic);
     ener.insert(ener.end(), frame_ener.begin(), frame_ener.end());
     force.insert(force.end(), frame_force.begin(), frame_force.end());
     virial.insert(virial.end(), frame_virial.begin(), frame_virial.end());
@@ -1839,6 +1970,7 @@ template void DeepPotPTExpt::compute<double, std::vector<ENERGYTYPE>>(
     const std::vector<int>& atype,
     const std::vector<double>& box,
     const std::vector<double>& fparam,
+    const std::vector<double>& uparam,
     const std::vector<double>& aparam,
     const std::vector<double>& charge_spin,
     const bool atomic);
@@ -1852,6 +1984,7 @@ template void DeepPotPTExpt::compute<float, std::vector<ENERGYTYPE>>(
     const std::vector<int>& atype,
     const std::vector<float>& box,
     const std::vector<float>& fparam,
+    const std::vector<float>& uparam,
     const std::vector<float>& aparam,
     const std::vector<double>& charge_spin,
     const bool atomic);
@@ -1876,11 +2009,12 @@ void DeepPotPTExpt::computew(std::vector<double>& ener,
                              const std::vector<int>& atype,
                              const std::vector<double>& box,
                              const std::vector<double>& fparam,
+                             const std::vector<double>& uparam,
                              const std::vector<double>& aparam,
                              const bool atomic) {
   translate_error([&] {
     compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-            fparam, aparam, {}, atomic);
+            fparam, uparam, aparam, {}, atomic);
   });
 }
 void DeepPotPTExpt::computew(std::vector<double>& ener,
@@ -1892,11 +2026,12 @@ void DeepPotPTExpt::computew(std::vector<double>& ener,
                              const std::vector<int>& atype,
                              const std::vector<float>& box,
                              const std::vector<float>& fparam,
+                             const std::vector<float>& uparam,
                              const std::vector<float>& aparam,
                              const bool atomic) {
   translate_error([&] {
     compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-            fparam, aparam, {}, atomic);
+            fparam, uparam, aparam, {}, atomic);
   });
 }
 void DeepPotPTExpt::computew(std::vector<double>& ener,
@@ -1911,11 +2046,12 @@ void DeepPotPTExpt::computew(std::vector<double>& ener,
                              const InputNlist& inlist,
                              const int& ago,
                              const std::vector<double>& fparam,
+                             const std::vector<double>& uparam,
                              const std::vector<double>& aparam,
                              const bool atomic) {
   translate_error([&] {
     compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-            nghost, inlist, ago, fparam, aparam, {}, atomic);
+            nghost, inlist, ago, fparam, uparam, aparam, {}, atomic);
   });
 }
 void DeepPotPTExpt::computew(std::vector<double>& ener,
@@ -1930,11 +2066,12 @@ void DeepPotPTExpt::computew(std::vector<double>& ener,
                              const InputNlist& inlist,
                              const int& ago,
                              const std::vector<float>& fparam,
+                             const std::vector<float>& uparam,
                              const std::vector<float>& aparam,
                              const bool atomic) {
   translate_error([&] {
     compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-            nghost, inlist, ago, fparam, aparam, {}, atomic);
+            nghost, inlist, ago, fparam, uparam, aparam, {}, atomic);
   });
 }
 template <typename VALUETYPE>
@@ -1949,6 +2086,7 @@ void DeepPotPTExpt::compute_mixed_type_impl(
     const std::vector<int>& atype,
     const std::vector<VALUETYPE>& box,
     const std::vector<VALUETYPE>& fparam,
+    const std::vector<VALUETYPE>& uparam,
     const std::vector<VALUETYPE>& aparam,
     const std::vector<double>& charge_spin,
     const bool atomic) {
@@ -2002,6 +2140,12 @@ void DeepPotPTExpt::compute_mixed_type_impl(
       frame_fparam.assign(fparam.begin() + offset,
                           fparam.begin() + offset + fparam_layout.frame_size);
     }
+    std::vector<VALUETYPE> frame_uparam;
+    if (!uparam.empty()) {
+      size_t s_du = static_cast<size_t>(duparam);
+      frame_uparam.assign(uparam.begin() + s_ff * s_du,
+                          uparam.begin() + (s_ff + 1) * s_du);
+    }
     std::vector<VALUETYPE> frame_aparam;
     if (aparam_layout.frame_size > 0) {
       const std::size_t offset =
@@ -2023,8 +2167,8 @@ void DeepPotPTExpt::compute_mixed_type_impl(
     std::vector<ENERGYTYPE> frame_ener;
     std::vector<VALUETYPE> frame_force, frame_virial, frame_ae, frame_av;
     compute(frame_ener, frame_force, frame_virial, frame_ae, frame_av,
-            frame_coord, frame_atype, frame_box, frame_fparam, frame_aparam,
-            frame_chg_spin, atomic);
+            frame_coord, frame_atype, frame_box, frame_fparam, frame_uparam,
+            frame_aparam, frame_chg_spin, atomic);
     ener.insert(ener.end(), frame_ener.begin(), frame_ener.end());
     force.insert(force.end(), frame_force.begin(), frame_force.end());
     virial.insert(virial.end(), frame_virial.begin(), frame_virial.end());
@@ -2045,12 +2189,13 @@ void DeepPotPTExpt::computew_mixed_type(std::vector<double>& ener,
                                         const std::vector<int>& atype,
                                         const std::vector<double>& box,
                                         const std::vector<double>& fparam,
+                                        const std::vector<double>& uparam,
                                         const std::vector<double>& aparam,
                                         const bool atomic) {
   translate_error([&] {
     compute_mixed_type_impl(ener, force, virial, atom_energy, atom_virial,
-                            nframes, coord, atype, box, fparam, aparam, {},
-                            atomic);
+                            nframes, coord, atype, box, fparam, uparam, aparam,
+                            {}, atomic);
   });
 }
 void DeepPotPTExpt::computew_mixed_type(std::vector<double>& ener,
@@ -2063,12 +2208,13 @@ void DeepPotPTExpt::computew_mixed_type(std::vector<double>& ener,
                                         const std::vector<int>& atype,
                                         const std::vector<float>& box,
                                         const std::vector<float>& fparam,
+                                        const std::vector<float>& uparam,
                                         const std::vector<float>& aparam,
                                         const bool atomic) {
   translate_error([&] {
     compute_mixed_type_impl(ener, force, virial, atom_energy, atom_virial,
-                            nframes, coord, atype, box, fparam, aparam, {},
-                            atomic);
+                            nframes, coord, atype, box, fparam, uparam, aparam,
+                            {}, atomic);
   });
 }
 
@@ -2082,12 +2228,13 @@ void DeepPotPTExpt::computew(std::vector<double>& ener,
                              const std::vector<int>& atype,
                              const std::vector<double>& box,
                              const std::vector<double>& fparam,
+                             const std::vector<double>& uparam,
                              const std::vector<double>& aparam,
                              const std::vector<double>& charge_spin,
                              const bool atomic) {
   translate_error([&] {
     compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-            fparam, aparam, charge_spin, atomic);
+            fparam, uparam, aparam, charge_spin, atomic);
   });
 }
 void DeepPotPTExpt::computew(std::vector<double>& ener,
@@ -2099,12 +2246,13 @@ void DeepPotPTExpt::computew(std::vector<double>& ener,
                              const std::vector<int>& atype,
                              const std::vector<float>& box,
                              const std::vector<float>& fparam,
+                             const std::vector<float>& uparam,
                              const std::vector<float>& aparam,
                              const std::vector<double>& charge_spin,
                              const bool atomic) {
   translate_error([&] {
     compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-            fparam, aparam, charge_spin, atomic);
+            fparam, uparam, aparam, charge_spin, atomic);
   });
 }
 void DeepPotPTExpt::computew(std::vector<double>& ener,
@@ -2119,12 +2267,13 @@ void DeepPotPTExpt::computew(std::vector<double>& ener,
                              const InputNlist& inlist,
                              const int& ago,
                              const std::vector<double>& fparam,
+                             const std::vector<double>& uparam,
                              const std::vector<double>& aparam,
                              const std::vector<double>& charge_spin,
                              const bool atomic) {
   translate_error([&] {
     compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-            nghost, inlist, ago, fparam, aparam, charge_spin, atomic);
+            nghost, inlist, ago, fparam, uparam, aparam, charge_spin, atomic);
   });
 }
 void DeepPotPTExpt::computew(std::vector<double>& ener,
@@ -2139,12 +2288,13 @@ void DeepPotPTExpt::computew(std::vector<double>& ener,
                              const InputNlist& inlist,
                              const int& ago,
                              const std::vector<float>& fparam,
+                             const std::vector<float>& uparam,
                              const std::vector<float>& aparam,
                              const std::vector<double>& charge_spin,
                              const bool atomic) {
   translate_error([&] {
     compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-            nghost, inlist, ago, fparam, aparam, charge_spin, atomic);
+            nghost, inlist, ago, fparam, uparam, aparam, charge_spin, atomic);
   });
 }
 void DeepPotPTExpt::computew_mixed_type(std::vector<double>& ener,
@@ -2157,12 +2307,13 @@ void DeepPotPTExpt::computew_mixed_type(std::vector<double>& ener,
                                         const std::vector<int>& atype,
                                         const std::vector<double>& box,
                                         const std::vector<double>& fparam,
+                                        const std::vector<double>& uparam,
                                         const std::vector<double>& aparam,
                                         const std::vector<double>& charge_spin,
                                         const bool atomic) {
   translate_error([&] {
     compute_mixed_type_impl(ener, force, virial, atom_energy, atom_virial,
-                            nframes, coord, atype, box, fparam, aparam,
+                            nframes, coord, atype, box, fparam, uparam, aparam,
                             charge_spin, atomic);
   });
 }
@@ -2176,12 +2327,13 @@ void DeepPotPTExpt::computew_mixed_type(std::vector<double>& ener,
                                         const std::vector<int>& atype,
                                         const std::vector<float>& box,
                                         const std::vector<float>& fparam,
+                                        const std::vector<float>& uparam,
                                         const std::vector<float>& aparam,
                                         const std::vector<double>& charge_spin,
                                         const bool atomic) {
   translate_error([&] {
     compute_mixed_type_impl(ener, force, virial, atom_energy, atom_virial,
-                            nframes, coord, atype, box, fparam, aparam,
+                            nframes, coord, atype, box, fparam, uparam, aparam,
                             charge_spin, atomic);
   });
 }
@@ -2447,8 +2599,9 @@ void DeepPotPTExpt::compute_edges_gpu_impl(double* d_atom_energy,
               graph_pack.atype, graph_pack.n_node, graph_pack.n_local,
               graph_pack.edge_index, graph_pack.edge_vec, graph_pack.edge_mask,
               graph_pack.destination_order, graph_pack.destination_row_ptr,
-              graph_pack.source_order, graph_pack.source_row_ptr, fparam_tensor,
-              graph_aparam, charge_spin_tensor));
+              graph_pack.source_order, graph_pack.source_row_ptr,
+              fparam_tensor, torch::Tensor(), graph_aparam,
+              charge_spin_tensor));
       ae = out["atom_energy"].reshape({nnode}).slice(0, 0, nloc).contiguous();
       force_t = out["force"].reshape({nnode, 3}).contiguous();
       av = out["atom_virial"].reshape({nnode, 9}).contiguous();
@@ -2476,7 +2629,8 @@ void DeepPotPTExpt::compute_edges_gpu_impl(double* d_atom_energy,
           run_model_edges_with_comm(
               padded_coord, local_atype, padded_atype, phantom_edge_index,
               phantom_edge_vec, phantom_edge_index, phantom_edge_mask,
-              fparam_tensor, phantom_aparam, charge_spin_tensor, comm_tensors));
+              fparam_tensor, torch::Tensor(), phantom_aparam,
+              charge_spin_tensor, comm_tensors));
       ae = out["energy"].reshape({phantom_n}).slice(0, phantom_n).contiguous();
       force_t = out["energy_derv_r"]
                     .squeeze(-2)
@@ -2500,7 +2654,8 @@ void DeepPotPTExpt::compute_edges_gpu_impl(double* d_atom_energy,
           out, run_model_edges_with_comm(
                    coord_ext, atype_t.slice(1, 0, nloc), atype_t, edge_index,
                    edge_vec, edge_index, edge_mask, fparam_tensor,
-                   aparam_tensor, charge_spin_tensor, comm_tensors));
+                   torch::Tensor(), aparam_tensor, charge_spin_tensor,
+                   comm_tensors));
       ae = out["energy"].reshape({nloc}).contiguous();
       force_t =
           out["energy_derv_r"].squeeze(-2).reshape({nnode, 3}).contiguous();
@@ -2511,7 +2666,8 @@ void DeepPotPTExpt::compute_edges_gpu_impl(double* d_atom_energy,
       extract_outputs(
           out, run_model_edges(coord_t, atype_t, edge_index, edge_vec,
                                edge_scatter_index, edge_mask, fparam_tensor,
-                               aparam_tensor, charge_spin_tensor));
+                               torch::Tensor(), aparam_tensor,
+                               charge_spin_tensor));
       ae = out["energy"].reshape({nloc}).contiguous();
       force_t =
           out["energy_derv_r"].squeeze(-2).reshape({nnode, 3}).contiguous();

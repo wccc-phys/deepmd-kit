@@ -9,6 +9,9 @@ from torch.fx.experimental.proxy_tensor import (
     make_fx,
 )
 
+from deepmd.dpmodel.utils.fitting_params import (
+    FittingParams,
+)
 from deepmd.dpmodel.atomic_model.linear_atomic_model import (
     LinearEnergyAtomicModel,
 )
@@ -63,15 +66,23 @@ class LinearEnergyModel(DPModelCommon, DPLinearModel_):
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
+        cond: "FittingParams | None" = None,
     ) -> dict[str, torch.Tensor]:
+        if cond is not None:
+            fparam, uparam, aparam, charge_spin = cond.absorb(
+                fparam=fparam, uparam=uparam, aparam=aparam,
+                charge_spin=charge_spin,
+            )
         model_ret = self.call_common(
             coord,
             atype,
             box,
             fparam=fparam,
             aparam=aparam,
+            uparam=uparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
         )
@@ -96,6 +107,7 @@ class LinearEnergyModel(DPModelCommon, DPLinearModel_):
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
@@ -106,6 +118,7 @@ class LinearEnergyModel(DPModelCommon, DPLinearModel_):
             mapping,
             fparam=fparam,
             aparam=aparam,
+            uparam=uparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
         )
@@ -150,6 +163,7 @@ class LinearEnergyModel(DPModelCommon, DPLinearModel_):
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
         **make_fx_kwargs: Any,
@@ -163,6 +177,7 @@ class LinearEnergyModel(DPModelCommon, DPLinearModel_):
             mapping: torch.Tensor | None,
             fparam: torch.Tensor | None,
             aparam: torch.Tensor | None,
+            uparam: torch.Tensor | None,
             charge_spin: torch.Tensor | None,
         ) -> dict[str, torch.Tensor]:
             extended_coord = extended_coord.detach().requires_grad_(True)
@@ -174,6 +189,7 @@ class LinearEnergyModel(DPModelCommon, DPLinearModel_):
                 mapping,
                 fparam=fparam,
                 aparam=aparam,
+                uparam=uparam,
                 charge_spin=charge_spin,
                 do_atomic_virial=do_atomic_virial,
             )
@@ -189,6 +205,7 @@ class LinearEnergyModel(DPModelCommon, DPLinearModel_):
                 mapping,
                 fparam,
                 aparam,
+                uparam,
                 charge_spin,
             )
         finally:

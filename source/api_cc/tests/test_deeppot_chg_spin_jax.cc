@@ -86,7 +86,7 @@ TYPED_TEST(TestInferDeepPotChgSpinJAX, explicit_and_default_inputs) {
   std::vector<VALUETYPE> force, virial;
 
   this->dp.compute(energy, force, virial, this->coord, this->atype, this->box,
-                   {}, {}, this->charge_spin);
+                   {}, {}, {}, this->charge_spin);
   EXPECT_NEAR(energy, this->expected_energy_explicit, tolerance<VALUETYPE>());
   this->expect_force(force, this->expected_force_explicit);
 
@@ -101,7 +101,7 @@ TYPED_TEST(TestInferDeepPotChgSpinJAX, atomic_output_overload) {
   std::vector<VALUETYPE> force, virial, atom_energy, atom_virial;
 
   this->dp.compute(energy, force, virial, atom_energy, atom_virial, this->coord,
-                   this->atype, this->box, {}, {}, this->charge_spin);
+                   this->atype, this->box, {}, {}, {}, this->charge_spin);
 
   EXPECT_NEAR(energy, this->expected_energy_explicit, tolerance<VALUETYPE>());
   this->expect_force(force, this->expected_force_explicit);
@@ -118,7 +118,7 @@ TYPED_TEST(TestInferDeepPotChgSpinJAX, broadcasts_one_frame_input) {
   std::vector<double> energy;
   std::vector<VALUETYPE> force, virial;
 
-  this->dp.compute(energy, force, virial, coord, this->atype, box, {}, {},
+  this->dp.compute(energy, force, virial, coord, this->atype, box, {}, {}, {},
                    this->charge_spin);
 
   ASSERT_EQ(energy.size(), 2u);
@@ -143,7 +143,7 @@ TYPED_TEST(TestInferDeepPotChgSpinJAX, rejects_invalid_input_size) {
   const std::vector<double> invalid_charge_spin = {1.0, 2.0, 3.0};
 
   EXPECT_THROW(this->dp.compute(energy, force, virial, this->coord, this->atype,
-                                this->box, {}, {}, invalid_charge_spin),
+                                this->box, {}, {}, {}, invalid_charge_spin),
                deepmd::deepmd_exception);
 }
 
@@ -162,7 +162,7 @@ TYPED_TEST(TestInferDeepPotChgSpinJAX, neighbor_list_overload) {
   std::vector<VALUETYPE> force, virial;
 
   this->dp.compute(energy, force, virial, this->coord, this->atype, {}, 0,
-                   inlist, 0, {}, {}, this->charge_spin);
+                   inlist, 0, {}, {}, {}, this->charge_spin);
 
   deepmd_test::ExpectedRef ref;
   ref.load(kRefPath);

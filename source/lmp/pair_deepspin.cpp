@@ -230,6 +230,19 @@ void PairDeepSpin::compute(int eflag, int vflag) {
     make_fparam_from_compute(fparam);
   }
 
+  if (do_compute_uparam) {
+    make_uparam_from_compute(uparam);
+  } else if (do_fix_uparam) {
+    make_uparam_from_fix(uparam);
+  }
+
+  if (single_model || multi_models_no_mod_devi) {
+    deep_spin.set_uparam(uparam);
+  } else {
+    deep_spin_model_devi.set_uparam(uparam);
+  }
+
+  // int ago = numb_models > 1 ? 0 : neighbor->ago;
   int ago = neighbor->ago;
   if (numb_models > 1) {
     if (multi_models_no_mod_devi &&
@@ -554,6 +567,10 @@ static bool is_key(const string& input) {
   keys.push_back("aparam");
   keys.push_back("fparam_from_compute");
   keys.push_back("aparam_from_compute");
+  keys.push_back("uparam");
+  keys.push_back("uparam_from_compute");
+  keys.push_back("uparam_from_fix");
+
   keys.push_back("charge_spin");
   keys.push_back("ttm");
   keys.push_back("atomic");
@@ -598,6 +615,8 @@ void PairDeepSpin::settings(int narg, char** arg) {
     numb_types_spin = deep_spin.numb_types_spin();
     dim_fparam = deep_spin.dim_fparam();
     dim_aparam = deep_spin.dim_aparam();
+    dim_uparam = deep_spin.dim_uparam();
+
     dim_chg_spin = deep_spin.dim_chg_spin();
   } else {
     try {
@@ -612,12 +631,16 @@ void PairDeepSpin::settings(int narg, char** arg) {
     numb_types_spin = deep_spin_model_devi.numb_types_spin();
     dim_fparam = deep_spin_model_devi.dim_fparam();
     dim_aparam = deep_spin_model_devi.dim_aparam();
+    dim_uparam = deep_spin_model_devi.dim_uparam();
+
     dim_chg_spin = deep_spin_model_devi.dim_chg_spin();
     assert(cutoff == deep_spin.cutoff() * dist_unit_cvt_factor);
     assert(numb_types == deep_spin.numb_types());
     assert(numb_types_spin == deep_spin.numb_types_spin());
     assert(dim_fparam == deep_spin.dim_fparam());
     assert(dim_aparam == deep_spin.dim_aparam());
+    assert(dim_uparam == deep_spin.dim_uparam());
+
     assert(dim_chg_spin == deep_spin.dim_chg_spin());
   }
 
@@ -668,6 +691,18 @@ void PairDeepSpin::settings(int narg, char** arg) {
         aparam.push_back(atof(arg[iarg + 1 + ii]));
       }
       iarg += 1 + dim_aparam;
+    } else if (string(arg[iarg]) == string("uparam")) {
+      for (int ii = 0; ii < dim_uparam; ++ii) {
+        if (iarg + 1 + ii >= narg || is_key(arg[iarg + 1 + ii])) {
+          char tmp[1024];
+          sprintf(tmp, "Illegal uparam, the dimension should be %d",
+                  dim_uparam);
+          error->all(FLERR, tmp);
+        }
+        uparam.push_back(atof(arg[iarg + 1 + ii]));
+      }
+      iarg += 1 + dim_uparam;
+
     } else if (string(arg[iarg]) == string("charge_spin")) {
       for (int ii = 0; ii < dim_chg_spin; ++ii) {
         if (iarg + 1 + ii >= narg || is_key(arg[iarg + 1 + ii])) {
@@ -722,6 +757,42 @@ void PairDeepSpin::settings(int narg, char** arg) {
       do_compute_aparam = true;
       compute_aparam_id = arg[iarg + 1];
       iarg += 1 + 1;
+    } else if (string(arg[iarg]) == string("uparam_from_compute")) {
+      for (int ii = 0; ii < 1; ++ii) {
+        if (iarg + 1 + ii >= narg || is_key(arg[iarg + 1 + ii])) {
+          error->all(FLERR,
+                     "invalid uparam_from_compute key: should be "
+                     "uparam_from_compute compute_uparam_id(str)");
+        }
+      }
+      do_compute_uparam = true;
+      compute_uparam_id = arg[iarg + 1];
+      iarg += 1 + 1;
+    } else if (string(arg[iarg]) == string("uparam_from_fix")) {
+      if (iarg + 1 >= narg || is_key(arg[iarg + 1])) {
+        error->all(FLERR,
+                   "invalid uparam_from_fix key: should be "
+                   "uparam_from_fix fix_uparam_id(str) [fix_vector_index]");
+      }
+      do_fix_uparam = true;
+      fix_uparam_id = arg[iarg + 1];
+      fix_uparam_index = -1;
+      if (iarg + 2 < narg && !is_key(arg[iarg + 2])) {
+        char* endptr = nullptr;
+        errno = 0;
+        long one_based = std::strtol(arg[iarg + 2], &endptr, 10);
+        if (endptr == arg[iarg + 2] || *endptr != '\0' || errno == ERANGE ||
+            one_based < 1 ||
+            one_based > static_cast<long>(std::numeric_limits<int>::max())) {
+          error->all(FLERR,
+                     "invalid uparam_from_fix key: vector index must be a "
+                     "positive 1-based integer");
+        }
+        fix_uparam_index = static_cast<int>(one_based - 1);
+        iarg += 3;
+      } else {
+        iarg += 2;
+      }
     } else if (string(arg[iarg]) == string("atomic")) {
       out_each = 1;
       iarg += 1;
@@ -761,6 +832,20 @@ void PairDeepSpin::settings(int narg, char** arg) {
     error->all(
         FLERR,
         "fparam and fparam_from_compute should NOT be set simultaneously");
+  }
+  if (do_compute_uparam && uparam.size() > 0) {
+    error->all(
+        FLERR,
+        "uparam and uparam_from_compute should NOT be set simultaneously");
+  }
+  if (do_fix_uparam && uparam.size() > 0) {
+    error->all(FLERR,
+               "uparam and uparam_from_fix should NOT be set simultaneously");
+  }
+  if (do_fix_uparam && do_compute_uparam) {
+    error->all(FLERR,
+               "uparam_from_compute and uparam_from_fix should NOT be set "
+               "simultaneously");
   }
 
   // A charge/spin condition named on the pair_style line holds for the whole
@@ -815,9 +900,28 @@ void PairDeepSpin::settings(int narg, char** arg) {
       }
       cout << endl;
     }
+    if (uparam.size() > 0) {
+      cout << pre << "using uparam(s):    ";
+      for (int ii = 0; ii < dim_uparam; ++ii) {
+        cout << uparam[ii] << "  ";
+      }
+      cout << endl;
+    }
     if (do_compute_fparam) {
       cout << pre << "using compute id (fparam):      ";
       cout << compute_fparam_id << "  " << endl;
+    }
+    if (do_compute_uparam) {
+      cout << pre << "using compute id (uparam):      ";
+      cout << compute_uparam_id << "  " << endl;
+    }
+    if (do_fix_uparam) {
+      cout << pre << "using fix id (uparam):          ";
+      cout << fix_uparam_id;
+      if (fix_uparam_index >= 0) {
+        cout << "[" << fix_uparam_index + 1 << "]";
+      }
+      cout << "  " << endl;
     }
     if (do_compute_aparam) {
       cout << pre << "using compute id (aparam):      ";

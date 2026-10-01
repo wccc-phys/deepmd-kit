@@ -266,14 +266,21 @@ def get_linear_atomic_model(
         learned_descriptor_type = str(
             children[learned_indices[0]]["descriptor"].get("type", "dpa4")
         )
-        if learned_descriptor_type not in ("dpa4", "DPA4", "sezm", "SeZM"):
+        if learned_descriptor_type not in (
+            "dpa4",
+            "DPA4",
+            "dpa4c",
+            "DPA4C",
+            "sezm",
+            "SeZM",
+        ):
             # same family restriction as the pt builder: the clamp window
-            # below only exists on DPA4/SeZM descriptors, so any other
+            # below only exists on DPA4/DPA4C/SeZM descriptors, so any other
             # family would die on an obscure unknown-kwarg TypeError
             raise NotImplementedError(
                 f"The {backend_name} backend implements `inner_potential` "
-                "bridging only for the DPA4/SeZM descriptor family, but got "
-                f"{learned_descriptor_type!r}."
+                "bridging only for the DPA4/DPA4C/SeZM descriptor family, "
+                f"but got {learned_descriptor_type!r}."
             )
         # The composition derives the sibling descriptor's clamp window from
         # the inner_potential child: one source of truth for the radii.

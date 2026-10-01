@@ -262,6 +262,7 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         comm_dict: dict[str, torch.Tensor] | None = None,
         charge_spin: torch.Tensor | None = None,
@@ -280,6 +281,8 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
             mapps the extended indices to local indices.
         fparam
             frame parameter. (nframes, ndf)
+        uparam
+            DFT+U parameter. (nframes, ndu)
         aparam
             atomic parameter. (nframes, nloc, nda)
 
@@ -324,6 +327,7 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
                     nlists_[i],
                     mapping,
                     fparam,
+                    uparam,
                     aparam,
                     comm_dict=comm_dict,
                     charge_spin=charge_spin,
@@ -353,6 +357,7 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         charge_spin: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
@@ -392,6 +397,7 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
                     nlists_[i],
                     mapping,
                     fparam,
+                    uparam,
                     aparam,
                     charge_spin,
                 )
@@ -534,6 +540,22 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
         """Get the number (dimension) of frame parameters of this atomic model."""
         # tricky...
         return max([model.get_dim_fparam() for model in self.models])
+
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return max([model.get_dim_uparam() for model in self.models])
+
+    def get_uparam_mode(self) -> str:
+        """Get the mode of DFT+U parameters ('frame', 'atomic', or 'orbital').
+
+        Sub-models default to 'frame' when they carry no uparam, so the
+        non-default mode of any sub-model wins.
+        """
+        for model in self.models:
+            mode = model.get_uparam_mode()
+            if mode != "frame":
+                return mode
+        return "frame"
 
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""

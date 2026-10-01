@@ -61,6 +61,10 @@ from .make_base_atomic_model import (
 BaseAtomicModel_ = make_base_atomic_model(np.ndarray)
 
 
+from deepmd.dpmodel.utils.fitting_params import (  # noqa: E402
+    FittingParams,
+)
+
 class BaseAtomicModel(BaseAtomicModel_, NativeOP):
     """Base interface mapping local atomic environments to per-atom outputs.
 
@@ -262,6 +266,18 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
         """Get the default frame parameters."""
         return None
 
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
+        return False
+
+    def get_default_uparam(self) -> float | None:
+        """Get the default DFT+U parameters."""
+        return None
+
+    def get_uparam_mode(self) -> str:
+        """Get the mode of DFT+U parameters ('frame', 'atomic', or 'orbital')."""
+        return "frame"
+
     def has_chg_spin_ebd(self) -> bool:
         """Check if the model has charge spin embedding."""
         return False
@@ -349,10 +365,18 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         comm_dict: dict | None = None,
         charge_spin: Array | None = None,
+        cond: "FittingParams | None" = None,
     ) -> dict[str, Array]:
+        # Registry container: fill any missing conditioning parameter
+        # from ``cond`` (explicit arguments win).
+        if cond is not None:
+            fparam = fparam if fparam is not None else cond.fparam
+            uparam = uparam if uparam is not None else cond.uparam
+            aparam = aparam if aparam is not None else cond.aparam
         """Common interface for atomic inference.
 
         This method accept extended coordinates, extended atom typs, neighbor list,
@@ -375,6 +399,8 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
             extended to local index mapping, shape: nf x nall
         fparam
             frame parameters, shape: nf x dim_fparam
+        uparam
+            DFT+U parameters, shape: nf x dim_uparam
         aparam
             atomic parameter, shape: nf x nloc x dim_aparam
         comm_dict
@@ -410,6 +436,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
             nlist,
             mapping=mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             comm_dict=comm_dict,
             charge_spin=charge_spin,
@@ -467,11 +494,20 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
         graph: "NeighborGraph",
         atype: Array,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         charge_spin: Array | None = None,
         spin: Array | None = None,
         comm_dict: dict | None = None,
+        cond: "FittingParams | None" = None,
     ) -> dict:
+        # Registry container: fill any missing conditioning parameter
+        # from ``cond`` (explicit arguments win).
+        if cond is not None:
+            fparam = fparam if fparam is not None else cond.fparam
+            uparam = uparam if uparam is not None else cond.uparam
+            aparam = aparam if aparam is not None else cond.aparam
+            charge_spin = charge_spin if charge_spin is not None else cond.charge_spin
         """Graph analogue of :meth:`forward_common_atomic` on the flat node axis.
 
         The node axis is flat ``(N,)`` (``N = sum(graph.n_node)``); masking and
@@ -491,6 +527,8 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
             flat local atom types. N
         fparam
             frame parameter. nf x ndf
+        uparam
+            DFT+U parameter. nf x 1
         aparam
             atomic parameter. N x nda
         charge_spin
@@ -519,6 +557,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
             graph,
             atype_clamped,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             spin=spin,
@@ -668,6 +707,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         charge_spin: Array | None = None,
     ) -> dict[str, Array]:
@@ -677,6 +717,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
             nlist,
             mapping=mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
         )
@@ -744,7 +785,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
         self,
         sampled_func: Callable[[], list[dict]],
     ) -> Callable[[], list[dict]]:
-        """Wrap the sampled function with exclusion types and default fparam.
+        """Wrap the sampled function with exclusion types and default fparam/uparam.
 
         The returned callable is cached so that the sampling (which may be
         expensive) is performed at most once.
@@ -760,7 +801,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
         Callable[[], list[dict]]
             A cached wrapper around *sampled_func* that additionally sets
             ``pair_exclude_types``, ``atom_exclude_types`` and default
-            ``fparam`` on every sample dict when applicable.
+            ``fparam``/``uparam`` on every sample dict when applicable.
         """
 
         @functools.lru_cache
@@ -787,6 +828,19 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
                                 default_fparam_np.reshape(1, -1), (nframe, 1)
                             )
                             sample["find_fparam"] = np.bool_(True)
+            # For systems where uparam is missing (find_uparam == 0),
+            # fill with default uparam if available and mark as found.
+            if self.has_default_uparam():
+                default_uparam = self.get_default_uparam()
+                if default_uparam is not None:
+                    default_uparam_np = np.array(default_uparam)
+                    for sample in sampled:
+                        if "find_uparam" in sample and not sample["find_uparam"]:
+                            nframe = sample["atype"].shape[0]
+                            sample["uparam"] = np.tile(
+                                default_uparam_np.reshape(1, -1), (nframe, 1)
+                            )
+                            sample["find_uparam"] = np.bool_(True)
             return sampled
 
         # the full-data scanner, when the trainer attached one, is part of the
@@ -928,6 +982,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
             atype: np.ndarray,
             box: np.ndarray | None,
             fparam: np.ndarray | None = None,
+            uparam: np.ndarray | None = None,
             aparam: np.ndarray | None = None,
             charge_spin: np.ndarray | None = None,
             spin: np.ndarray | None = None,
@@ -948,6 +1003,8 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
                     box = xp.asarray(box, device=device)
             if fparam is not None:
                 fparam = xp.asarray(fparam, device=device)
+            if uparam is not None:
+                uparam = xp.asarray(uparam, device=device)
             if aparam is not None:
                 aparam = xp.asarray(aparam, device=device)
             if charge_spin is not None:
@@ -971,6 +1028,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
                     graph,
                     xp.reshape(atype, (-1,)),
                     fparam=fparam,
+                    uparam=uparam,
                     aparam=(
                         xp.reshape(
                             aparam,
@@ -1016,6 +1074,7 @@ class BaseAtomicModel(BaseAtomicModel_, NativeOP):
                     nlist,
                     mapping=mapping,
                     fparam=fparam,
+                    uparam=uparam,
                     aparam=aparam,
                     charge_spin=charge_spin,
                 )

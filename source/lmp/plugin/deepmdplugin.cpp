@@ -3,6 +3,8 @@
  * See https://docs.lammps.org/Developer_plugins.html
  */
 #include "compute_deepmd_fparam_dedn.h"
+#include "compute_deepmd_u.h"
+#include "compute_deepmd_uparam_dedn.h"
 #include "compute_deeptensor_atom.h"
 #include "deepmd_version.h"
 #include "fix_dplr.h"
@@ -46,6 +48,14 @@ static Compute* computedeepmdtensoratom(LAMMPS* lmp, int narg, char** arg) {
 
 static Compute* computedeepmdfparamdedn(LAMMPS* lmp, int narg, char** arg) {
   return new ComputeDeepmdFparamDedn(lmp, narg, arg);
+}
+
+static Compute* computedeepmduparamdedn(LAMMPS* lmp, int narg, char** arg) {
+  return new ComputeDeepmdUparamDedn(lmp, narg, arg);
+}
+
+static Compute* computedeepmdu(LAMMPS* lmp, int narg, char** arg) {
+  return new ComputeDeepmdU(lmp, narg, arg);
 }
 
 static Fix* fixdplr(LAMMPS* lmp, int narg, char** arg) {
@@ -121,6 +131,20 @@ extern "C" void lammpsplugin_init(void* lmp, void* handle, void* regfunc) {
   plugin.info = "compute deepmd/fparam/dedn " STR_GIT_SUMM;
   plugin.author = "Li Fu";
   plugin.creator.v2 = (lammpsplugin_factory2*)&computedeepmdfparamdedn;
+  (*register_plugin)(&plugin, lmp);
+
+  plugin.style = "compute";
+  plugin.name = "deepmd/uparam/dedn";
+  plugin.info = "compute deepmd/uparam/dedn " STR_GIT_SUMM;
+  plugin.author = "Li Fu";
+  plugin.creator.v2 = (lammpsplugin_factory2*)&computedeepmduparamdedn;
+  (*register_plugin)(&plugin, lmp);
+
+  plugin.style = "compute";
+  plugin.name = "deepmd/u";
+  plugin.info = "compute deepmd/u " STR_GIT_SUMM;
+  plugin.author = "Han Wang";
+  plugin.creator.v2 = (lammpsplugin_factory2*)&computedeepmdu;
   (*register_plugin)(&plugin, lmp);
 
   plugin.style = "fix";

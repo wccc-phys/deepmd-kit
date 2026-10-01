@@ -126,6 +126,10 @@ class JAXFullValidator(FullValidatorBase):
             if self.model.get_dim_fparam() > 0
             and bool(test_data.get("find_fparam", 0.0))
             else None,
+            uparam=test_data["uparam"]
+            if self.model.get_dim_uparam() > 0
+            and bool(test_data.get("find_uparam", 0.0))
+            else None,
             aparam=test_data["aparam"] if self.model.get_dim_aparam() > 0 else None,
             include_virial=include_virial,
             natoms=natoms,
@@ -148,6 +152,7 @@ class JAXFullValidator(FullValidatorBase):
         atom_types: np.ndarray,
         box: np.ndarray | None,
         fparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         aparam: np.ndarray | None,
         include_virial: bool,
         natoms: int,
@@ -160,6 +165,7 @@ class JAXFullValidator(FullValidatorBase):
             atom_types_batch: np.ndarray,
             box_batch: np.ndarray | None,
             fparam_batch: np.ndarray | None,
+            uparam_batch: np.ndarray | None,
             aparam_batch: np.ndarray | None,
         ) -> dict[str, np.ndarray]:
             from deepmd.jax.train.trainer import (
@@ -177,6 +183,11 @@ class JAXFullValidator(FullValidatorBase):
                 if fparam_batch is not None
                 else None
             )
+            uparam_input = (
+                jnp.asarray(uparam_batch.reshape(-1, self.model.get_dim_uparam()))
+                if uparam_batch is not None
+                else None
+            )
             aparam_input = (
                 jnp.asarray(
                     aparam_batch.reshape(-1, natoms, self.model.get_dim_aparam())
@@ -184,13 +195,14 @@ class JAXFullValidator(FullValidatorBase):
                 if aparam_batch is not None
                 else None
             )
-            extended_coord, extended_atype, nlist, mapping, fp, ap = prepare_input(
+            extended_coord, extended_atype, nlist, mapping, fp, up, ap = prepare_input(
                 rcut=self.model.get_rcut(),
                 sel=self.model.get_sel(),
                 coord=coord_input,
                 atype=type_input,
                 box=box_input,
                 fparam=fparam_input,
+                uparam=uparam_input,
                 aparam=aparam_input,
             )
             batch_output = _evaluate_model_dict(
@@ -200,6 +212,7 @@ class JAXFullValidator(FullValidatorBase):
                 nlist,
                 mapping,
                 fp,
+                up,
                 ap,
             )
             prediction = {
@@ -223,6 +236,7 @@ class JAXFullValidator(FullValidatorBase):
             atom_types,
             box,
             fparam,
+            uparam,
             aparam,
         )
         prediction = {

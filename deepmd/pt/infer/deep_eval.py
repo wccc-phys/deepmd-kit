@@ -384,6 +384,14 @@ class DeepEval(DeepEvalBackend):
         """Get the number (dimension) of frame parameters of this DP."""
         return self.dp.model["Default"].get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this DP."""
+        return self.dp.model["Default"].get_dim_uparam()
+
+    def get_uparam_mode(self) -> str:
+        """Get the mode of DFT+U parameters ('frame', 'atomic', or 'orbital')."""
+        return self.dp.model["Default"].get_uparam_mode()
+
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this DP."""
         return self.dp.model["Default"].get_dim_aparam()
@@ -394,6 +402,13 @@ class DeepEval(DeepEvalBackend):
             return self.dp.model["Default"].has_default_fparam()
         except AttributeError:
             # for compatibility with old models
+            return False
+
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
+        try:
+            return self.dp.model["Default"].has_default_uparam()
+        except AttributeError:
             return False
 
     def has_chg_spin_ebd(self) -> bool:
@@ -503,6 +518,7 @@ class DeepEval(DeepEvalBackend):
         atom_types: np.ndarray,
         atomic: bool = False,
         fparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         charge_spin: np.ndarray | None = None,
         **kwargs: Any,
@@ -528,6 +544,11 @@ class DeepEval(DeepEvalBackend):
             The array can be of size :
             - nframes x dim_fparam.
             - dim_fparam. Then all frames are assumed to be provided with the same fparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         aparam
             The atomic parameter
             The array can be of size :
@@ -554,7 +575,14 @@ class DeepEval(DeepEvalBackend):
         request_defs = self._get_request_defs(atomic)
         if "spin" not in kwargs or kwargs["spin"] is None:
             out = self._eval_func(self._eval_model, numb_test, natoms)(
-                coords, cells, atom_types, fparam, aparam, request_defs, charge_spin
+                coords,
+                cells,
+                atom_types,
+                fparam,
+                uparam,
+                aparam,
+                request_defs,
+                charge_spin,
             )
         else:
             out = self._eval_func(self._eval_model_spin, numb_test, natoms)(
@@ -563,6 +591,7 @@ class DeepEval(DeepEvalBackend):
                 atom_types,
                 np.array(kwargs["spin"]),
                 fparam,
+                uparam,
                 aparam,
                 request_defs,
                 charge_spin,
@@ -665,6 +694,7 @@ class DeepEval(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         aparam: np.ndarray | None,
         request_defs: list[OutputVariableDef],
         charge_spin: np.ndarray | None,
@@ -703,6 +733,17 @@ class DeepEval(DeepEvalBackend):
             )
         else:
             fparam_input = None
+        if uparam is not None:
+            if self.get_uparam_mode() == "atomic":
+                uparam_input = to_torch_tensor(
+                    uparam.reshape(nframes, natoms, self.get_dim_uparam())
+                )
+            else:
+                uparam_input = to_torch_tensor(
+                    uparam.reshape(nframes, self.get_dim_uparam())
+                )
+        else:
+            uparam_input = None
         if aparam is not None:
             aparam_input = to_torch_tensor(
                 aparam.reshape(nframes, natoms, self.get_dim_aparam())
@@ -722,6 +763,7 @@ class DeepEval(DeepEvalBackend):
                 type_input,
                 box_input,
                 fparam_input,
+                uparam_input,
                 aparam_input,
                 charge_spin_input,
                 do_atomic_virial,
@@ -733,6 +775,7 @@ class DeepEval(DeepEvalBackend):
                 box=box_input,
                 do_atomic_virial=do_atomic_virial,
                 fparam=fparam_input,
+                uparam=uparam_input,
                 aparam=aparam_input,
                 charge_spin=charge_spin_input,
             )
@@ -759,6 +802,7 @@ class DeepEval(DeepEvalBackend):
         atype: torch.Tensor,
         box: torch.Tensor | None,
         fparam: torch.Tensor | None,
+        uparam: torch.Tensor | None,
         aparam: torch.Tensor | None,
         charge_spin: torch.Tensor | None,
         do_atomic_virial: bool,
@@ -790,6 +834,7 @@ class DeepEval(DeepEvalBackend):
                 edge_schema.edge_scatter_index,
                 edge_schema.edge_mask,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 charge_spin=charge_spin,
                 input_prec=coord.dtype,
@@ -808,6 +853,7 @@ class DeepEval(DeepEvalBackend):
                 nlist,
                 mapping,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 do_atomic_virial=do_atomic_virial,
                 charge_spin=charge_spin,
@@ -831,6 +877,7 @@ class DeepEval(DeepEvalBackend):
         atom_types: np.ndarray,
         spins: np.ndarray,
         fparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         aparam: np.ndarray | None,
         request_defs: list[OutputVariableDef],
         charge_spin: np.ndarray | None,
@@ -869,6 +916,17 @@ class DeepEval(DeepEvalBackend):
             )
         else:
             fparam_input = None
+        if uparam is not None:
+            if self.get_uparam_mode() == "atomic":
+                uparam_input = to_torch_tensor(
+                    uparam.reshape(nframes, natoms, self.get_dim_uparam())
+                )
+            else:
+                uparam_input = to_torch_tensor(
+                    uparam.reshape(nframes, self.get_dim_uparam())
+                )
+        else:
+            uparam_input = None
         if aparam is not None:
             aparam_input = to_torch_tensor(
                 aparam.reshape(nframes, natoms, self.get_dim_aparam())
@@ -890,6 +948,7 @@ class DeepEval(DeepEvalBackend):
             box=box_input,
             do_atomic_virial=do_atomic_virial,
             fparam=fparam_input,
+            uparam=uparam_input,
             aparam=aparam_input,
             charge_spin=charge_spin_input,
         )
@@ -1054,6 +1113,7 @@ class DeepEval(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         **kwargs: Any,
     ) -> np.ndarray:
@@ -1083,6 +1143,11 @@ class DeepEval(DeepEvalBackend):
             The array can be of size :
             - nframes x dim_fparam.
             - dim_fparam. Then all frames are assumed to be provided with the same fparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         aparam
             The atomic parameter
             The array can be of size :
@@ -1102,6 +1167,7 @@ class DeepEval(DeepEvalBackend):
                 cells,
                 atom_types,
                 fparam,
+                uparam,
                 aparam,
                 enable_hook=model.set_eval_descriptor_hook,
                 read_feature=model.eval_descriptor,
@@ -1112,6 +1178,7 @@ class DeepEval(DeepEvalBackend):
             cells,
             atom_types,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             dtype="native",
             **kwargs,
@@ -1124,6 +1191,7 @@ class DeepEval(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         **kwargs: Any,
     ) -> np.ndarray:
@@ -1153,6 +1221,11 @@ class DeepEval(DeepEvalBackend):
             The array can be of size :
             - nframes x dim_fparam.
             - dim_fparam. Then all frames are assumed to be provided with the same fparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         aparam
             The atomic parameter
             The array can be of size :
@@ -1172,6 +1245,7 @@ class DeepEval(DeepEvalBackend):
                 cells,
                 atom_types,
                 fparam,
+                uparam,
                 aparam,
                 enable_hook=model.set_eval_fitting_last_layer_hook,
                 read_feature=model.eval_fitting_last_layer,
@@ -1182,6 +1256,7 @@ class DeepEval(DeepEvalBackend):
             cells,
             atom_types,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             dtype="native",
             **kwargs,
@@ -1194,6 +1269,7 @@ class DeepEval(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         aparam: np.ndarray | None,
         *,
         enable_hook: Callable[[bool], None],
@@ -1219,6 +1295,7 @@ class DeepEval(DeepEvalBackend):
                     atom_types,
                     atomic=False,
                     fparam=fparam,
+                    uparam=uparam,
                     aparam=aparam,
                     **kwargs,
                 )
@@ -1238,6 +1315,7 @@ class DeepEval(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         charge_spin: np.ndarray | None = None,
         dtype: str = "fp32",
@@ -1272,6 +1350,11 @@ class DeepEval(DeepEvalBackend):
             The array can be of size :
             - nframes x dim_fparam.
             - dim_fparam. Then all frames are assumed to be provided with the same fparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         aparam
             The atomic parameter
             The array can be of size :
@@ -1320,7 +1403,7 @@ class DeepEval(DeepEvalBackend):
             coords, atom_types, len(atom_types.shape) > 1
         )
         return self._eval_func(self._eval_embedding, numb_test, natoms)(
-            coords, cells, atom_types, fparam, aparam, charge_spin, dtype
+            coords, cells, atom_types, fparam, uparam, aparam, charge_spin, dtype
         )
 
     def _eval_embedding(
@@ -1329,6 +1412,7 @@ class DeepEval(DeepEvalBackend):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         aparam: np.ndarray | None,
         charge_spin: np.ndarray | None,
         dtype: str,
@@ -1371,6 +1455,17 @@ class DeepEval(DeepEvalBackend):
             if fparam is not None
             else None
         )
+        if uparam is not None:
+            if self.get_uparam_mode() == "atomic":
+                uparam_input = to_torch_tensor(
+                    uparam.reshape(nframes, natoms, self.get_dim_uparam())
+                )
+            else:
+                uparam_input = to_torch_tensor(
+                    uparam.reshape(nframes, self.get_dim_uparam())
+                )
+        else:
+            uparam_input = None
         aparam_input = (
             to_torch_tensor(aparam.reshape(nframes, natoms, self.get_dim_aparam()))
             if aparam is not None
@@ -1386,6 +1481,7 @@ class DeepEval(DeepEvalBackend):
             type_input,
             box=box_input,
             fparam=fparam_input,
+            uparam=uparam_input,
             aparam=aparam_input,
             charge_spin=charge_spin_input,
         )

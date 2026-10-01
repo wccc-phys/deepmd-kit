@@ -117,7 +117,7 @@ TYPED_TEST(TestInferDeepPotChgSpinPtExpt, cpu_build_nlist_explicit) {
 
   double ener;
   std::vector<VALUETYPE> force, virial;
-  dp.compute(ener, force, virial, coord, atype, box, {}, {}, charge_spin);
+  dp.compute(ener, force, virial, coord, atype, box, {}, {}, {}, charge_spin);
 
   EXPECT_EQ(force.size(), static_cast<size_t>(natoms * 3));
   EXPECT_EQ(virial.size(), 9u);
@@ -188,7 +188,7 @@ TYPED_TEST(TestInferDeepPotChgSpinPtExpt, cpu_lmp_nlist_explicit) {
   double ener;
   std::vector<VALUETYPE> force_, virial;
   dp.compute(ener, force_, virial, coord_cpy, atype_cpy, box, nall - nloc,
-             inlist, 0, {}, {}, charge_spin);
+             inlist, 0, {}, {}, {}, charge_spin);
   std::vector<VALUETYPE> force;
   _fold_back<VALUETYPE>(force, force_, mapping, nloc, nall, 3);
 
@@ -207,7 +207,7 @@ TYPED_TEST(TestInferDeepPotChgSpinPtExpt, cpu_lmp_nlist_explicit) {
   std::fill(force_.begin(), force_.end(), 0.0);
   std::fill(virial.begin(), virial.end(), 0.0);
   dp.compute(ener, force_, virial, coord_cpy, atype_cpy, box, nall - nloc,
-             inlist, 1, {}, {}, charge_spin);
+             inlist, 1, {}, {}, {}, charge_spin);
   _fold_back<VALUETYPE>(force, force_, mapping, nloc, nall, 3);
 
   EXPECT_LT(fabs(ener - expected_tot_e), EPSILON);

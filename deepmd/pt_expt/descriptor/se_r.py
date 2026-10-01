@@ -128,6 +128,7 @@ class DescrptSeR(DescrptSeRDP):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         comm_dict: dict | None = None,
         charge_spin: torch.Tensor | None = None,
     ) -> Any:

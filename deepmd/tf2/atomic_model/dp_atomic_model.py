@@ -56,6 +56,7 @@ def make_tf2_dp_atomic_model_from_dpmodel(
             nlist: xp.ndarray,
             mapping: xp.ndarray | None = None,
             fparam: xp.ndarray | None = None,
+            uparam: xp.ndarray | None = None,
             aparam: xp.ndarray | None = None,
             comm_dict: dict | None = None,
             charge_spin: xp.ndarray | None = None,
@@ -67,6 +68,7 @@ def make_tf2_dp_atomic_model_from_dpmodel(
                 stop_gradient(nlist),
                 mapping=mapping,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 charge_spin=charge_spin,
             )

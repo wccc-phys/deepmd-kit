@@ -743,6 +743,13 @@ class SeZMAtomicModel(DPAtomicModel):
             return active_fitting.get_dim_fparam()
         return super().get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Return DFT+U-parameter width of the active SeZM branch."""
+        active_fitting = self.get_active_fitting_net()
+        if active_fitting is not None and hasattr(active_fitting, "get_dim_uparam"):
+            return active_fitting.get_dim_uparam()
+        return super().get_dim_uparam()
+
     def has_default_fparam(self) -> bool:
         """Return whether the active SeZM branch has default frame parameters."""
         active_fitting = self.get_active_fitting_net()
@@ -750,12 +757,26 @@ class SeZMAtomicModel(DPAtomicModel):
             return active_fitting.has_default_fparam()
         return super().has_default_fparam()
 
+    def has_default_uparam(self) -> bool:
+        """Return whether the active SeZM branch has default DFT+U parameters."""
+        active_fitting = self.get_active_fitting_net()
+        if active_fitting is not None and hasattr(active_fitting, "has_default_uparam"):
+            return active_fitting.has_default_uparam()
+        return super().has_default_uparam()
+
     def get_default_fparam(self) -> torch.Tensor | None:
         """Return default frame parameters of the active SeZM branch."""
         active_fitting = self.get_active_fitting_net()
         if active_fitting is not None and hasattr(active_fitting, "get_default_fparam"):
             return active_fitting.get_default_fparam()
         return super().get_default_fparam()
+
+    def get_default_uparam(self) -> torch.Tensor | None:
+        """Return default DFT+U parameters of the active SeZM branch."""
+        active_fitting = self.get_active_fitting_net()
+        if active_fitting is not None and hasattr(active_fitting, "get_default_uparam"):
+            return active_fitting.get_default_uparam()
+        return super().get_default_uparam()
 
     def has_chg_spin_ebd(self) -> bool:
         """Return whether charge/spin condition embedding is enabled."""
@@ -825,6 +846,7 @@ class SeZMAtomicModel(DPAtomicModel):
             else fitting.bias_atom_e.detach().cpu().numpy().copy(),
             "resnet_dt": bool(fitting.resnet_dt),
             "numb_fparam": int(fitting.numb_fparam),
+            "numb_uparam": int(getattr(fitting, "numb_uparam", 0)),
             "numb_aparam": int(fitting.numb_aparam),
             "dim_case_embd": int(fitting.dim_case_embd),
             "case_film_embd": bool(getattr(fitting, "case_film_embd", False)),
@@ -835,6 +857,7 @@ class SeZMAtomicModel(DPAtomicModel):
             "seed": copy.deepcopy(fitting.seed),
             "type_map": None if fitting.type_map is None else list(fitting.type_map),
             "default_fparam": copy.deepcopy(fitting.default_fparam),
+            "default_uparam": copy.deepcopy(fitting.default_uparam),
             "rcond": fitting.rcond,
             "exclude_types": copy.deepcopy(fitting.exclude_types),
             "trainable": copy.deepcopy(fitting.trainable),

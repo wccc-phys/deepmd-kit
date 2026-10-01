@@ -82,6 +82,7 @@ class TFModelWrapper(tf.Module):
         self.type_map = decode_list_of_bytes(self.model.get_type_map().numpy().tolist())
         self.rcut = self.model.get_rcut().numpy().item()
         self.dim_fparam = self.model.get_dim_fparam().numpy().item()
+        self.dim_uparam = self.model.get_dim_uparam().numpy().item()
         self.dim_aparam = self.model.get_dim_aparam().numpy().item()
         self.sel_type = self.model.get_sel_type().numpy().tolist()
         self._is_aparam_nall = self.model.is_aparam_nall().numpy().item()
@@ -137,6 +138,15 @@ class TFModelWrapper(tf.Module):
             self._task_dim = None
             self._intensive = False
 
+        if hasattr(self.model, "has_default_uparam"):
+            self._has_default_uparam = self.model.has_default_uparam().numpy().item()
+        else:
+            self._has_default_uparam = False
+        if hasattr(self.model, "get_default_uparam"):
+            self.default_uparam = self.model.get_default_uparam().numpy().tolist()
+        else:
+            self.default_uparam = None
+
     def __call__(
         self,
         coord: jnp.ndarray,
@@ -160,6 +170,8 @@ class TFModelWrapper(tf.Module):
             The simulation box. shape: nf x 9
         fparam
             frame parameter. nf x ndf
+        uparam
+            DFT+U parameter. nf x ndu
         aparam
             atomic parameter. nf x nloc x nda
         do_atomic_virial
@@ -207,6 +219,8 @@ class TFModelWrapper(tf.Module):
             The simulation box. shape: nf x 9
         fparam
             frame parameter. nf x ndf
+        uparam
+            DFT+U parameter. nf x ndu
         aparam
             atomic parameter. nf x nloc x nda
         do_atomic_virial
@@ -232,12 +246,16 @@ class TFModelWrapper(tf.Module):
             fparam = jnp.empty(
                 (coord.shape[0], self.get_dim_fparam()), dtype=jnp.float64
             )
+        if uparam is None:
+            uparam = jnp.empty(
+                (coord.shape[0], self.get_dim_uparam()), dtype=jnp.float64
+            )
         if aparam is None:
             aparam = jnp.empty(
                 (coord.shape[0], coord.shape[1], self.get_dim_aparam()),
                 dtype=jnp.float64,
             )
-        args = (coord, atype, box, fparam, aparam)
+        args = (coord, atype, box, fparam, uparam, aparam)
         if self.get_dim_chg_spin() > 0:
             charge_spin = self._make_charge_spin_input(coord.shape[0], charge_spin)
             args = (*args, charge_spin)
@@ -286,12 +304,16 @@ class TFModelWrapper(tf.Module):
             fparam = jnp.empty(
                 (extended_coord.shape[0], self.get_dim_fparam()), dtype=jnp.float64
             )
+        if uparam is None:
+            uparam = jnp.empty(
+                (extended_coord.shape[0], self.get_dim_uparam()), dtype=jnp.float64
+            )
         if aparam is None:
             aparam = jnp.empty(
                 (extended_coord.shape[0], nlist.shape[1], self.get_dim_aparam()),
                 dtype=jnp.float64,
             )
-        args = (extended_coord, extended_atype, nlist, mapping, fparam, aparam)
+        args = (extended_coord, extended_atype, nlist, mapping, fparam, uparam, aparam)
         if self.get_dim_chg_spin() > 0:
             charge_spin = self._make_charge_spin_input(
                 extended_coord.shape[0], charge_spin
@@ -310,6 +332,10 @@ class TFModelWrapper(tf.Module):
     def get_dim_fparam(self) -> int:
         """Get the number (dimension) of frame parameters of this atomic model."""
         return self.dim_fparam
+
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return self.dim_uparam
 
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""
@@ -499,3 +525,11 @@ class TFModelWrapper(tf.Module):
     def get_intensive(self) -> bool:
         """Whether the property is intensive (property models only)."""
         return self._intensive
+
+    def has_default_uparam(self) -> bool:
+        """Check whether the model has default DFT+U parameters."""
+        return self._has_default_uparam
+
+    def get_default_uparam(self) -> list[float] | None:
+        """Get the default DFT+U parameters."""
+        return self.default_uparam

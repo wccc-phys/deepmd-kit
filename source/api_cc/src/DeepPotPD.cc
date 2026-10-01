@@ -348,6 +348,17 @@ void DeepPotPD::init(const std::string& model,
   logg::debug() << "buffer_daparam = " << this->daparam << std::endl;
   DeepPotPD::get_buffer<int>("buffer_aparam_nall", aparam_nall);
   logg::debug() << "buffer_aparam_nall = " << this->aparam_nall << std::endl;
+  try {
+    DeepPotPD::get_buffer<int>("buffer_duparam", duparam);
+    logg::debug() << "buffer_duparam = " << this->duparam << std::endl;
+    if (duparam > 0) {
+      throw deepmd::deepmd_exception(
+          "uparam (DFT+U) is not supported by the Paddle backend");
+    }
+    duparam = 0;
+  } catch (const std::exception&) {
+    duparam = 0;
+  }
   inited = true;
 }
 DeepPotPD::~DeepPotPD() {}
@@ -477,6 +488,12 @@ void DeepPotPD::compute(ENERGYVTYPE& ener,
         {1, lmp_list.inum, static_cast<int>(aparam_.size()) / lmp_list.inum});
     aparam_tensor->CopyFromCpu((aparam_.data()));
   }
+  if (!uparam_.empty()) {
+    std::unique_ptr<paddle_infer::Tensor> uparam_tensor;
+    uparam_tensor = predictor_fl->GetInputHandle("uparam");
+    uparam_tensor->Reshape({1, static_cast<int>(uparam_.size())});
+    uparam_tensor->CopyFromCpu(uparam_.data());
+  }
 
   if (!predictor_fl->Run()) {
     throw deepmd::deepmd_exception("Paddle inference run failed");
@@ -595,6 +612,12 @@ void DeepPotPD::compute(ENERGYVTYPE& ener,
     aparam_tensor->Reshape(
         {1, natoms, static_cast<int>(aparam.size()) / natoms});
     aparam_tensor->CopyFromCpu((aparam.data()));
+  }
+  if (!uparam_.empty()) {
+    std::unique_ptr<paddle_infer::Tensor> uparam_tensor;
+    uparam_tensor = predictor->GetInputHandle("uparam");
+    uparam_tensor->Reshape({1, static_cast<int>(uparam_.size())});
+    uparam_tensor->CopyFromCpu(uparam_.data());
   }
 
   bool do_atom_virial_tensor = atomic;

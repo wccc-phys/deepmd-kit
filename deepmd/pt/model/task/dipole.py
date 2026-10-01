@@ -50,6 +50,8 @@ class DipoleFittingNet(GeneralFitting):
         Using time-step in the ResNet construction.
     numb_fparam : int
         Number of frame parameters.
+    numb_uparam : int
+        Number of DFT+U parameters.
     numb_aparam : int
         Number of atomic parameters.
     dim_case_embd : int
@@ -76,6 +78,8 @@ class DipoleFittingNet(GeneralFitting):
     default_fparam: list[float], optional
         The default frame parameter. If set, when `fparam.npy` files are not included in the data system,
         this value will be used as the default value for the frame parameter in the fitting net.
+    default_uparam: float, optional
+        The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams.
     """
 
     def __init__(
@@ -86,6 +90,7 @@ class DipoleFittingNet(GeneralFitting):
         neuron: list[int] = [128, 128, 128],
         resnet_dt: bool = True,
         numb_fparam: int = 0,
+        numb_uparam: int = 0,
         numb_aparam: int = 0,
         dim_case_embd: int = 0,
         activation_function: str = "tanh",
@@ -98,6 +103,7 @@ class DipoleFittingNet(GeneralFitting):
         c_differentiable: bool = True,
         type_map: list[str] | None = None,
         default_fparam: list | None = None,
+        default_uparam: float | None = None,
         **kwargs: Any,
     ) -> None:
         self.embedding_width = embedding_width
@@ -110,6 +116,7 @@ class DipoleFittingNet(GeneralFitting):
             neuron=neuron,
             resnet_dt=resnet_dt,
             numb_fparam=numb_fparam,
+            numb_uparam=numb_uparam,
             numb_aparam=numb_aparam,
             dim_case_embd=dim_case_embd,
             activation_function=activation_function,
@@ -120,6 +127,7 @@ class DipoleFittingNet(GeneralFitting):
             exclude_types=exclude_types,
             type_map=type_map,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
             **kwargs,
         )
 
@@ -186,6 +194,7 @@ class DipoleFittingNet(GeneralFitting):
         g2: torch.Tensor | None = None,
         h2: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         return_atomic_feature: bool = False,
     ) -> dict[str, torch.Tensor]:
@@ -200,6 +209,7 @@ class DipoleFittingNet(GeneralFitting):
             g2,
             h2,
             fparam,
+            uparam,
             aparam,
             return_atomic_feature=return_atomic_feature,
         )

@@ -169,7 +169,7 @@ TYPED_TEST(TestInferDeepPotChgSpinPt, cpu_build_nlist_explicit) {
 
   double ener;
   std::vector<VALUETYPE> force, virial;
-  dp.compute(ener, force, virial, coord, atype, box, {}, {}, charge_spin);
+  dp.compute(ener, force, virial, coord, atype, box, {}, {}, {}, charge_spin);
 
   EXPECT_EQ(force.size(), static_cast<size_t>(natoms * 3));
   EXPECT_EQ(virial.size(), 9u);
@@ -300,7 +300,7 @@ TYPED_TEST(TestInferDeepPotChgSpinPtNoPbc, cpu_lmp_nlist_explicit) {
 
   double ener;
   std::vector<VALUETYPE> force, virial;
-  dp.compute(ener, force, virial, coord, atype, box, 0, inlist, 0, {}, {},
+  dp.compute(ener, force, virial, coord, atype, box, 0, inlist, 0, {}, {}, {},
              charge_spin);
 
   EXPECT_EQ(force.size(), static_cast<size_t>(natoms * 3));

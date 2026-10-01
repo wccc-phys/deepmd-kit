@@ -343,6 +343,7 @@ class DescrptHybrid(BaseDescriptor, NativeOP):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         comm_dict: dict | None = None,
         charge_spin: Array | None = None,
     ) -> tuple[
@@ -407,6 +408,7 @@ class DescrptHybrid(BaseDescriptor, NativeOP):
                 nl,
                 mapping,
                 fparam=fparam,
+                uparam=uparam,
                 comm_dict=comm_dict,
                 charge_spin=charge_spin,
             )

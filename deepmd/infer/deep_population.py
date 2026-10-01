@@ -59,6 +59,7 @@ class DeepPopulation(DeepEval):
         atom_types: list[int] | np.ndarray,
         atomic: bool = False,
         fparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         mixed_type: bool = False,
         **kwargs: Any,
@@ -79,6 +80,8 @@ class DeepPopulation(DeepEval):
             Kept for interface compatibility. Population is always returned per atom.
         fparam : np.ndarray, optional
             The frame parameters, by default None.
+        uparam : np.ndarray, optional
+            The DFT+U parameters, by default None.
         aparam : np.ndarray, optional
             The atomic parameters, by default None.
         mixed_type : bool, optional
@@ -97,16 +100,20 @@ class DeepPopulation(DeepEval):
             cells,
             atom_types,
             fparam,
+            uparam,
             aparam,
             nframes,
             natoms,
-        ) = self._standard_input(coords, cells, atom_types, fparam, aparam, mixed_type)
+        ) = self._standard_input(
+            coords, cells, atom_types, fparam, uparam, aparam, mixed_type
+        )
         results = self.deep_eval.eval(
             coords,
             cells,
             atom_types,
             atomic,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             **kwargs,
         )

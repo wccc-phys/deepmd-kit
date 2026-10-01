@@ -55,6 +55,10 @@ class DeepPotPD : public DeepPotBackend {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The DFT+U parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   *uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -71,6 +75,7 @@ class DeepPotPD : public DeepPotBackend {
                const std::vector<int>& atype,
                const std::vector<VALUETYPE>& box,
                const std::vector<VALUETYPE>& fparam,
+               const std::vector<VALUETYPE>& uparam,
                const std::vector<VALUETYPE>& aparam,
                const bool atomic);
   /**
@@ -93,6 +98,10 @@ class DeepPotPD : public DeepPotBackend {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The DFT+U parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   *uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -112,6 +121,7 @@ class DeepPotPD : public DeepPotBackend {
                const InputNlist& lmp_list,
                const int& ago,
                const std::vector<VALUETYPE>& fparam,
+               const std::vector<VALUETYPE>& uparam,
                const std::vector<VALUETYPE>& aparam,
                const bool atomic);
   /**
@@ -131,6 +141,10 @@ class DeepPotPD : public DeepPotBackend {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The DFT+U parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   *uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -146,6 +160,7 @@ class DeepPotPD : public DeepPotBackend {
                           const std::vector<int>& atype,
                           const std::vector<VALUETYPE>& box,
                           const std::vector<VALUETYPE>& fparam,
+                          const std::vector<VALUETYPE>& uparam,
                           const std::vector<VALUETYPE>& aparam,
                           const bool atomic);
   /**
@@ -167,6 +182,10 @@ class DeepPotPD : public DeepPotBackend {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The DFT+U parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   *uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -184,6 +203,7 @@ class DeepPotPD : public DeepPotBackend {
                           const std::vector<int>& atype,
                           const std::vector<VALUETYPE>& box,
                           const std::vector<VALUETYPE>& fparam,
+                          const std::vector<VALUETYPE>& uparam,
                           const std::vector<VALUETYPE>& aparam,
                           const bool atomic);
 
@@ -265,6 +285,11 @@ class DeepPotPD : public DeepPotBackend {
    * @return Always false for Paddle backend.
    **/
   bool has_default_fparam() const { return false; };
+  int dim_uparam() const { return duparam; };
+  bool has_default_uparam() const { return false; };
+  void set_uparam(const std::vector<double>& uparam) override {
+    uparam_ = uparam;
+  };
 
   /**
    * @brief Print the shape of given tensor.
@@ -306,6 +331,7 @@ class DeepPotPD : public DeepPotBackend {
                 const std::vector<int>& atype,
                 const std::vector<double>& box,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const bool atomic);
   void computew(std::vector<double>& ener,
@@ -317,6 +343,7 @@ class DeepPotPD : public DeepPotBackend {
                 const std::vector<int>& atype,
                 const std::vector<float>& box,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const bool atomic);
   void computew(std::vector<double>& ener,
@@ -331,6 +358,7 @@ class DeepPotPD : public DeepPotBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const bool atomic);
   void computew(std::vector<double>& ener,
@@ -345,6 +373,7 @@ class DeepPotPD : public DeepPotBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const bool atomic);
   void computew_mixed_type(std::vector<double>& ener,
@@ -357,6 +386,7 @@ class DeepPotPD : public DeepPotBackend {
                            const std::vector<int>& atype,
                            const std::vector<double>& box,
                            const std::vector<double>& fparam,
+                           const std::vector<double>& uparam,
                            const std::vector<double>& aparam,
                            const bool atomic);
   void computew_mixed_type(std::vector<double>& ener,
@@ -369,6 +399,7 @@ class DeepPotPD : public DeepPotBackend {
                            const std::vector<int>& atype,
                            const std::vector<float>& box,
                            const std::vector<float>& fparam,
+                           const std::vector<float>& uparam,
                            const std::vector<float>& aparam,
                            const bool atomic);
 
@@ -378,8 +409,10 @@ class DeepPotPD : public DeepPotBackend {
   int ntypes;
   int ntypes_spin;
   int dfparam;
+  int duparam{0};
   int daparam;
   int aparam_nall;
+  std::vector<double> uparam_;
   // copy neighbor list info from host
   // config & predictor for model.forward
   std::shared_ptr<paddle_infer::Config> config;

@@ -40,6 +40,15 @@ class DosTester(ModelTester):
             data.add(
                 "fparam", dp.get_dim_fparam(), atomic=False, must=True, high_prec=False
             )
+        if dp.get_dim_uparam() > 0:
+            uparam_atomic = dp.get_uparam_mode() == "atomic"
+            data.add(
+                "uparam",
+                dp.get_dim_uparam(),
+                atomic=uparam_atomic,
+                must=not dp.has_default_uparam(),
+                high_prec=False,
+            )
         if dp.get_dim_aparam() > 0:
             data.add(
                 "aparam", dp.get_dim_aparam(), atomic=True, must=True, high_prec=False
@@ -64,6 +73,11 @@ class DosTester(ModelTester):
         else:
             atype = test_data["type"][0]
         fparam = test_data["fparam"] if dp.get_dim_fparam() > 0 else None
+        uparam = (
+            test_data["uparam"]
+            if dp.get_dim_uparam() > 0 and test_data.get("find_uparam", 1.0) != 0.0
+            else None
+        )
         aparam = test_data["aparam"] if dp.get_dim_aparam() > 0 else None
 
         ret = dp.eval(
@@ -71,6 +85,7 @@ class DosTester(ModelTester):
             box,
             atype,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             atomic=self.atomic,
             mixed_type=mixed_type,

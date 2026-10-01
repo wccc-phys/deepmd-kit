@@ -31,6 +31,9 @@ from deepmd.dpmodel.common import (
     RESERVED_PRECISION_DICT,
     get_xp_precision,
 )
+from deepmd.dpmodel.utils.fitting_params import (
+    FittingParams,
+)
 from deepmd.dpmodel.output_def import (
     FittingOutputDef,
     ModelOutputDef,
@@ -85,6 +88,7 @@ def model_call_from_call_lower(
     atype: Array,
     box: Array | None = None,
     fparam: Array | None = None,
+    uparam: Array | None = None,
     aparam: Array | None = None,
     do_atomic_virial: bool = False,
     coord_corr_for_virial: Array | None = None,
@@ -105,6 +109,8 @@ def model_call_from_call_lower(
         The simulation box. shape: nf x 9
     fparam
         frame parameter. nf x ndf
+    uparam
+        DFT+U parameter. nf x 1
     aparam
         atomic parameter. nf x nloc x nda
     do_atomic_virial
@@ -129,8 +135,8 @@ def model_call_from_call_lower(
 
     """
     nframes, nloc = atype.shape[:2]
-    cc, bb, fp, ap = coord, box, fparam, aparam
-    del coord, box, fparam, aparam
+    cc, bb, fp, up, ap = coord, box, fparam, uparam, aparam
+    del coord, box, fparam, uparam, aparam
     builder = neighbor_list if neighbor_list is not None else DefaultNeighborList()
     # Model-level pair exclusion is a nlist-BUILD transform (decision #18/A4):
     # the BUILDER owns it (mirroring build_neighbor_graph on the graph path), so
@@ -157,6 +163,7 @@ def model_call_from_call_lower(
         extended_coord_corr = None
     call_lower_kwargs: dict[str, Any] = {
         "fparam": fp,
+        "uparam": up,
         "aparam": ap,
         "do_atomic_virial": do_atomic_virial,
         "charge_spin": charge_spin,
@@ -287,12 +294,14 @@ def make_model(
             atype: Array,
             box: Array | None = None,
             fparam: Array | None = None,
+            uparam: Array | None = None,
             aparam: Array | None = None,
             do_atomic_virial: bool = False,
             coord_corr_for_virial: Array | None = None,
             charge_spin: Array | None = None,
             neighbor_list: NeighborList | None = None,
             neighbor_graph_method: str | None = None,
+            cond: "FittingParams | None" = None,
             spin: Array | None = None,
         ) -> dict[str, Array]:
             """Return model prediction.
@@ -311,6 +320,10 @@ def make_model(
 
             fparam
                 frame parameter. nf x ndf
+
+            uparam
+                DFT+U parameter. nf x 1 (frame mode) or nf x nloc x 1 (atomic
+                mode, per-atom Hubbard U)
 
             aparam
                 atomic parameter. nf x nloc x nda
@@ -380,15 +393,21 @@ def make_model(
                 The keys are defined by the `ModelOutputDef`.
 
             """
-            cc, bb, fp, ap, cs, sp, input_prec = self._input_type_cast(
+            cc, bb, fp, up, ap, cs, sp, input_prec = self._input_type_cast(
                 coord,
                 box=box,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 charge_spin=charge_spin,
                 spin=spin,
             )
-            del coord, box, fparam, aparam, charge_spin, spin
+            del coord, box, fparam, uparam, aparam, charge_spin, spin
+            if cond is not None:
+                fparam, uparam, aparam, charge_spin = cond.absorb(
+                    fparam=fparam, uparam=uparam, aparam=aparam,
+                    charge_spin=charge_spin,
+                )
             graph_method = self._resolve_graph_method(neighbor_graph_method)
             # ``neighbor_list`` is a DENSE-nlist strategy; the graph path cannot
             # consume it. Reject an explicit graph+nlist combination, and
@@ -416,6 +435,7 @@ def make_model(
                     atype,
                     bb,
                     fp,
+                    up,
                     ap,
                     graph_method,
                     do_atomic_virial,
@@ -434,6 +454,7 @@ def make_model(
                     atype=atype,
                     box=bb,
                     fparam=fp,
+                    uparam=up,
                     aparam=ap,
                     do_atomic_virial=do_atomic_virial,
                     coord_corr_for_virial=coord_corr_for_virial,
@@ -482,6 +503,7 @@ def make_model(
             atype: Array,
             bb: Array | None,
             fp: Array | None,
+            up: Array | None,
             ap: Array | None,
             method: str,
             do_atomic_virial: bool = False,
@@ -505,6 +527,8 @@ def make_model(
                 the simulation cell. nf x 3 x 3, or ``None`` for non-periodic.
             fp
                 the frame parameter. nf x ndf
+            up
+                the U parameter. nf x ndf
             ap
                 the atomic parameter. nf x nloc x nda
             method
@@ -575,6 +599,7 @@ def make_model(
                 edge_vec=ng.edge_vec,
                 edge_mask=ng.edge_mask,
                 fparam=fp,
+                uparam=up,
                 # graph-lower ABI: aparam is FLAT on the node axis, (N, nda).
                 aparam=(
                     xp.take(
@@ -618,6 +643,7 @@ def make_model(
             nlist: Array,
             mapping: Array | None = None,
             fparam: Array | None = None,
+            uparam: Array | None = None,
             aparam: Array | None = None,
             do_atomic_virial: bool = False,
             extended_coord_corr: Array | None = None,
@@ -641,6 +667,8 @@ def make_model(
                 mapps the extended indices to local indices. nf x nall.
             fparam
                 frame parameter. nf x ndf
+            uparam
+                DFT+U parameter. nf x 1
             aparam
                 atomic parameter. nf x nloc x nda
             do_atomic_virial
@@ -668,16 +696,21 @@ def make_model(
                 nlist,
                 extra_nlist_sort=self.need_sorted_nlist_for_lower(),
             )
-            cc_ext, _, fp, ap, cs, _, input_prec = self._input_type_cast(
-                extended_coord, fparam=fparam, aparam=aparam, charge_spin=charge_spin
+            cc_ext, _, fp, up, ap, cs, _, input_prec = self._input_type_cast(
+                extended_coord,
+                fparam=fparam,
+                uparam=uparam,
+                aparam=aparam,
+                charge_spin=charge_spin,
             )
-            del extended_coord, fparam, aparam, charge_spin
+            del extended_coord, fparam, uparam, aparam, charge_spin
             model_predict = self.forward_common_atomic(
                 cc_ext,
                 extended_atype,
                 nlist,
                 mapping=mapping,
                 fparam=fp,
+                uparam=up,
                 aparam=ap,
                 do_atomic_virial=do_atomic_virial,
                 extended_coord_corr=extended_coord_corr,
@@ -694,18 +727,27 @@ def make_model(
             nlist: Array,
             mapping: Array | None = None,
             fparam: Array | None = None,
+            uparam: Array | None = None,
             aparam: Array | None = None,
             do_atomic_virial: bool = False,
             extended_coord_corr: Array | None = None,
             comm_dict: dict | None = None,
             charge_spin: Array | None = None,
+            cond: "FittingParams | None" = None,
         ) -> dict[str, Array]:
+            # Registry container: fill any missing conditioning parameter
+            # from ``cond`` (explicit arguments win).
+            if cond is not None:
+                fparam = fparam if fparam is not None else cond.fparam
+                uparam = uparam if uparam is not None else cond.uparam
+                aparam = aparam if aparam is not None else cond.aparam
             atomic_ret = self.atomic_model.forward_common_atomic(
                 extended_coord,
                 extended_atype,
                 nlist,
                 mapping=mapping,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 comm_dict=comm_dict,
                 charge_spin=charge_spin,
@@ -727,11 +769,20 @@ def make_model(
             edge_mask: Array,
             n_local: Array | None = None,
             fparam: Array | None = None,
+            uparam: Array | None = None,
             aparam: Array | None = None,
             comm_dict: dict | None = None,
             charge_spin: Array | None = None,
             spin: Array | None = None,
+            cond: "FittingParams | None" = None,
         ) -> dict[str, Array]:
+            # Registry container: fill any missing conditioning parameter
+            # from ``cond`` (explicit arguments win).
+            if cond is not None:
+                fparam = fparam if fparam is not None else cond.fparam
+                uparam = uparam if uparam is not None else cond.uparam
+                aparam = aparam if aparam is not None else cond.aparam
+                charge_spin = charge_spin if charge_spin is not None else cond.charge_spin
             """Model-level graph forward (no type cast). Analogue of the dense
             :meth:`forward_common_atomic`.
 
@@ -763,6 +814,8 @@ def make_model(
                 is the single-rank/all-owned behavior.
             fparam
                 Frame parameter, ``(nf, ndf)``.
+            uparam
+                DFT+U parameter, ``(nf, 1)``.
             aparam
                 Atomic parameter, ``(N, nda)``.
             comm_dict
@@ -792,6 +845,7 @@ def make_model(
                 graph,
                 atype,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 charge_spin=charge_spin,
                 spin=spin,
@@ -813,6 +867,7 @@ def make_model(
             edge_mask: Array,
             n_local: Array | None = None,
             fparam: Array | None = None,
+            uparam: Array | None = None,
             aparam: Array | None = None,
             comm_dict: dict | None = None,
             charge_spin: Array | None = None,
@@ -848,6 +903,8 @@ def make_model(
                 single-rank/all-owned behavior.
             fparam
                 Frame parameter, ``(nf, ndf)``.
+            uparam
+                DFT+U parameter, ``(nf, 1)``.
             aparam
                 Atomic parameter, ``(N, nda)``.
             comm_dict
@@ -864,12 +921,15 @@ def make_model(
             dict
                 The standard model dict in the INPUT precision.
             """
-            edge_vec, _, fparam, aparam, cs, sp, input_prec = self._input_type_cast(
-                edge_vec,
-                fparam=fparam,
-                aparam=aparam,
-                charge_spin=charge_spin,
-                spin=spin,
+            edge_vec, _, fparam, uparam, aparam, cs, sp, input_prec = (
+                self._input_type_cast(
+                    edge_vec,
+                    fparam=fparam,
+                    uparam=uparam,
+                    aparam=aparam,
+                    charge_spin=charge_spin,
+                    spin=spin,
+                )
             )
             model_predict = self.forward_common_atomic_graph(
                 atype,
@@ -879,6 +939,7 @@ def make_model(
                 edge_mask,
                 n_local=n_local,
                 fparam=fparam,
+                uparam=uparam,
                 aparam=aparam,
                 comm_dict=comm_dict,
                 charge_spin=cs,
@@ -944,11 +1005,13 @@ def make_model(
             coord: Array,
             box: Array | None = None,
             fparam: Array | None = None,
+            uparam: Array | None = None,
             aparam: Array | None = None,
             charge_spin: Array | None = None,
             spin: Array | None = None,
         ) -> tuple[
             Array,
+            Array | None,
             Array | None,
             Array | None,
             Array | None,
@@ -967,16 +1030,26 @@ def make_model(
             ###
             _lst: list[Array | None] = [
                 xp.astype(vv, input_dtype) if vv is not None else None
-                for vv in [box, fparam, aparam, charge_spin, spin]
+                for vv in [box, fparam, uparam, aparam, charge_spin, spin]
             ]
-            box, fparam, aparam, charge_spin, spin = _lst
+            box, fparam, uparam, aparam, charge_spin, spin = _lst
             if input_dtype == global_dtype:
-                return coord, box, fparam, aparam, charge_spin, spin, input_dtype
+                return (
+                    coord,
+                    box,
+                    fparam,
+                    uparam,
+                    aparam,
+                    charge_spin,
+                    spin,
+                    input_dtype,
+                )
             else:
                 return (
                     xp.astype(coord, global_dtype),
                     xp.astype(box, global_dtype) if box is not None else None,
                     xp.astype(fparam, global_dtype) if fparam is not None else None,
+                    xp.astype(uparam, global_dtype) if uparam is not None else None,
                     xp.astype(aparam, global_dtype) if aparam is not None else None,
                     xp.astype(charge_spin, global_dtype)
                     if charge_spin is not None
@@ -1141,6 +1214,14 @@ def make_model(
             """Get the number (dimension) of frame parameters of this atomic model."""
             return self.atomic_model.get_dim_fparam()
 
+        def get_dim_uparam(self) -> int:
+            """Get the number (dimension) of DFT+U parameters of this atomic model."""
+            return self.atomic_model.get_dim_uparam()
+
+        def get_uparam_mode(self) -> str:
+            """Get the mode of DFT+U parameters ('frame', 'atomic', or 'orbital')."""
+            return self.atomic_model.get_uparam_mode()
+
         def get_dim_aparam(self) -> int:
             """Get the number (dimension) of atomic parameters of this atomic model."""
             return self.atomic_model.get_dim_aparam()
@@ -1156,6 +1237,14 @@ def make_model(
         def get_default_fparam(self) -> list[float] | None:
             """Get the default frame parameters."""
             return self.atomic_model.get_default_fparam()
+
+        def has_default_uparam(self) -> bool:
+            """Check if the model has default DFT+U parameters."""
+            return self.atomic_model.has_default_uparam()
+
+        def get_default_uparam(self) -> float | None:
+            """Get the default DFT+U parameters."""
+            return self.atomic_model.get_default_uparam()
 
         def has_chg_spin_ebd(self) -> bool:
             """Check if the model has charge spin embedding."""

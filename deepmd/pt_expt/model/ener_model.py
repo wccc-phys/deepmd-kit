@@ -9,6 +9,9 @@ from torch.fx.experimental.proxy_tensor import (
     make_fx,
 )
 
+from deepmd.dpmodel.utils.fitting_params import (
+    FittingParams,
+)
 from deepmd.dpmodel.atomic_model import (
     DPEnergyAtomicModel,
 )
@@ -331,10 +334,12 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
         atype: torch.Tensor,
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
         neighbor_list: NeighborList | None = None,
+        cond: "FittingParams | None" = None,
     ) -> dict[str, torch.Tensor]:
         """Evaluate the energy model.
 
@@ -364,11 +369,17 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             the ``vesin`` O(N) cell list) may be injected to accelerate
             neighbor-list construction without changing the model outputs.
         """
+        if cond is not None:
+            fparam, uparam, aparam, charge_spin = cond.absorb(
+                fparam=fparam, uparam=uparam, aparam=aparam,
+                charge_spin=charge_spin,
+            )
         model_ret = self.call_common(
             coord,
             atype,
             box,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
@@ -387,6 +398,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
         n_node: torch.Tensor,
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
@@ -411,6 +423,8 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             Simulation cell with shape ``(nf, 3, 3)``.
         fparam : torch.Tensor or None, optional
             Frame parameters with shape ``(nf, ndf)``.
+        uparam : torch.Tensor or None, optional
+            DFT+U parameters with shape ``(nf, ndu)``.
         aparam : torch.Tensor or None, optional
             Atomic parameters with shape ``(N, nda)``.
         do_atomic_virial : bool, default: False
@@ -432,6 +446,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             n_node,
             box,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             do_atomic_virial=do_atomic_virial,
             charge_spin=charge_spin,
@@ -451,6 +466,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
@@ -460,6 +476,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             nlist,
             mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
@@ -507,6 +524,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
         **make_fx_kwargs: Any,
@@ -543,7 +561,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
         -------
         torch.nn.Module
             A traced module whose ``forward`` accepts
-            ``(extended_coord, extended_atype, nlist, mapping, fparam, aparam)``
+            ``(extended_coord, extended_atype, nlist, mapping, fparam, aparam, uparam)``
             and returns a dict with the same keys as ``forward_lower``.
         """
         traced = self.forward_common_lower_exportable(
@@ -552,6 +570,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             nlist,
             mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
@@ -569,6 +588,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             nlist: torch.Tensor,
             mapping: torch.Tensor | None,
             fparam: torch.Tensor | None,
+            uparam: torch.Tensor | None,
             aparam: torch.Tensor | None,
             charge_spin: torch.Tensor | None,
         ) -> dict[str, torch.Tensor]:
@@ -578,6 +598,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
                 nlist,
                 mapping,
                 fparam,
+                uparam,
                 aparam,
                 charge_spin,
             )
@@ -590,7 +611,14 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             )
 
         return make_fx(fn, **make_fx_kwargs)(
-            extended_coord, extended_atype, nlist, mapping, fparam, aparam, charge_spin
+            extended_coord,
+            extended_atype,
+            nlist,
+            mapping,
+            fparam,
+            uparam,
+            aparam,
+            charge_spin,
         )
 
     def forward_lower_graph_exportable(
@@ -606,6 +634,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
         source_order: torch.Tensor,
         source_row_ptr: torch.Tensor,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
@@ -641,7 +670,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
         destination_sorted
             Static export-time assertion that the payload is destination-major
             and ``destination_order`` is identity.
-        fparam, aparam, do_atomic_virial, charge_spin
+        fparam, uparam, aparam, do_atomic_virial, charge_spin
             As in ``forward_lower``.
         **make_fx_kwargs
             Extra keyword arguments forwarded to ``make_fx``
@@ -653,7 +682,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             A traced module whose ``forward`` accepts
             ``(atype, n_node, n_local, edge_index, edge_vec, edge_mask,
             destination_order, destination_row_ptr, source_order,
-            source_row_ptr, fparam, aparam, charge_spin)`` and returns a dict
+            source_row_ptr, fparam, uparam, aparam, charge_spin)`` and returns a dict
             with the public keys: ``atom_energy``, ``energy``, ``force``,
             ``virial``, ``atom_virial`` (the last only when
             ``do_atomic_virial``). Unlike the dense
@@ -673,6 +702,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             source_order,
             source_row_ptr,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
@@ -697,6 +727,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             source_order: torch.Tensor,
             source_row_ptr: torch.Tensor,
             fparam: torch.Tensor | None,
+            uparam: torch.Tensor | None,
             aparam: torch.Tensor | None,
             charge_spin: torch.Tensor | None,
         ) -> dict[str, torch.Tensor]:
@@ -712,6 +743,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
                 source_order,
                 source_row_ptr,
                 fparam,
+                uparam,
                 aparam,
                 charge_spin,
             )
@@ -735,6 +767,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             source_order,
             source_row_ptr,
             fparam,
+            uparam,
             aparam,
             charge_spin,
         )

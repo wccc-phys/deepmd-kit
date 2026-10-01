@@ -32,7 +32,7 @@ class InvarFitting(InvarFittingDP):
         """Share parameters with base_class for multi-task training.
 
         Level 0: share all sub-modules and buffers except bias_atom_e
-        and case_embd.  When not resuming, fparam/aparam statistics are
+        and case_embd.  When not resuming, fparam/aparam/uparam statistics are
         merged using probability-weighted averaging (matching PT).
         """
         assert self.__class__ == base_class.__class__, (
@@ -114,6 +114,43 @@ class InvarFitting(InvarFittingDP):
                 self._buffers["aparam_avg"] = base_class._buffers["aparam_avg"]
                 self._buffers["aparam_inv_std"] = base_class._buffers["aparam_inv_std"]
 
+            # --- weighted uparam stat merging ---
+            if self.numb_uparam > 0:
+                if not resume:
+                    base_stats = base_class.get_param_stats().get("uparam", [])
+                    self_stats = self.get_param_stats().get("uparam", [])
+                    if base_stats and self_stats:
+                        assert len(base_stats) == self.numb_uparam
+                        merged = [
+                            base_stats[ii] + self_stats[ii] * model_prob
+                            for ii in range(self.numb_uparam)
+                        ]
+                        uparam_avg = np.array(
+                            [s.compute_avg() for s in merged], dtype=np.float64
+                        )
+                        uparam_std = np.array(
+                            [s.compute_std(protection=protection) for s in merged],
+                            dtype=np.float64,
+                        )
+                        uparam_inv_std = 1.0 / uparam_std
+                        base_class.uparam_avg.copy_(
+                            torch.tensor(
+                                uparam_avg,
+                                device=DEVICE,
+                                dtype=base_class.uparam_avg.dtype,
+                            )
+                        )
+                        base_class.uparam_inv_std.copy_(
+                            torch.tensor(
+                                uparam_inv_std,
+                                device=DEVICE,
+                                dtype=base_class.uparam_inv_std.dtype,
+                            )
+                        )
+                        base_class._param_stats["uparam"] = merged
+                self._buffers["uparam_avg"] = base_class._buffers["uparam_avg"]
+                self._buffers["uparam_inv_std"] = base_class._buffers["uparam_inv_std"]
+
             # --- share modules and remaining buffers ---
             for item in list(self._modules):
                 if item in ("bias_atom_e", "case_embd"):
@@ -127,6 +164,8 @@ class InvarFitting(InvarFittingDP):
                     "fparam_inv_std",
                     "aparam_avg",
                     "aparam_inv_std",
+                    "uparam_avg",
+                    "uparam_inv_std",
                 ):
                     continue
                 self._buffers[item] = base_class._buffers[item]

@@ -61,6 +61,10 @@ class DeepPotBackend : public DeepBaseModelBackend {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The uparam (DFT+U) parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   * uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -68,17 +72,19 @@ class DeepPotBackend : public DeepBaseModelBackend {
    * @param[in] atomic Request atomic energy and virial if atomic is true.
    * @{
    **/
-  virtual void computew(std::vector<double>& ener,
-                        std::vector<double>& force,
-                        std::vector<double>& virial,
-                        std::vector<double>& atom_energy,
-                        std::vector<double>& atom_virial,
-                        const std::vector<double>& coord,
-                        const std::vector<int>& atype,
-                        const std::vector<double>& box,
-                        const std::vector<double>& fparam,
-                        const std::vector<double>& aparam,
-                        const bool atomic) = 0;
+  virtual void computew(
+      std::vector<double>& ener,
+      std::vector<double>& force,
+      std::vector<double>& virial,
+      std::vector<double>& atom_energy,
+      std::vector<double>& atom_virial,
+      const std::vector<double>& coord,
+      const std::vector<int>& atype,
+      const std::vector<double>& box,
+      const std::vector<double>& fparam,
+      const std::vector<double>& uparam = std::vector<double>(),
+      const std::vector<double>& aparam = std::vector<double>(),
+      const bool atomic = false) = 0;
   virtual void computew(std::vector<double>& ener,
                         std::vector<float>& force,
                         std::vector<float>& virial,
@@ -88,8 +94,9 @@ class DeepPotBackend : public DeepBaseModelBackend {
                         const std::vector<int>& atype,
                         const std::vector<float>& box,
                         const std::vector<float>& fparam,
-                        const std::vector<float>& aparam,
-                        const bool atomic) = 0;
+                        const std::vector<float>& uparam = std::vector<float>(),
+                        const std::vector<float>& aparam = std::vector<float>(),
+                        const bool atomic = false) = 0;
   /** @} */
   /**
    * @brief Evaluate the energy, force, virial, atomic energy, and atomic virial
@@ -112,6 +119,10 @@ class DeepPotBackend : public DeepBaseModelBackend {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The uparam (DFT+U) parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   * uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -119,20 +130,22 @@ class DeepPotBackend : public DeepBaseModelBackend {
    * @param[in] atomic Request atomic energy and virial if atomic is true.
    * @{
    **/
-  virtual void computew(std::vector<double>& ener,
-                        std::vector<double>& force,
-                        std::vector<double>& virial,
-                        std::vector<double>& atom_energy,
-                        std::vector<double>& atom_virial,
-                        const std::vector<double>& coord,
-                        const std::vector<int>& atype,
-                        const std::vector<double>& box,
-                        const int nghost,
-                        const InputNlist& inlist,
-                        const int& ago,
-                        const std::vector<double>& fparam,
-                        const std::vector<double>& aparam,
-                        const bool atomic) = 0;
+  virtual void computew(
+      std::vector<double>& ener,
+      std::vector<double>& force,
+      std::vector<double>& virial,
+      std::vector<double>& atom_energy,
+      std::vector<double>& atom_virial,
+      const std::vector<double>& coord,
+      const std::vector<int>& atype,
+      const std::vector<double>& box,
+      const int nghost,
+      const InputNlist& inlist,
+      const int& ago,
+      const std::vector<double>& fparam,
+      const std::vector<double>& uparam = std::vector<double>(),
+      const std::vector<double>& aparam = std::vector<double>(),
+      const bool atomic = false) = 0;
   virtual void computew(std::vector<double>& ener,
                         std::vector<float>& force,
                         std::vector<float>& virial,
@@ -145,8 +158,9 @@ class DeepPotBackend : public DeepBaseModelBackend {
                         const InputNlist& inlist,
                         const int& ago,
                         const std::vector<float>& fparam,
-                        const std::vector<float>& aparam,
-                        const bool atomic) = 0;
+                        const std::vector<float>& uparam = std::vector<float>(),
+                        const std::vector<float>& aparam = std::vector<float>(),
+                        const bool atomic = false) = 0;
   /** @} */
 
   /**
@@ -169,6 +183,10 @@ class DeepPotBackend : public DeepBaseModelBackend {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The uparam (DFT+U) parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   * uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -176,30 +194,34 @@ class DeepPotBackend : public DeepBaseModelBackend {
    * @param[in] atomic Request atomic energy and virial if atomic is true.
    * @{
    **/
-  virtual void computew_mixed_type(std::vector<double>& ener,
-                                   std::vector<double>& force,
-                                   std::vector<double>& virial,
-                                   std::vector<double>& atom_energy,
-                                   std::vector<double>& atom_virial,
-                                   const int& nframes,
-                                   const std::vector<double>& coord,
-                                   const std::vector<int>& atype,
-                                   const std::vector<double>& box,
-                                   const std::vector<double>& fparam,
-                                   const std::vector<double>& aparam,
-                                   const bool atomic) = 0;
-  virtual void computew_mixed_type(std::vector<double>& ener,
-                                   std::vector<float>& force,
-                                   std::vector<float>& virial,
-                                   std::vector<float>& atom_energy,
-                                   std::vector<float>& atom_virial,
-                                   const int& nframes,
-                                   const std::vector<float>& coord,
-                                   const std::vector<int>& atype,
-                                   const std::vector<float>& box,
-                                   const std::vector<float>& fparam,
-                                   const std::vector<float>& aparam,
-                                   const bool atomic) = 0;
+  virtual void computew_mixed_type(
+      std::vector<double>& ener,
+      std::vector<double>& force,
+      std::vector<double>& virial,
+      std::vector<double>& atom_energy,
+      std::vector<double>& atom_virial,
+      const int& nframes,
+      const std::vector<double>& coord,
+      const std::vector<int>& atype,
+      const std::vector<double>& box,
+      const std::vector<double>& fparam,
+      const std::vector<double>& uparam = std::vector<double>(),
+      const std::vector<double>& aparam = std::vector<double>(),
+      const bool atomic = false) = 0;
+  virtual void computew_mixed_type(
+      std::vector<double>& ener,
+      std::vector<float>& force,
+      std::vector<float>& virial,
+      std::vector<float>& atom_energy,
+      std::vector<float>& atom_virial,
+      const int& nframes,
+      const std::vector<float>& coord,
+      const std::vector<int>& atype,
+      const std::vector<float>& box,
+      const std::vector<float>& fparam,
+      const std::vector<float>& uparam = std::vector<float>(),
+      const std::vector<float>& aparam = std::vector<float>(),
+      const bool atomic = false) = 0;
   /** @} */
 
   /**
@@ -278,103 +300,115 @@ class DeepPotBackend : public DeepBaseModelBackend {
   // existing pure-virtual overloads (ignoring charge_spin) so that backends
   // that do not support charge/spin do not need any changes.  DeepPotPTExpt
   // overrides these to thread charge_spin through to the model.
-  virtual void computew(std::vector<double>& ener,
-                        std::vector<double>& force,
-                        std::vector<double>& virial,
-                        std::vector<double>& atom_energy,
-                        std::vector<double>& atom_virial,
-                        const std::vector<double>& coord,
-                        const std::vector<int>& atype,
-                        const std::vector<double>& box,
-                        const std::vector<double>& fparam,
-                        const std::vector<double>& aparam,
-                        const std::vector<double>& charge_spin,
-                        const bool atomic) {
+  virtual void computew(
+      std::vector<double>& ener,
+      std::vector<double>& force,
+      std::vector<double>& virial,
+      std::vector<double>& atom_energy,
+      std::vector<double>& atom_virial,
+      const std::vector<double>& coord,
+      const std::vector<int>& atype,
+      const std::vector<double>& box,
+      const std::vector<double>& fparam,
+      const std::vector<double>& uparam = std::vector<double>(),
+      const std::vector<double>& aparam = std::vector<double>(),
+      const std::vector<double>& charge_spin = std::vector<double>(),
+      const bool atomic = false) {
     computew(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-             fparam, aparam, atomic);
+             fparam, uparam, aparam, atomic);
   }
-  virtual void computew(std::vector<double>& ener,
-                        std::vector<float>& force,
-                        std::vector<float>& virial,
-                        std::vector<float>& atom_energy,
-                        std::vector<float>& atom_virial,
-                        const std::vector<float>& coord,
-                        const std::vector<int>& atype,
-                        const std::vector<float>& box,
-                        const std::vector<float>& fparam,
-                        const std::vector<float>& aparam,
-                        const std::vector<double>& charge_spin,
-                        const bool atomic) {
+  virtual void computew(
+      std::vector<double>& ener,
+      std::vector<float>& force,
+      std::vector<float>& virial,
+      std::vector<float>& atom_energy,
+      std::vector<float>& atom_virial,
+      const std::vector<float>& coord,
+      const std::vector<int>& atype,
+      const std::vector<float>& box,
+      const std::vector<float>& fparam,
+      const std::vector<float>& uparam = std::vector<float>(),
+      const std::vector<float>& aparam = std::vector<float>(),
+      const std::vector<double>& charge_spin = std::vector<double>(),
+      const bool atomic = false) {
     computew(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-             fparam, aparam, atomic);
+             fparam, uparam, aparam, atomic);
   }
-  virtual void computew(std::vector<double>& ener,
-                        std::vector<double>& force,
-                        std::vector<double>& virial,
-                        std::vector<double>& atom_energy,
-                        std::vector<double>& atom_virial,
-                        const std::vector<double>& coord,
-                        const std::vector<int>& atype,
-                        const std::vector<double>& box,
-                        const int nghost,
-                        const InputNlist& inlist,
-                        const int& ago,
-                        const std::vector<double>& fparam,
-                        const std::vector<double>& aparam,
-                        const std::vector<double>& charge_spin,
-                        const bool atomic) {
+  virtual void computew(
+      std::vector<double>& ener,
+      std::vector<double>& force,
+      std::vector<double>& virial,
+      std::vector<double>& atom_energy,
+      std::vector<double>& atom_virial,
+      const std::vector<double>& coord,
+      const std::vector<int>& atype,
+      const std::vector<double>& box,
+      const int nghost,
+      const InputNlist& inlist,
+      const int& ago,
+      const std::vector<double>& fparam,
+      const std::vector<double>& uparam = std::vector<double>(),
+      const std::vector<double>& aparam = std::vector<double>(),
+      const std::vector<double>& charge_spin = std::vector<double>(),
+      const bool atomic = false) {
     computew(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-             nghost, inlist, ago, fparam, aparam, atomic);
+             nghost, inlist, ago, fparam, uparam, aparam, atomic);
   }
-  virtual void computew(std::vector<double>& ener,
-                        std::vector<float>& force,
-                        std::vector<float>& virial,
-                        std::vector<float>& atom_energy,
-                        std::vector<float>& atom_virial,
-                        const std::vector<float>& coord,
-                        const std::vector<int>& atype,
-                        const std::vector<float>& box,
-                        const int nghost,
-                        const InputNlist& inlist,
-                        const int& ago,
-                        const std::vector<float>& fparam,
-                        const std::vector<float>& aparam,
-                        const std::vector<double>& charge_spin,
-                        const bool atomic) {
+  virtual void computew(
+      std::vector<double>& ener,
+      std::vector<float>& force,
+      std::vector<float>& virial,
+      std::vector<float>& atom_energy,
+      std::vector<float>& atom_virial,
+      const std::vector<float>& coord,
+      const std::vector<int>& atype,
+      const std::vector<float>& box,
+      const int nghost,
+      const InputNlist& inlist,
+      const int& ago,
+      const std::vector<float>& fparam,
+      const std::vector<float>& uparam = std::vector<float>(),
+      const std::vector<float>& aparam = std::vector<float>(),
+      const std::vector<double>& charge_spin = std::vector<double>(),
+      const bool atomic = false) {
     computew(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-             nghost, inlist, ago, fparam, aparam, atomic);
+             nghost, inlist, ago, fparam, uparam, aparam, atomic);
   }
-  virtual void computew_mixed_type(std::vector<double>& ener,
-                                   std::vector<double>& force,
-                                   std::vector<double>& virial,
-                                   std::vector<double>& atom_energy,
-                                   std::vector<double>& atom_virial,
-                                   const int& nframes,
-                                   const std::vector<double>& coord,
-                                   const std::vector<int>& atype,
-                                   const std::vector<double>& box,
-                                   const std::vector<double>& fparam,
-                                   const std::vector<double>& aparam,
-                                   const std::vector<double>& charge_spin,
-                                   const bool atomic) {
+  virtual void computew_mixed_type(
+      std::vector<double>& ener,
+      std::vector<double>& force,
+      std::vector<double>& virial,
+      std::vector<double>& atom_energy,
+      std::vector<double>& atom_virial,
+      const int& nframes,
+      const std::vector<double>& coord,
+      const std::vector<int>& atype,
+      const std::vector<double>& box,
+      const std::vector<double>& fparam,
+      const std::vector<double>& uparam = std::vector<double>(),
+      const std::vector<double>& aparam = std::vector<double>(),
+      const std::vector<double>& charge_spin = std::vector<double>(),
+      const bool atomic = false) {
     computew_mixed_type(ener, force, virial, atom_energy, atom_virial, nframes,
-                        coord, atype, box, fparam, aparam, atomic);
+                        coord, atype, box, fparam, uparam, aparam, atomic);
   }
-  virtual void computew_mixed_type(std::vector<double>& ener,
-                                   std::vector<float>& force,
-                                   std::vector<float>& virial,
-                                   std::vector<float>& atom_energy,
-                                   std::vector<float>& atom_virial,
-                                   const int& nframes,
-                                   const std::vector<float>& coord,
-                                   const std::vector<int>& atype,
-                                   const std::vector<float>& box,
-                                   const std::vector<float>& fparam,
-                                   const std::vector<float>& aparam,
-                                   const std::vector<double>& charge_spin,
-                                   const bool atomic) {
+  virtual void computew_mixed_type(
+      std::vector<double>& ener,
+      std::vector<float>& force,
+      std::vector<float>& virial,
+      std::vector<float>& atom_energy,
+      std::vector<float>& atom_virial,
+      const int& nframes,
+      const std::vector<float>& coord,
+      const std::vector<int>& atype,
+      const std::vector<float>& box,
+      const std::vector<float>& fparam,
+      const std::vector<float>& uparam = std::vector<float>(),
+      const std::vector<float>& aparam = std::vector<float>(),
+      const std::vector<double>& charge_spin = std::vector<double>(),
+      const bool atomic = false) {
     computew_mixed_type(ener, force, virial, atom_energy, atom_virial, nframes,
-                        coord, atype, box, fparam, aparam, atomic);
+                        coord, atype, box, fparam, uparam, aparam, atomic);
   }
   /**
    * @brief GPU-resident edge inference backend hook.
@@ -484,6 +518,10 @@ class DeepPot : public DeepBaseModel {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The uparam (DFT+U) parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   * uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -502,6 +540,7 @@ class DeepPot : public DeepBaseModel {
                const std::vector<int>& atype,
                const std::vector<VALUETYPE>& box,
                const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+               const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
                const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
                const std::vector<double>& charge_spin = std::vector<double>());
   template <typename VALUETYPE>
@@ -512,6 +551,7 @@ class DeepPot : public DeepBaseModel {
                const std::vector<int>& atype,
                const std::vector<VALUETYPE>& box,
                const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+               const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
                const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
                const std::vector<double>& charge_spin = std::vector<double>());
   /** @} */
@@ -532,6 +572,10 @@ class DeepPot : public DeepBaseModel {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The uparam (DFT+U) parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   * uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -553,6 +597,7 @@ class DeepPot : public DeepBaseModel {
                const InputNlist& inlist,
                const int& ago,
                const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+               const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
                const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
                const std::vector<double>& charge_spin = std::vector<double>());
   template <typename VALUETYPE>
@@ -566,6 +611,7 @@ class DeepPot : public DeepBaseModel {
                const InputNlist& inlist,
                const int& ago,
                const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+               const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
                const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
                const std::vector<double>& charge_spin = std::vector<double>());
   /** @} */
@@ -586,6 +632,10 @@ class DeepPot : public DeepBaseModel {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The uparam (DFT+U) parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   * uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -606,6 +656,7 @@ class DeepPot : public DeepBaseModel {
                const std::vector<int>& atype,
                const std::vector<VALUETYPE>& box,
                const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+               const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
                const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
                const std::vector<double>& charge_spin = std::vector<double>());
   template <typename VALUETYPE>
@@ -618,6 +669,7 @@ class DeepPot : public DeepBaseModel {
                const std::vector<int>& atype,
                const std::vector<VALUETYPE>& box,
                const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+               const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
                const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
                const std::vector<double>& charge_spin = std::vector<double>());
   /** @} */
@@ -642,6 +694,10 @@ class DeepPot : public DeepBaseModel {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The uparam (DFT+U) parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   * uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -665,6 +721,7 @@ class DeepPot : public DeepBaseModel {
                const InputNlist& lmp_list,
                const int& ago,
                const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+               const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
                const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
                const std::vector<double>& charge_spin = std::vector<double>());
   template <typename VALUETYPE>
@@ -680,6 +737,7 @@ class DeepPot : public DeepBaseModel {
                const InputNlist& lmp_list,
                const int& ago,
                const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+               const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
                const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
                const std::vector<double>& charge_spin = std::vector<double>());
   /** @} */
@@ -700,6 +758,10 @@ class DeepPot : public DeepBaseModel {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The uparam (DFT+U) parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   * uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -720,6 +782,7 @@ class DeepPot : public DeepBaseModel {
       const std::vector<int>& atype,
       const std::vector<VALUETYPE>& box,
       const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+      const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
       const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
       const std::vector<double>& charge_spin = std::vector<double>());
   template <typename VALUETYPE>
@@ -732,6 +795,7 @@ class DeepPot : public DeepBaseModel {
       const std::vector<int>& atype,
       const std::vector<VALUETYPE>& box,
       const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+      const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
       const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
       const std::vector<double>& charge_spin = std::vector<double>());
   /** @} */
@@ -754,6 +818,10 @@ class DeepPot : public DeepBaseModel {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The uparam (DFT+U) parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   * uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -776,6 +844,7 @@ class DeepPot : public DeepBaseModel {
       const std::vector<int>& atype,
       const std::vector<VALUETYPE>& box,
       const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+      const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
       const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
       const std::vector<double>& charge_spin = std::vector<double>());
   template <typename VALUETYPE>
@@ -790,6 +859,7 @@ class DeepPot : public DeepBaseModel {
       const std::vector<int>& atype,
       const std::vector<VALUETYPE>& box,
       const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+      const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
       const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
       const std::vector<double>& charge_spin = std::vector<double>());
   /** @} */
@@ -985,6 +1055,10 @@ class DeepPotModelDevi : public DeepBaseModelDevi {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The uparam (DFT+U) parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   * uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -1003,6 +1077,7 @@ class DeepPotModelDevi : public DeepBaseModelDevi {
                const std::vector<int>& atype,
                const std::vector<VALUETYPE>& box,
                const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+               const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
                const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
                const std::vector<double>& charge_spin = std::vector<double>());
 
@@ -1023,6 +1098,10 @@ class DeepPotModelDevi : public DeepBaseModelDevi {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The uparam (DFT+U) parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   * uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -1043,6 +1122,7 @@ class DeepPotModelDevi : public DeepBaseModelDevi {
                const std::vector<int>& atype,
                const std::vector<VALUETYPE>& box,
                const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+               const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
                const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
                const std::vector<double>& charge_spin = std::vector<double>());
 
@@ -1063,6 +1143,10 @@ class DeepPotModelDevi : public DeepBaseModelDevi {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The uparam (DFT+U) parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   * uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -1084,6 +1168,7 @@ class DeepPotModelDevi : public DeepBaseModelDevi {
                const InputNlist& lmp_list,
                const int& ago,
                const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+               const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
                const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
                const std::vector<double>& charge_spin = std::vector<double>());
   /**
@@ -1106,6 +1191,10 @@ class DeepPotModelDevi : public DeepBaseModelDevi {
    * nframes x dim_fparam.
    * dim_fparam. Then all frames are assumed to be provided with the same
    *fparam.
+   * @param[in] uparam The uparam (DFT+U) parameter. The array can be of size :
+   * nframes x dim_uparam.
+   * dim_uparam. Then all frames are assumed to be provided with the same
+   * uparam.
    * @param[in] aparam The atomic parameter The array can be of size :
    * nframes x natoms x dim_aparam.
    * natoms x dim_aparam. Then all frames are assumed to be provided with the
@@ -1129,6 +1218,7 @@ class DeepPotModelDevi : public DeepBaseModelDevi {
                const InputNlist& lmp_list,
                const int& ago,
                const std::vector<VALUETYPE>& fparam = std::vector<VALUETYPE>(),
+               const std::vector<VALUETYPE>& uparam = std::vector<VALUETYPE>(),
                const std::vector<VALUETYPE>& aparam = std::vector<VALUETYPE>(),
                const std::vector<double>& charge_spin = std::vector<double>());
 

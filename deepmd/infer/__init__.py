@@ -1,4 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
+from .deep_dpu import (
+    DeepDpU,
+)
 from .deep_eval import (
     DeepEval,
 )
@@ -10,6 +13,7 @@ from .model_devi import (
 )
 
 __all__ = [
+    "DeepDpU",
     "DeepEval",
     "DeepPot",
     "DeepPotential",

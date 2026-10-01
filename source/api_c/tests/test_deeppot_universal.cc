@@ -149,8 +149,8 @@ void check_compute_double(DP_DeepPot* dp,
   std::vector<double> atomic_energy(natoms);
   std::vector<double> atomic_virial(natoms * 9);
   DP_DeepPotCompute2(dp, 1, natoms, coord.data(), atype.data(), box.data(),
-                     nullptr, nullptr, &energy, force.data(), virial.data(),
-                     atomic_energy.data(), atomic_virial.data());
+                     nullptr, nullptr, nullptr, &energy, force.data(),
+                     virial.data(), atomic_energy.data(), atomic_virial.data());
 
   EXPECT_NEAR(energy, deepmd_test::total_energy(ref), tol);
   for (int ii = 0; ii < natoms * 3; ++ii) {
@@ -184,8 +184,9 @@ void check_compute_float(DP_DeepPot* dp,
   std::vector<float> atomic_energy(natoms);
   std::vector<float> atomic_virial(natoms * 9);
   DP_DeepPotComputef2(dp, 1, natoms, coord.data(), atype.data(), box.data(),
-                      nullptr, nullptr, &energy, force.data(), virial.data(),
-                      atomic_energy.data(), atomic_virial.data());
+                      nullptr, nullptr, nullptr, &energy, force.data(),
+                      virial.data(), atomic_energy.data(),
+                      atomic_virial.data());
 
   EXPECT_NEAR(energy, deepmd_test::total_energy(ref), tol);
   for (int ii = 0; ii < natoms * 3; ++ii) {
@@ -287,8 +288,9 @@ void check_fparam_compute_double(DP_DeepPot* dp,
   std::vector<double> atomic_energy(natoms);
   std::vector<double> atomic_virial(natoms * 9);
   DP_DeepPotCompute2(dp, 1, natoms, coord.data(), atype.data(), box.data(),
-                     fparam.data(), aparam.data(), &energy, force.data(),
-                     virial.data(), atomic_energy.data(), atomic_virial.data());
+                     fparam.data(), nullptr, aparam.data(), &energy,
+                     force.data(), virial.data(), atomic_energy.data(),
+                     atomic_virial.data());
 
   EXPECT_NEAR(energy, deepmd_test::total_energy(ref), tol);
   for (int ii = 0; ii < natoms * 3; ++ii) {
@@ -327,8 +329,8 @@ void check_fparam_compute_float(DP_DeepPot* dp,
   std::vector<float> atomic_energy(natoms);
   std::vector<float> atomic_virial(natoms * 9);
   DP_DeepPotComputef2(dp, 1, natoms, coord.data(), atype.data(), box.data(),
-                      fparam.data(), aparam.data(), &energy, force.data(),
-                      virial.data(), atomic_energy.data(),
+                      fparam.data(), nullptr, aparam.data(), &energy,
+                      force.data(), virial.data(), atomic_energy.data(),
                       atomic_virial.data());
 
   EXPECT_NEAR(energy, deepmd_test::total_energy(ref), tol);

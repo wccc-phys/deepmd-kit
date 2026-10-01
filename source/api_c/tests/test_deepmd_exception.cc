@@ -81,13 +81,14 @@ TEST(TestModelDeviCAPIExceptionBoundary,
       [&](DP_DeepPotModelDevi* model) {
         DP_DeepPotModelDeviCompute2(model, nframes, natoms, coord, atype,
                                     nullptr, nullptr, nullptr, nullptr, nullptr,
+                                    nullptr,
                                     nullptr, nullptr, nullptr);
       },
       check_pot);
   expect_model_devi_frame_error<DP_DeepPotModelDevi>(
       [&](DP_DeepPotModelDevi* model) {
         DP_DeepPotModelDeviComputef2(model, nframes, natoms, coordf, atype,
-                                     nullptr, nullptr, nullptr, nullptr,
+                                     nullptr, nullptr, nullptr, nullptr, nullptr,
                                      nullptr, nullptr, nullptr, nullptr);
       },
       check_pot);
@@ -95,14 +96,16 @@ TEST(TestModelDeviCAPIExceptionBoundary,
       [&](DP_DeepSpinModelDevi* model) {
         DP_DeepSpinModelDeviCompute2(
             model, nframes, natoms, coord, spin, atype, nullptr, nullptr,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr,
+                                    nullptr, nullptr, nullptr);
       },
       check_spin);
   expect_model_devi_frame_error<DP_DeepSpinModelDevi>(
       [&](DP_DeepSpinModelDevi* model) {
         DP_DeepSpinModelDeviComputef2(
             model, nframes, natoms, coordf, spinf, atype, nullptr, nullptr,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr,
+                                    nullptr, nullptr, nullptr);
       },
       check_spin);
 
@@ -110,30 +113,42 @@ TEST(TestModelDeviCAPIExceptionBoundary,
       [&](DP_DeepPotModelDevi* model) {
         DP_DeepPotModelDeviComputeNList2(
             model, nframes, natoms, coord, atype, nullptr, 0, &nlist, 0,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr,
+                                    nullptr, nullptr, nullptr);
       },
       check_pot);
   expect_model_devi_frame_error<DP_DeepPotModelDevi>(
       [&](DP_DeepPotModelDevi* model) {
         DP_DeepPotModelDeviComputeNListf2(
             model, nframes, natoms, coordf, atype, nullptr, 0, &nlist, 0,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr,
+                                    nullptr, nullptr, nullptr);
       },
       check_pot);
   expect_model_devi_frame_error<DP_DeepSpinModelDevi>(
       [&](DP_DeepSpinModelDevi* model) {
         DP_DeepSpinModelDeviComputeNList2(model, nframes, natoms, coord, spin,
-                                          atype, nullptr, 0, &nlist, 0, nullptr,
-                                          nullptr, nullptr, nullptr, nullptr,
-                                          nullptr, nullptr, nullptr);
+                                          atype, /*cell=*/nullptr,
+                                          /*nghost=*/0, /*nlist=*/&nlist,
+                                          /*ago=*/0, /*fparam=*/nullptr,
+                                          /*aparam=*/nullptr, /*uparam=*/nullptr,
+                                          /*energy=*/nullptr, /*force=*/nullptr,
+                                          /*force_mag=*/nullptr, /*virial=*/nullptr,
+                                          /*atom_energy=*/nullptr,
+                                          /*atomic_virial=*/nullptr);
       },
       check_spin);
   expect_model_devi_frame_error<DP_DeepSpinModelDevi>(
       [&](DP_DeepSpinModelDevi* model) {
         DP_DeepSpinModelDeviComputeNListf2(model, nframes, natoms, coordf,
-                                           spinf, atype, nullptr, 0, &nlist, 0,
-                                           nullptr, nullptr, nullptr, nullptr,
-                                           nullptr, nullptr, nullptr, nullptr);
+                                           spinf, atype, /*cell=*/nullptr,
+                                           /*nghost=*/0, /*nlist=*/&nlist,
+                                           /*ago=*/0, /*fparam=*/nullptr,
+                                           /*aparam=*/nullptr, /*uparam=*/nullptr,
+                                           /*energy=*/nullptr, /*force=*/nullptr,
+                                           /*force_mag=*/nullptr, /*virial=*/nullptr,
+                                           /*atom_energy=*/nullptr,
+                                           /*atomic_virial=*/nullptr);
       },
       check_spin);
 
@@ -141,20 +156,20 @@ TEST(TestModelDeviCAPIExceptionBoundary,
       [&](DP_DeepPotModelDevi* model) {
         DP_DeepPotModelDeviCompute3(
             model, nframes, natoms, coord, atype, nullptr, nullptr, nullptr,
-            charge_spin, nullptr, nullptr, nullptr, nullptr, nullptr);
+            nullptr, charge_spin, nullptr, nullptr, nullptr, nullptr, nullptr);
       },
       check_pot);
   expect_model_devi_frame_error<DP_DeepPotModelDevi>(
       [&](DP_DeepPotModelDevi* model) {
         DP_DeepPotModelDeviComputef3(
             model, nframes, natoms, coordf, atype, nullptr, nullptr, nullptr,
-            charge_spinf, nullptr, nullptr, nullptr, nullptr, nullptr);
+            nullptr, charge_spinf, nullptr, nullptr, nullptr, nullptr, nullptr);
       },
       check_pot);
   expect_model_devi_frame_error<DP_DeepPotModelDevi>(
       [&](DP_DeepPotModelDevi* model) {
         DP_DeepPotModelDeviComputeNList3(model, nframes, natoms, coord, atype,
-                                         nullptr, 0, &nlist, 0, nullptr,
+                                         nullptr, 0, &nlist, 0, nullptr, nullptr,
                                          nullptr, charge_spin, nullptr, nullptr,
                                          nullptr, nullptr, nullptr);
       },
@@ -162,9 +177,9 @@ TEST(TestModelDeviCAPIExceptionBoundary,
   expect_model_devi_frame_error<DP_DeepPotModelDevi>(
       [&](DP_DeepPotModelDevi* model) {
         DP_DeepPotModelDeviComputeNListf3(model, nframes, natoms, coordf, atype,
-                                          nullptr, 0, &nlist, 0, nullptr,
-                                          nullptr, charge_spinf, nullptr,
-                                          nullptr, nullptr, nullptr, nullptr);
+                                          nullptr, 0, &nlist, 0, nullptr, nullptr,
+                                          nullptr, charge_spinf, nullptr, nullptr,
+                                          nullptr, nullptr, nullptr);
       },
       check_pot);
 }
@@ -181,6 +196,7 @@ TEST_P(TestModelDeviInvalidFrameCount, rejects_every_count_except_one) {
         // otherwise zero/negative nframes could reach undefined pointer math.
         DP_DeepPotModelDeviCompute2(model, GetParam(), natoms, nullptr, nullptr,
                                     nullptr, nullptr, nullptr, nullptr, nullptr,
+                                    nullptr,
                                     nullptr, nullptr, nullptr);
       },
       [](DP_DeepPotModelDevi* model) {

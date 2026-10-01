@@ -113,6 +113,7 @@ class SeZMSpinModel(SeZMModel):
         spin: torch.Tensor,
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
@@ -124,6 +125,7 @@ class SeZMSpinModel(SeZMModel):
             spin,
             box=box,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             do_atomic_virial=do_atomic_virial,
             charge_spin=charge_spin,
@@ -149,6 +151,7 @@ class SeZMSpinModel(SeZMModel):
         spin: torch.Tensor,
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
@@ -156,10 +159,10 @@ class SeZMSpinModel(SeZMModel):
     ) -> dict[str, torch.Tensor]:
         """Return spin-aware SeZM predictions with internal output keys."""
         with nvtx_range("SeZMSpin/forward_common"):
-            cc, bb, fp, ap, input_prec = self._input_type_cast(
-                coord, box=box, fparam=fparam, aparam=aparam
+            cc, bb, fp, up, ap, input_prec = self._input_type_cast(
+                coord, box=box, fparam=fparam, uparam=uparam, aparam=aparam
             )
-            del coord, box, fparam, aparam
+            del coord, box, fparam, uparam, aparam
             atype = atype.to(device=cc.device, dtype=torch.long)
             nf, nloc = atype.shape[:2]
             if cc.ndim == 2:
@@ -210,6 +213,7 @@ class SeZMSpinModel(SeZMModel):
                 edge_schema.edge_scatter_index,
                 edge_schema.edge_mask,
                 fparam=fp,
+                uparam=up,
                 aparam=ap,
                 # Slicing the doubled-extended correction down to the local
                 # region yields a stride-(2*nall*3, ...) view; the compiled
@@ -234,6 +238,7 @@ class SeZMSpinModel(SeZMModel):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         comm_dict: dict[str, torch.Tensor] | None = None,
@@ -247,6 +252,7 @@ class SeZMSpinModel(SeZMModel):
             nlist,
             mapping=mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             comm_dict=comm_dict,
             charge_spin=charge_spin,
@@ -278,6 +284,7 @@ class SeZMSpinModel(SeZMModel):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         comm_dict: dict[str, torch.Tensor] | None = None,
         extra_nlist_sort: bool = False,
@@ -323,6 +330,7 @@ class SeZMSpinModel(SeZMModel):
             edge_schema.edge_scatter_index,
             edge_schema.edge_mask,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             comm_dict=comm_dict,
             extended_coord_corr=extended_coord_corr,
@@ -338,6 +346,7 @@ class SeZMSpinModel(SeZMModel):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         charge_spin: torch.Tensor | None = None,
     ) -> torch.nn.Module:
@@ -351,6 +360,7 @@ class SeZMSpinModel(SeZMModel):
             nlist_: torch.Tensor,
             mapping_: torch.Tensor | None,
             fparam_: torch.Tensor | None,
+            uparam_: torch.Tensor | None,
             aparam_: torch.Tensor | None,
             charge_spin_: torch.Tensor | None,
         ) -> dict[str, torch.Tensor]:
@@ -362,6 +372,7 @@ class SeZMSpinModel(SeZMModel):
                 nlist_,
                 mapping_,
                 fparam=fparam_,
+                uparam=uparam_,
                 aparam=aparam_,
                 extra_nlist_sort=extra_sort,
                 charge_spin=charge_spin_,
@@ -374,6 +385,7 @@ class SeZMSpinModel(SeZMModel):
             nlist_: torch.Tensor,
             mapping_: torch.Tensor | None,
             fparam_: torch.Tensor | None,
+            uparam_: torch.Tensor | None,
             aparam_: torch.Tensor | None,
             charge_spin_: torch.Tensor | None,
         ) -> dict[str, torch.Tensor]:
@@ -384,6 +396,7 @@ class SeZMSpinModel(SeZMModel):
                 nlist_,
                 mapping_,
                 fparam_,
+                uparam_,
                 aparam_,
                 charge_spin_,
             )
@@ -395,6 +408,7 @@ class SeZMSpinModel(SeZMModel):
             nlist,
             mapping,
             fparam,
+            uparam,
             aparam,
         )
         if self.get_dim_chg_spin() > 0:

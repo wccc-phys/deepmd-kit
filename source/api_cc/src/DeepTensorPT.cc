@@ -197,8 +197,9 @@ void DeepTensorPT::compute(std::vector<VALUETYPE>& global_tensor,
   inputs.push_back(atype_tensor);
   inputs.push_back(box_tensor);
 
-  // Add None for fparam and aparam (not used by tensor models)
+  // Add None for fparam, uparam and aparam (not used by tensor models)
   inputs.push_back(torch::jit::IValue());  // fparam = None
+  inputs.push_back(torch::jit::IValue());  // uparam = None
   inputs.push_back(torch::jit::IValue());  // aparam = None
   inputs.push_back(request_deriv);         // do_atomic_virial
 
@@ -321,6 +322,7 @@ void DeepTensorPT::compute(std::vector<VALUETYPE>& global_tensor,
 
   bool do_atom_virial_tensor = request_deriv;
   c10::optional<torch::Tensor> fparam_tensor;
+  c10::optional<torch::Tensor> uparam_tensor;
   c10::optional<torch::Tensor> aparam_tensor;
   c10::optional<torch::Tensor> mapping_tensor;
 
@@ -329,7 +331,7 @@ void DeepTensorPT::compute(std::vector<VALUETYPE>& global_tensor,
       module
           .run_method("forward_lower", coord_wrapped_Tensor, atype_Tensor,
                       firstneigh_tensor, mapping_tensor, fparam_tensor,
-                      aparam_tensor, do_atom_virial_tensor)
+                      uparam_tensor, aparam_tensor, do_atom_virial_tensor)
           .toGenericDict();
 
   // Extract outputs following DeepPotPT pattern

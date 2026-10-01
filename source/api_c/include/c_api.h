@@ -492,6 +492,8 @@ extern bool DP_DeepPotUsesCanonicalGraphInference(DP_DeepPot* dp);
  *NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  * natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -512,6 +514,7 @@ extern void DP_DeepPotCompute2(DP_DeepPot* dp,
                                const double* cell,
                                const double* fparam,
                                const double* aparam,
+                               const double* uparam,
                                double* energy,
                                double* force,
                                double* virial,
@@ -534,6 +537,8 @@ extern void DP_DeepPotCompute2(DP_DeepPot* dp,
  *NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  * natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -558,6 +563,7 @@ extern void DP_DeepSpinCompute2(DP_DeepSpin* dp,
                                 const double* cell,
                                 const double* fparam,
                                 const double* aparam,
+                                const double* uparam,
                                 double* energy,
                                 double* force,
                                 double* force_mag,
@@ -578,6 +584,8 @@ extern void DP_DeepSpinCompute2(DP_DeepSpin* dp,
  *NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  * natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -598,6 +606,7 @@ extern void DP_DeepPotComputef2(DP_DeepPot* dp,
                                 const float* cell,
                                 const float* fparam,
                                 const float* aparam,
+                                const float* uparam,
                                 double* energy,
                                 float* force,
                                 float* virial,
@@ -620,6 +629,8 @@ extern void DP_DeepPotComputef2(DP_DeepPot* dp,
  *NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  * natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -644,6 +655,7 @@ extern void DP_DeepSpinComputef2(DP_DeepSpin* dp,
                                  const float* cell,
                                  const float* fparam,
                                  const float* aparam,
+                                 const float* uparam,
                                  double* energy,
                                  float* force,
                                  float* force_mag,
@@ -668,6 +680,8 @@ extern void DP_DeepSpinComputef2(DP_DeepSpin* dp,
  * @param[in] ago Update the internal neighbour list if ago is 0.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  * natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -691,6 +705,7 @@ extern void DP_DeepPotComputeNList2(DP_DeepPot* dp,
                                     const int ago,
                                     const double* fparam,
                                     const double* aparam,
+                                    const double* uparam,
                                     double* energy,
                                     double* force,
                                     double* virial,
@@ -716,6 +731,8 @@ extern void DP_DeepPotComputeNList2(DP_DeepPot* dp,
  * @param[in] ago Update the internal neighbour list if ago is 0.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  * natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -743,6 +760,7 @@ extern void DP_DeepSpinComputeNList2(DP_DeepSpin* dp,
                                      const int ago,
                                      const double* fparam,
                                      const double* aparam,
+                                     const double* uparam,
                                      double* energy,
                                      double* force,
                                      double* force_mag,
@@ -767,6 +785,8 @@ extern void DP_DeepSpinComputeNList2(DP_DeepSpin* dp,
  * @param[in] ago Update the internal neighbour list if ago is 0.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  * natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -790,6 +810,7 @@ extern void DP_DeepPotComputeNListf2(DP_DeepPot* dp,
                                      const int ago,
                                      const float* fparam,
                                      const float* aparam,
+                                     const float* uparam,
                                      double* energy,
                                      float* force,
                                      float* virial,
@@ -810,6 +831,8 @@ extern void DP_DeepPotComputeNListf2(DP_DeepPot* dp,
  *9. Pass NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[in] charge_spin The per-frame charge/spin input. The array can be of
@@ -835,6 +858,7 @@ extern void DP_DeepPotCompute3(DP_DeepPot* dp,
                                const double* cell,
                                const double* fparam,
                                const double* aparam,
+                               const double* uparam,
                                const double* charge_spin,
                                double* energy,
                                double* force,
@@ -856,6 +880,8 @@ extern void DP_DeepPotCompute3(DP_DeepPot* dp,
  *9. Pass NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[in] charge_spin The per-frame charge/spin input. The array can be of
@@ -881,6 +907,7 @@ extern void DP_DeepPotComputef3(DP_DeepPot* dp,
                                 const float* cell,
                                 const float* fparam,
                                 const float* aparam,
+                                const float* uparam,
                                 const float* charge_spin,
                                 double* energy,
                                 float* force,
@@ -905,6 +932,8 @@ extern void DP_DeepPotComputef3(DP_DeepPot* dp,
  * @param[in] ago Update the internal neighbour list if ago is 0.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[in] charge_spin The per-frame charge/spin input. The array can be of
@@ -933,6 +962,7 @@ extern void DP_DeepPotComputeNList3(DP_DeepPot* dp,
                                     const int ago,
                                     const double* fparam,
                                     const double* aparam,
+                                    const double* uparam,
                                     const double* charge_spin,
                                     double* energy,
                                     double* force,
@@ -957,6 +987,8 @@ extern void DP_DeepPotComputeNList3(DP_DeepPot* dp,
  * @param[in] ago Update the internal neighbour list if ago is 0.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[in] charge_spin The per-frame charge/spin input. The array can be of
@@ -985,6 +1017,7 @@ extern void DP_DeepPotComputeNListf3(DP_DeepPot* dp,
                                      const int ago,
                                      const float* fparam,
                                      const float* aparam,
+                                     const float* uparam,
                                      const float* charge_spin,
                                      double* energy,
                                      float* force,
@@ -1011,6 +1044,8 @@ extern void DP_DeepPotComputeNListf3(DP_DeepPot* dp,
  * @param[in] ago Update the internal neighbour list if ago is 0.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  * natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -1038,6 +1073,7 @@ extern void DP_DeepSpinComputeNListf2(DP_DeepSpin* dp,
                                       const int ago,
                                       const float* fparam,
                                       const float* aparam,
+                                      const float* uparam,
                                       double* energy,
                                       float* force,
                                       float* force_mag,
@@ -1087,6 +1123,7 @@ extern void DP_DeepSpinCompute3(DP_DeepSpin* dp,
                                 const double* cell,
                                 const double* fparam,
                                 const double* aparam,
+                                const double* uparam,
                                 const double* charge_spin,
                                 double* energy,
                                 double* force,
@@ -1137,6 +1174,7 @@ extern void DP_DeepSpinComputef3(DP_DeepSpin* dp,
                                  const float* cell,
                                  const float* fparam,
                                  const float* aparam,
+                                 const float* uparam,
                                  const float* charge_spin,
                                  double* energy,
                                  float* force,
@@ -1193,6 +1231,7 @@ extern void DP_DeepSpinComputeNList3(DP_DeepSpin* dp,
                                      const int ago,
                                      const double* fparam,
                                      const double* aparam,
+                                     const double* uparam,
                                      const double* charge_spin,
                                      double* energy,
                                      double* force,
@@ -1249,6 +1288,7 @@ extern void DP_DeepSpinComputeNListf3(DP_DeepSpin* dp,
                                       const int ago,
                                       const float* fparam,
                                       const float* aparam,
+                                      const float* uparam,
                                       const float* charge_spin,
                                       double* energy,
                                       float* force,
@@ -1324,6 +1364,8 @@ extern bool DP_DeepSpinUsesNativeSpinScheme(DP_DeepSpin* dp);
  *NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  * natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -1344,6 +1386,7 @@ extern void DP_DeepPotComputeMixedType(DP_DeepPot* dp,
                                        const double* cell,
                                        const double* fparam,
                                        const double* aparam,
+                                       const double* uparam,
                                        double* energy,
                                        double* force,
                                        double* virial,
@@ -1363,6 +1406,8 @@ extern void DP_DeepPotComputeMixedType(DP_DeepPot* dp,
  *NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  * natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -1383,6 +1428,7 @@ extern void DP_DeepPotComputeMixedTypef(DP_DeepPot* dp,
                                         const float* cell,
                                         const float* fparam,
                                         const float* aparam,
+                                        const float* uparam,
                                         double* energy,
                                         float* force,
                                         float* virial,
@@ -1549,6 +1595,8 @@ extern void DP_DeepPotModelDeviComputef(DP_DeepPotModelDevi* dp,
  *NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -1569,7 +1617,8 @@ void DP_DeepPotModelDeviCompute2(DP_DeepPotModelDevi* dp,
                                  const double* cell,
                                  const double* fparam,
                                  const double* aparam,
-                                 double* energy,
+                                 const double* uparam,
+                                                                  double* energy,
                                  double* force,
                                  double* virial,
                                  double* atomic_energy,
@@ -1591,6 +1640,8 @@ void DP_DeepPotModelDeviCompute2(DP_DeepPotModelDevi* dp,
  *NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[out] energy Output energies of all models. The array should be of size
@@ -1618,6 +1669,7 @@ void DP_DeepSpinModelDeviCompute2(DP_DeepSpinModelDevi* dp,
                                   const double* cell,
                                   const double* fparam,
                                   const double* aparam,
+                                  const double* uparam,
                                   double* energy,
                                   double* force,
                                   double* force_mag,
@@ -1638,6 +1690,8 @@ void DP_DeepSpinModelDeviCompute2(DP_DeepSpinModelDevi* dp,
  *NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -1658,7 +1712,8 @@ void DP_DeepPotModelDeviComputef2(DP_DeepPotModelDevi* dp,
                                   const float* cell,
                                   const float* fparam,
                                   const float* aparam,
-                                  double* energy,
+                                  const float* uparam,
+                                                                    double* energy,
                                   float* force,
                                   float* virial,
                                   float* atomic_energy,
@@ -1680,6 +1735,8 @@ void DP_DeepPotModelDeviComputef2(DP_DeepPotModelDevi* dp,
  *NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[out] energy Output energies of all models. The array should be of size
@@ -1707,6 +1764,7 @@ void DP_DeepSpinModelDeviComputef2(DP_DeepSpinModelDevi* dp,
                                    const float* cell,
                                    const float* fparam,
                                    const float* aparam,
+                                   const float* uparam,
                                    double* energy,
                                    float* force,
                                    float* force_mag,
@@ -1806,6 +1864,8 @@ extern void DP_DeepPotModelDeviComputeNListf(DP_DeepPotModelDevi* dp,
  * @param[in] ago Update the internal neighbour list if ago is 0.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -1829,7 +1889,8 @@ void DP_DeepPotModelDeviComputeNList2(DP_DeepPotModelDevi* dp,
                                       const int ago,
                                       const double* fparam,
                                       const double* aparam,
-                                      double* energy,
+                                                const double* uparam,
+                                                                                      double* energy,
                                       double* force,
                                       double* virial,
                                       double* atomic_energy,
@@ -1854,6 +1915,8 @@ void DP_DeepPotModelDeviComputeNList2(DP_DeepPotModelDevi* dp,
  * @param[in] ago Update the internal neighbour list if ago is 0.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[out] energy Output energies of all models. The array should be of size
@@ -1884,6 +1947,7 @@ void DP_DeepSpinModelDeviComputeNList2(DP_DeepSpinModelDevi* dp,
                                        const int ago,
                                        const double* fparam,
                                        const double* aparam,
+                                       const double* uparam,
                                        double* energy,
                                        double* force,
                                        double* force_mag,
@@ -1908,6 +1972,8 @@ void DP_DeepSpinModelDeviComputeNList2(DP_DeepSpinModelDevi* dp,
  * @param[in] ago Update the internal neighbour list if ago is 0.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[out] energy Output energy.
@@ -1931,7 +1997,8 @@ void DP_DeepPotModelDeviComputeNListf2(DP_DeepPotModelDevi* dp,
                                        const int ago,
                                        const float* fparam,
                                        const float* aparam,
-                                       double* energy,
+                                                          const float* uparam,
+                                                          double* energy,
                                        float* force,
                                        float* virial,
                                        float* atomic_energy,
@@ -1951,6 +2018,8 @@ void DP_DeepPotModelDeviComputeNListf2(DP_DeepPotModelDevi* dp,
  *NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[in] charge_spin The per-frame charge/spin input. The array should be
@@ -1976,6 +2045,7 @@ void DP_DeepPotModelDeviCompute3(DP_DeepPotModelDevi* dp,
                                  const int* atype,
                                  const double* cell,
                                  const double* fparam,
+                                 const double* uparam,
                                  const double* aparam,
                                  const double* charge_spin,
                                  double* energy,
@@ -1998,6 +2068,8 @@ void DP_DeepPotModelDeviCompute3(DP_DeepPotModelDevi* dp,
  *NULL if pbc is not used.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[in] charge_spin The per-frame charge/spin input. The array should be
@@ -2023,6 +2095,7 @@ void DP_DeepPotModelDeviComputef3(DP_DeepPotModelDevi* dp,
                                   const int* atype,
                                   const float* cell,
                                   const float* fparam,
+                                  const float* uparam,
                                   const float* aparam,
                                   const float* charge_spin,
                                   double* energy,
@@ -2048,6 +2121,8 @@ void DP_DeepPotModelDeviComputef3(DP_DeepPotModelDevi* dp,
  * @param[in] ago Update the internal neighbour list if ago is 0.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[in] charge_spin The per-frame charge/spin input. The array should be
@@ -2076,6 +2151,7 @@ void DP_DeepPotModelDeviComputeNList3(DP_DeepPotModelDevi* dp,
                                       const DP_Nlist* nlist,
                                       const int ago,
                                       const double* fparam,
+                                      const double* uparam,
                                       const double* aparam,
                                       const double* charge_spin,
                                       double* energy,
@@ -2101,6 +2177,8 @@ void DP_DeepPotModelDeviComputeNList3(DP_DeepPotModelDevi* dp,
  * @param[in] ago Update the internal neighbour list if ago is 0.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[in] charge_spin The per-frame charge/spin input. The array should be
@@ -2129,6 +2207,7 @@ void DP_DeepPotModelDeviComputeNListf3(DP_DeepPotModelDevi* dp,
                                        const DP_Nlist* nlist,
                                        const int ago,
                                        const float* fparam,
+                                       const float* uparam,
                                        const float* aparam,
                                        const float* charge_spin,
                                        double* energy,
@@ -2156,6 +2235,8 @@ void DP_DeepPotModelDeviComputeNListf3(DP_DeepPotModelDevi* dp,
  * @param[in] ago Update the internal neighbour list if ago is 0.
  * @param[in] fparam The frame parameters. The array can be of size nframes x
  *dim_fparam.
+ * @param[in] uparam The frame parameters. The array can be of size nframes x
+ *dim_uparam.
  * @param[in] aparam The atom parameters. The array can be of size nframes x
  *natoms x dim_aparam.
  * @param[out] energy Output energies of all models. The array should be of size
@@ -2185,6 +2266,7 @@ void DP_DeepSpinModelDeviComputeNListf2(DP_DeepSpinModelDevi* dp,
                                         const DP_Nlist* nlist,
                                         const int ago,
                                         const float* fparam,
+                                        const float* uparam,
                                         const float* aparam,
                                         double* energy,
                                         float* force,
@@ -2239,6 +2321,7 @@ void DP_DeepSpinModelDeviCompute3(DP_DeepSpinModelDevi* dp,
                                   const double* cell,
                                   const double* fparam,
                                   const double* aparam,
+                                  const double* uparam,
                                   const double* charge_spin,
                                   double* energy,
                                   double* force,
@@ -2293,6 +2376,7 @@ void DP_DeepSpinModelDeviComputef3(DP_DeepSpinModelDevi* dp,
                                    const float* cell,
                                    const float* fparam,
                                    const float* aparam,
+                                   const float* uparam,
                                    const float* charge_spin,
                                    double* energy,
                                    float* force,
@@ -2353,6 +2437,7 @@ void DP_DeepSpinModelDeviComputeNList3(DP_DeepSpinModelDevi* dp,
                                        const int ago,
                                        const double* fparam,
                                        const double* aparam,
+                                       const double* uparam,
                                        const double* charge_spin,
                                        double* energy,
                                        double* force,
@@ -2413,6 +2498,7 @@ void DP_DeepSpinModelDeviComputeNListf3(DP_DeepSpinModelDevi* dp,
                                         const int ago,
                                         const float* fparam,
                                         const float* aparam,
+                                        const float* uparam,
                                         const float* charge_spin,
                                         double* energy,
                                         float* force,
@@ -2463,6 +2549,14 @@ int DP_DeepBaseModelGetDimFParam(DP_DeepBaseModel* dpbase);
 int DP_DeepBaseModelGetDimAParam(DP_DeepBaseModel* dpbase);
 
 /**
+ * @brief Get the dimension of the DFT+U parameter of a DP.
+ * @param[in] dpbase The DP to use.
+ * @return The dimension of the DFT+U parameter of the DP.
+ * @since API version 24
+ */
+int DP_DeepBaseModelGetDimUParam(DP_DeepBaseModel* dpbase);
+
+/**
  * @brief Check whether the atomic dimension of atomic parameters is nall
  * instead of nloc.
  *
@@ -2482,6 +2576,27 @@ bool DP_DeepBaseModelIsAParamNAll(DP_DeepBaseModel* dpbase);
  * @since API version 26
  */
 bool DP_DeepBaseModelHasDefaultFParam(DP_DeepBaseModel* dpbase);
+
+/**
+ * @brief Check if the model has default DFT+U parameters.
+ *
+ * @param[in] dpbase The DP to use.
+ * @return true the model has default DFT+U parameters
+ * @return false the model does not have default DFT+U parameters
+ * @since API version 24
+ */
+bool DP_DeepBaseModelHasDefaultUParam(DP_DeepBaseModel* dpbase);
+
+/**
+ * @brief Set the DFT+U parameter for a DP.
+ * @param[in] dpbase The DP to use.
+ * @param[in] uparam The DFT+U parameter array.
+ * @param[in] size The size of the uparam array.
+ * @since API version 24
+ */
+void DP_DeepBaseModelSetUParaM(DP_DeepBaseModel* dpbase,
+                               const double* uparam,
+                               int size);
 
 /**
  * @brief Get the type map of a DP.
@@ -2516,6 +2631,14 @@ int DP_DeepBaseModelDeviGetDimFParam(DP_DeepBaseModelDevi* dpbase);
 int DP_DeepBaseModelDeviGetDimAParam(DP_DeepBaseModelDevi* dpbase);
 
 /**
+ * @brief Get the dimension of the DFT+U parameter of a DP Model Deviation.
+ * @param[in] dpbase The DP Model Deviation to use.
+ * @return The dimension of the DFT+U parameter of the DP Model Deviation.
+ * @since API version 24
+ */
+int DP_DeepBaseModelDeviGetDimUParam(DP_DeepBaseModelDevi* dpbase);
+
+/**
  * @brief Check whether the atomic dimension of atomic parameters is nall
  * instead of nloc.
  *
@@ -2535,6 +2658,27 @@ bool DP_DeepBaseModelDeviIsAParamNAll(DP_DeepBaseModelDevi* dpbase);
  * @since API version 26
  */
 bool DP_DeepBaseModelDeviHasDefaultFParam(DP_DeepBaseModelDevi* dpbase);
+
+/**
+ * @brief Check if the model deviation has default DFT+U parameters.
+ *
+ * @param[in] dpbase The DP Model Deviation to use.
+ * @return true the model has default DFT+U parameters
+ * @return false the model does not have default DFT+U parameters
+ * @since API version 24
+ */
+bool DP_DeepBaseModelDeviHasDefaultUParam(DP_DeepBaseModelDevi* dpbase);
+
+/**
+ * @brief Set the DFT+U parameter for a DP Model Deviation.
+ * @param[in] dpbase The DP Model Deviation to use.
+ * @param[in] uparam The DFT+U parameter array.
+ * @param[in] size The size of the uparam array.
+ * @since API version 24
+ */
+void DP_DeepBaseModelDeviSetUParaM(DP_DeepBaseModelDevi* dpbase,
+                                   const double* uparam,
+                                   int size);
 
 /**
  * @brief Get the type map of a DP model deviation.
@@ -2648,6 +2792,23 @@ bool DP_DeepPotIsAParamNAll(DP_DeepPot* dp);
 bool DP_DeepPotHasDefaultFParam(DP_DeepPot* dp);
 
 /**
+ * @brief Check if the DP has default DFT+U parameters.
+ * @param[in] dp The DP to use.
+ * @return true the model has default DFT+U parameters
+ * @return false the model does not have default DFT+U parameters
+ * @since API version 24
+ */
+bool DP_DeepPotHasDefaultUParaM(DP_DeepPot* dp);
+
+/**
+ * @brief Get the dimension of the DFT+U parameter of a DP.
+ * @param[in] dp The DP to use.
+ * @return The dimension of the DFT+U parameter of the DP.
+ * @since API version 24
+ */
+int DP_DeepPotGetDimUParaM(DP_DeepPot* dp);
+
+/**
  * @brief Get the type map of a DP.
  * @param[in] dp The DP to use.
  * @return The type map of the DP.
@@ -2715,6 +2876,23 @@ bool DP_DeepPotModelDeviIsAParamNAll(DP_DeepPotModelDevi* dp);
  * @since API version 26
  */
 bool DP_DeepPotModelDeviHasDefaultFParam(DP_DeepPotModelDevi* dp);
+
+/**
+ * @brief Check if the DP model deviation has default DFT+U parameters.
+ * @param[in] dp The DP model deviation to use.
+ * @return true the model has default DFT+U parameters
+ * @return false the model does not have default DFT+U parameters
+ * @since API version 24
+ */
+bool DP_DeepPotModelDeviHasDefaultUParaM(DP_DeepPotModelDevi* dp);
+
+/**
+ * @brief Get the dimension of the DFT+U parameter of a DP Model Deviation.
+ * @param[in] dp The DP Model Deviation to use.
+ * @return The dimension of the DFT+U parameter of the DP Model Deviation.
+ * @since API version 24
+ */
+int DP_DeepPotModelDeviGetDimUParaM(DP_DeepPotModelDevi* dp);
 
 /**
  * @brief Get the type map of a DP model deviation.
@@ -2830,6 +3008,23 @@ bool DP_DeepSpinIsAParamNAll(DP_DeepSpin* dp);
 bool DP_DeepSpinHasDefaultFParam(DP_DeepSpin* dp);
 
 /**
+ * @brief Check if the DP Spin Model has default DFT+U parameters.
+ * @param[in] dp The DP Spin Model to use.
+ * @return true the model has default DFT+U parameters
+ * @return false the model does not have default DFT+U parameters
+ * @since API version 24
+ */
+bool DP_DeepSpinHasDefaultUParaM(DP_DeepSpin* dp);
+
+/**
+ * @brief Get the dimension of the DFT+U parameter of a DP Spin Model.
+ * @param[in] dp The DP Spin Model to use.
+ * @return The dimension of the DFT+U parameter of the DP Spin Model.
+ * @since API version 24
+ */
+int DP_DeepSpinGetDimUParaM(DP_DeepSpin* dp);
+
+/**
  * @brief Get the type map of a DP Spin Model.
  * @param[in] dp The DP Spin Model to use.
  * @return The type map of the DP Spin Model.
@@ -2903,6 +3098,23 @@ bool DP_DeepSpinModelDeviIsAParamNAll(DP_DeepSpinModelDevi* dp);
  * @since API version 26
  */
 bool DP_DeepSpinModelDeviHasDefaultFParam(DP_DeepSpinModelDevi* dp);
+
+/**
+ * @brief Check if the DP Spin Model Deviation has default DFT+U parameters.
+ * @param[in] dp The DP Spin Model Deviation to use.
+ * @return true the model has default DFT+U parameters
+ * @return false the model does not have default DFT+U parameters
+ * @since API version 24
+ */
+bool DP_DeepSpinModelDeviHasDefaultUParaM(DP_DeepSpinModelDevi* dp);
+
+/**
+ * @brief Get the dimension of the DFT+U parameter of a DP Spin Model Deviation.
+ * @param[in] dp The DP Spin Model Deviation to use.
+ * @return The dimension of the DFT+U parameter of the DP Spin Model Deviation.
+ * @since API version 24
+ */
+int DP_DeepSpinModelDeviGetDimUParaM(DP_DeepSpinModelDevi* dp);
 
 /**
  * @brief Get the type map of a DP model deviation.

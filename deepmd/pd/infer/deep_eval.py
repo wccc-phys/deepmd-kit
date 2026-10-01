@@ -220,6 +220,20 @@ class DeepEval(DeepEvalBackend):
             return self.dp.get_buffer_dim_fparam()
         return self.dp.model["Default"].get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this DP."""
+        if self.static_model:
+            return self.dp.get_buffer_dim_uparam()
+        return self.dp.model["Default"].get_dim_uparam()
+
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default uparam."""
+        try:
+            return self.dp.model["Default"].has_default_uparam()
+        except AttributeError:
+            # for compatibility with old models
+            return False
+
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this DP."""
         if self.static_model:
@@ -355,6 +369,11 @@ class DeepEval(DeepEvalBackend):
             - nframes x natoms x dim_aparam.
             - natoms x dim_aparam. Then all frames are assumed to be provided with the same aparam.
             - dim_aparam. Then all frames and atoms are provided with the same aparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         **kwargs
             Other parameters
 
@@ -375,7 +394,7 @@ class DeepEval(DeepEvalBackend):
         request_defs = self._get_request_defs(atomic)
         if "spin" not in kwargs or kwargs["spin"] is None:
             out = self._eval_func(self._eval_model, numb_test, natoms)(
-                coords, cells, atom_types, fparam, aparam, request_defs
+                coords, cells, atom_types, fparam, aparam, uparam, request_defs
             )
         else:
             out = self._eval_func(self._eval_model_spin, numb_test, natoms)(
@@ -385,6 +404,7 @@ class DeepEval(DeepEvalBackend):
                 np.array(kwargs["spin"]),
                 fparam,
                 aparam,
+                uparam,
                 request_defs,
             )
         return dict(
@@ -479,6 +499,7 @@ class DeepEval(DeepEvalBackend):
         atom_types: np.ndarray,
         fparam: np.ndarray | None,
         aparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         request_defs: list[OutputVariableDef],
     ) -> tuple[np.ndarray, ...]:
         if not self.static_model:
@@ -514,6 +535,11 @@ class DeepEval(DeepEvalBackend):
                     "aparam_input is not supported for .json files. Please use a .pd file instead."
                 )
 
+            if uparam is not None:
+                raise NotImplementedError(
+                    "uparam_input is not supported for .json files. Please use a .pd file instead."
+                )
+
         else:
             coord_input = paddle.to_tensor(
                 coords.reshape([nframes, natoms, 3]).astype(prec),
@@ -547,6 +573,12 @@ class DeepEval(DeepEvalBackend):
                 )
             else:
                 aparam_input = None
+            if uparam is not None:
+                uparam_input = to_paddle_tensor(
+                    uparam.reshape([nframes, self.get_dim_uparam()])
+                )
+            else:
+                uparam_input = None
 
         do_atomic_virial = any(
             x.category == OutputVariableCategory.DERV_C for x in request_defs
@@ -570,6 +602,7 @@ class DeepEval(DeepEvalBackend):
                 do_atomic_virial=do_atomic_virial,
                 fparam=fparam_input,
                 aparam=aparam_input,
+                uparam=uparam_input,
             )
             if isinstance(batch_output, tuple):
                 batch_output = batch_output[0]
@@ -598,6 +631,7 @@ class DeepEval(DeepEvalBackend):
         spins: np.ndarray,
         fparam: np.ndarray | None,
         aparam: np.ndarray | None,
+        uparam: np.ndarray | None,
         request_defs: list[OutputVariableDef],
     ) -> tuple[np.ndarray, ...]:
         model = self.dp.to(DEVICE)
@@ -640,6 +674,12 @@ class DeepEval(DeepEvalBackend):
             )
         else:
             aparam_input = None
+        if uparam is not None:
+            uparam_input = to_paddle_tensor(
+                uparam.reshape([nframes, self.get_dim_uparam()])
+            )
+        else:
+            uparam_input = None
 
         do_atomic_virial = any(
             x.category == OutputVariableCategory.DERV_C_REDU for x in request_defs
@@ -652,6 +692,7 @@ class DeepEval(DeepEvalBackend):
             do_atomic_virial=do_atomic_virial,
             fparam=fparam_input,
             aparam=aparam_input,
+            uparam=uparam_input,
         )
         if isinstance(batch_output, tuple):
             batch_output = batch_output[0]
@@ -833,6 +874,11 @@ class DeepEval(DeepEvalBackend):
             - nframes x natoms x dim_aparam.
             - natoms x dim_aparam. Then all frames are assumed to be provided with the same aparam.
             - dim_aparam. Then all frames and atoms are provided with the same aparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
 
         Returns
         -------
@@ -901,6 +947,11 @@ class DeepEval(DeepEvalBackend):
             - nframes x natoms x dim_aparam.
             - natoms x dim_aparam. Then all frames are assumed to be provided with the same aparam.
             - dim_aparam. Then all frames and atoms are provided with the same aparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
 
         Returns
         -------

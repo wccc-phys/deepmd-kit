@@ -122,6 +122,7 @@ _FRAME_LEVEL_KEYS = frozenset(
         "energy",
         "virial",
         "fparam",
+        "uparam",
         "charge_spin",
         "natoms",
         "real_natoms_vec",
@@ -1009,7 +1010,7 @@ def decode_lmdb_frame(
                     np.repeat(frame[key], repeat).reshape(-1).astype(dtype, copy=False)
                 )
 
-    for key in ("fparam", "aparam", "spin", "charge_spin"):
+    for key in ("fparam", "uparam", "aparam", "spin", "charge_spin"):
         frame.setdefault(
             f"find_{key}",
             np.float32(1.0 if key in frame else 0.0),

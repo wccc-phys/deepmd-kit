@@ -170,6 +170,14 @@ class BaseAtomicModel(paddle.nn.Layer, BaseAtomicModel_):
         """Check if the model has default frame parameters."""
         return False
 
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default uparam."""
+        return False
+
+    def get_default_uparam(self) -> paddle.Tensor | None:
+        """Get the default uparam tensor."""
+        return None
+
     def reinit_atom_exclude(
         self,
         exclude_types: list[int] | None = None,
@@ -274,6 +282,8 @@ class BaseAtomicModel(paddle.nn.Layer, BaseAtomicModel_):
             frame parameters, shape: nf x dim_fparam
         aparam
             atomic parameter, shape: nf x nloc x dim_aparam
+        uparam
+            DFT+U parameters, shape: nf x dim_uparam
         comm_dict
             The data needed for communication for parallel inference.
         charge_spin

@@ -50,6 +50,7 @@ class SpinEnergyModel(SpinModel):
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
@@ -59,6 +60,7 @@ class SpinEnergyModel(SpinModel):
             spin,
             box,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
@@ -87,6 +89,7 @@ class SpinEnergyModel(SpinModel):
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
@@ -97,6 +100,7 @@ class SpinEnergyModel(SpinModel):
             nlist,
             mapping=mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
@@ -129,6 +133,7 @@ class SpinEnergyModel(SpinModel):
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
         **make_fx_kwargs: Any,
@@ -161,6 +166,7 @@ class SpinEnergyModel(SpinModel):
             nlist,
             mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
@@ -179,6 +185,7 @@ class SpinEnergyModel(SpinModel):
             nlist: torch.Tensor,
             mapping: torch.Tensor | None,
             fparam: torch.Tensor | None,
+            uparam: torch.Tensor | None,
             aparam: torch.Tensor | None,
             charge_spin: torch.Tensor | None,
         ) -> dict[str, torch.Tensor]:
@@ -189,6 +196,7 @@ class SpinEnergyModel(SpinModel):
                 nlist,
                 mapping,
                 fparam,
+                uparam,
                 aparam,
                 charge_spin,
             )
@@ -219,5 +227,6 @@ class SpinEnergyModel(SpinModel):
             mapping,
             fparam,
             aparam,
+            uparam,
             charge_spin,
         )

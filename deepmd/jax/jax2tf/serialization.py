@@ -58,6 +58,7 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
                 tf.TensorSpec([None, None, None], tf.int64),
                 tf.TensorSpec([None, None], tf.int64),
                 tf.TensorSpec([None, model.get_dim_fparam()], tf.float64),
+                tf.TensorSpec([None, model.get_dim_uparam()], tf.float64),
                 tf.TensorSpec([None, None, model.get_dim_aparam()], tf.float64),
             ]
             if has_chg_spin:
@@ -70,6 +71,7 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
                 tf.TensorSpec([None, None], tf.int32),
                 tf.TensorSpec([None, None, None], tf.float64),
                 tf.TensorSpec([None, model.get_dim_fparam()], tf.float64),
+                tf.TensorSpec([None, model.get_dim_uparam()], tf.float64),
                 tf.TensorSpec([None, None, model.get_dim_aparam()], tf.float64),
             ]
             if has_chg_spin:
@@ -82,10 +84,11 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
             nlist: tf.Tensor,
             mapping: tf.Tensor,
             fparam: tf.Tensor,
+            uparam: tf.Tensor,
             aparam: tf.Tensor,
             charge_spin: tf.Tensor | None,
         ) -> tuple[tf.Tensor, ...]:
-            args = (coord, atype, nlist, mapping, fparam, aparam)
+            args = (coord, atype, nlist, mapping, fparam, uparam, aparam)
             if has_chg_spin:
                 assert charge_spin is not None
                 args = (*args, charge_spin)
@@ -152,6 +155,7 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
                 f"(nf, nloc, {model.get_nnei()})",
                 f"(nf, nloc + {nghost})",
                 f"(nf, {model.get_dim_fparam()})",
+                f"(nf, {model.get_dim_uparam()})",
                 f"(nf, nloc, {model.get_dim_aparam()})",
             ]
             if has_chg_spin:
@@ -169,11 +173,14 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
             nlist: tf.Tensor,
             mapping: tf.Tensor,
             fparam: tf.Tensor,
+            uparam: tf.Tensor,
             aparam: tf.Tensor,
             charge_spin: tf.Tensor | None = None,
         ) -> dict[str, tf.Tensor]:
             nlist = format_nlist(coord, nlist, model.get_nnei(), model.get_rcut())
-            args = lower_args(coord, atype, nlist, mapping, fparam, aparam, charge_spin)
+            args = lower_args(
+                coord, atype, nlist, mapping, fparam, uparam, aparam, charge_spin
+            )
             return tf.cond(
                 tf.shape(coord)[1] == tf.shape(nlist)[1],
                 lambda: exported_whether_do_atomic_virial(
@@ -193,11 +200,12 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
                 nlist: tf.Tensor,
                 mapping: tf.Tensor,
                 fparam: tf.Tensor,
+                uparam: tf.Tensor,
                 aparam: tf.Tensor,
                 charge_spin: tf.Tensor,
             ) -> dict[str, tf.Tensor]:
                 return dispatch_call_lower(
-                    False, coord, atype, nlist, mapping, fparam, aparam, charge_spin
+                    False, coord, atype, nlist, mapping, fparam, uparam, aparam, charge_spin
                 )
 
         else:
@@ -209,10 +217,11 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
                 nlist: tf.Tensor,
                 mapping: tf.Tensor,
                 fparam: tf.Tensor,
+                uparam: tf.Tensor,
                 aparam: tf.Tensor,
             ) -> dict[str, tf.Tensor]:
                 return dispatch_call_lower(
-                    False, coord, atype, nlist, mapping, fparam, aparam
+                    False, coord, atype, nlist, mapping, fparam, uparam, aparam
                 )
 
         tf_model.call_lower = call_lower_without_atomic_virial
@@ -226,11 +235,12 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
                 nlist: tf.Tensor,
                 mapping: tf.Tensor,
                 fparam: tf.Tensor,
+                uparam: tf.Tensor,
                 aparam: tf.Tensor,
                 charge_spin: tf.Tensor,
             ) -> dict[str, tf.Tensor]:
                 return dispatch_call_lower(
-                    True, coord, atype, nlist, mapping, fparam, aparam, charge_spin
+                    True, coord, atype, nlist, mapping, fparam, uparam, aparam, charge_spin
                 )
 
         else:
@@ -242,10 +252,11 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
                 nlist: tf.Tensor,
                 mapping: tf.Tensor,
                 fparam: tf.Tensor,
+                uparam: tf.Tensor,
                 aparam: tf.Tensor,
             ) -> dict[str, tf.Tensor]:
                 return dispatch_call_lower(
-                    True, coord, atype, nlist, mapping, fparam, aparam
+                    True, coord, atype, nlist, mapping, fparam, uparam, aparam
                 )
 
         tf_model.call_lower_atomic_virial = call_lower_with_atomic_virial
@@ -309,6 +320,7 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
                 atype: tf.Tensor,
                 box: tf.Tensor,
                 fparam: tf.Tensor,
+                uparam: tf.Tensor,
                 aparam: tf.Tensor,
             ) -> dict[str, tf.Tensor]:
                 return make_call_whether_do_atomic_virial(do_atomic_virial=True)(
@@ -340,6 +352,7 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
                 atype: tf.Tensor,
                 box: tf.Tensor,
                 fparam: tf.Tensor,
+                uparam: tf.Tensor,
                 aparam: tf.Tensor,
             ) -> dict[str, tf.Tensor]:
                 return make_call_whether_do_atomic_virial(do_atomic_virial=False)(
@@ -365,6 +378,12 @@ def deserialize_to_file(model_file: str, data: dict, hessian: bool = False) -> N
             return tf.constant(model.get_dim_fparam(), dtype=tf.int64)
 
         tf_model.get_dim_fparam = get_dim_fparam
+
+        @tf.function
+        def get_dim_uparam() -> tf.Tensor:
+            return tf.constant(model.get_dim_uparam(), dtype=tf.int64)
+
+        tf_model.get_dim_uparam = get_dim_uparam
 
         @tf.function
         def get_dim_aparam() -> tf.Tensor:

@@ -514,12 +514,19 @@ def _resolve_auto_neuron(
     *,
     dim_descrpt: int,
     numb_fparam: int,
+    numb_uparam: int,
     numb_aparam: int,
     dim_case_embd: int,
     case_film_embd: bool,
     use_aparam_as_mask: bool,
 ) -> list[int]:
-    """Resolve SeZM fitting hidden widths, using 0 as the auto-width marker."""
+    """Resolve SeZM fitting hidden widths, using 0 as the auto-width marker.
+
+    The input dimension accounts for the descriptor width, frame parameters
+    (``numb_fparam``), DFT+U parameters (``numb_uparam``), atomic parameters,
+    and case embedding, so the auto-scaled width reflects the full fitting net
+    input dimension.
+    """
     resolved_neuron = [0] if neuron is None else [int(width) for width in neuron]
     if any(width < 0 for width in resolved_neuron):
         raise ValueError("`fitting_net.neuron` entries must be >= 0")
@@ -529,6 +536,7 @@ def _resolve_auto_neuron(
     dim_in = (
         int(dim_descrpt)
         + int(numb_fparam)
+        + int(numb_uparam)
         + (0 if use_aparam_as_mask else int(numb_aparam))
         + case_dim
     )
@@ -543,7 +551,10 @@ class SeZMEnergyFittingNet(InvarFitting):
     SeZM energy fitting with GLU hidden layers.
 
     This uses the same configuration keys as the standard energy fitting
-    but replaces hidden MLP layers with GLU blocks.
+    but replaces hidden MLP layers with GLU blocks.  It supports frame
+    parameters (``fparam``), DFT+U parameters (``uparam``), and atomic
+    parameters (``aparam``) as external conditioning inputs, with optional
+    case FiLM modulation.
     """
 
     def __init__(
@@ -564,12 +575,58 @@ class SeZMEnergyFittingNet(InvarFitting):
         seed: int | list[int] | None = None,
         type_map: list[str] | None = None,
         default_fparam: list | None = None,
+        default_uparam: float | None = None,
         **kwargs: Any,
     ) -> None:
+        """Initialize the SeZM energy fitting network.
+
+        Parameters
+        ----------
+        ntypes
+            Number of atom types.
+        dim_descrpt
+            Descriptor output dimension.
+        neuron
+            Hidden layer sizes. ``0`` or ``None`` triggers auto-scaling.
+        bias_atom_e
+            Per-type energy bias.
+        resnet_dt
+            Whether to use residual-dt connections.
+        numb_fparam
+            Number of frame parameters.
+        numb_uparam
+            Number of DFT+U parameters. ``numb_uparam`` is derived from
+            ``default_uparam``: set to 1 when a default is provided,
+            otherwise 0.
+        numb_aparam
+            Number of atomic parameters.
+        dim_case_embd
+            Case one-hot embedding dimension.
+        case_film_embd
+            Whether to use case FiLM modulation.
+        activation_function
+            Activation function.
+        bias_out
+            Whether the output projection has bias.
+        precision
+            Numerical precision.
+        mixed_types
+            Whether to use mixed-type fitting networks.
+        seed
+            Random seed.
+        type_map
+            Element type map.
+        default_fparam
+            Default frame parameter values.
+        default_uparam
+            Default DFT+U parameter value. The number of DFT+U parameters
+            (``numb_uparam``) is set to 1 when this is provided, otherwise 0.
+        """
         neuron = _resolve_auto_neuron(
             neuron,
             dim_descrpt=dim_descrpt,
             numb_fparam=numb_fparam,
+            numb_uparam=int(default_uparam is not None),
             numb_aparam=numb_aparam,
             dim_case_embd=dim_case_embd,
             case_film_embd=case_film_embd,
@@ -592,6 +649,7 @@ class SeZMEnergyFittingNet(InvarFitting):
             seed=seed,
             type_map=type_map,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
             **kwargs,
         )
         self.bias_out = bool(bias_out)
@@ -600,10 +658,14 @@ class SeZMEnergyFittingNet(InvarFitting):
 
     def _build_glu_fitting_layers(self) -> None:
         # === Step 1. Derive input/output dimensions ===
+        # The fitting net input is the concatenation of the descriptor with
+        # frame parameters (fparam), DFT+U parameter (uparam), atomic
+        # parameters (aparam), and the case embedding.
         case_dim = 0 if self.case_film_embd else self.dim_case_embd
         in_dim = (
             self.dim_descrpt
             + self.numb_fparam
+            + self.numb_uparam
             + (0 if self.use_aparam_as_mask else self.numb_aparam)
             + case_dim
         )
@@ -644,11 +706,12 @@ class SeZMEnergyFittingNet(InvarFitting):
         g2: torch.Tensor | None = None,
         h2: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         vacuum_descriptor: torch.Tensor | None = None,
         return_atomic_feature: bool = False,
     ) -> dict[str, torch.Tensor]:
-        """Run the SeZM fitting path with optional case FiLM."""
+        """Run the SeZM fitting path with optional case FiLM (uparam via parent class path)."""
         if not self.case_film_embd:
             return super()._forward_common(
                 descriptor,
@@ -657,6 +720,7 @@ class SeZMEnergyFittingNet(InvarFitting):
                 g2,
                 h2,
                 fparam,
+                uparam,
                 aparam,
                 vacuum_descriptor=vacuum_descriptor,
                 return_atomic_feature=return_atomic_feature,
@@ -665,6 +729,7 @@ class SeZMEnergyFittingNet(InvarFitting):
             descriptor,
             atype,
             fparam,
+            uparam,
             aparam,
             vacuum_descriptor=vacuum_descriptor,
             return_atomic_feature=return_atomic_feature,
@@ -675,6 +740,7 @@ class SeZMEnergyFittingNet(InvarFitting):
         descriptor: torch.Tensor,
         atype: torch.Tensor,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         vacuum_descriptor: torch.Tensor | None = None,
         return_atomic_feature: bool = False,
@@ -689,7 +755,9 @@ class SeZMEnergyFittingNet(InvarFitting):
         atype
             Atom types with shape (nf, nloc).
         fparam
-            Frame parameters with shape (nf, numb_fparam).
+            Frame parameters with shape (nf, numb_fparam). See also ``uparam``.
+        uparam
+            DFT+U parameters with shape (nf, numb_uparam).
         aparam
             Atomic parameters with shape (nf, nloc, numb_aparam).
         vacuum_descriptor
@@ -714,7 +782,7 @@ class SeZMEnergyFittingNet(InvarFitting):
         # The case embedding modulates the hidden features through FiLM and is
         # not concatenated to the input; the atoms and their vacuum references
         # share the remaining conditioning columns.
-        cond = self.conditioning_columns(nf, nloc, fparam, aparam, None)
+        cond = self.conditioning_columns(nf, nloc, fparam, uparam, aparam, None)
         # ``remove_vaccum_contribution`` subtracts the network output for a zero
         # descriptor under the same conditioning columns.
         xx_zeros = (

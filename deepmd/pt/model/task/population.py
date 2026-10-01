@@ -46,6 +46,8 @@ class PopulationFittingNet(InvarFitting):
         Using time-step in the ResNet construction.
     numb_fparam : int
         Number of frame parameters.
+    numb_uparam : int
+        Number of DFT+U parameters (0 or 1).
     numb_aparam : int
         Number of atomic parameters.
     dim_case_embd : int
@@ -73,6 +75,7 @@ class PopulationFittingNet(InvarFitting):
         neuron: list[int] | None = None,
         resnet_dt: bool = True,
         numb_fparam: int = 0,
+        numb_uparam: int = 0,
         numb_aparam: int = 0,
         dim_case_embd: int = 0,
         activation_function: str = "tanh",
@@ -94,6 +97,7 @@ class PopulationFittingNet(InvarFitting):
             resnet_dt=resnet_dt,
             dim_out=2,
             numb_fparam=numb_fparam,
+            numb_uparam=numb_uparam,
             numb_aparam=numb_aparam,
             dim_case_embd=dim_case_embd,
             activation_function=activation_function,

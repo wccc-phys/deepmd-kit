@@ -517,6 +517,10 @@ class SpinModel(NativeOP):
         """Get the number (dimension) of frame parameters of this atomic model."""
         return self.backbone_model.get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return self.backbone_model.get_dim_uparam()
+
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""
         return self.backbone_model.get_dim_aparam()
@@ -677,6 +681,7 @@ class SpinModel(NativeOP):
         spin: Array,
         box: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         do_atomic_virial: bool = False,
         charge_spin: Array | None = None,
@@ -697,6 +702,8 @@ class SpinModel(NativeOP):
             The simulation box. shape: nf x 9
         fparam
             frame parameter. nf x ndf
+        uparam
+            DFT+U parameter. nf x 1
         aparam
             atomic parameter. nf x nloc x nda
         do_atomic_virial
@@ -725,6 +732,7 @@ class SpinModel(NativeOP):
             atype_updated,
             box,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
@@ -785,6 +793,7 @@ class SpinModel(NativeOP):
         spin: Array,
         box: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         do_atomic_virial: bool = False,
         charge_spin: Array | None = None,
@@ -805,6 +814,8 @@ class SpinModel(NativeOP):
             The simulation box. shape: nf x 9
         fparam
             frame parameter. nf x ndf
+        uparam
+            DFT+U parameter. nf x 1
         aparam
             atomic parameter. nf x nloc x nda
         do_atomic_virial
@@ -825,6 +836,7 @@ class SpinModel(NativeOP):
             spin,
             box,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
@@ -865,6 +877,7 @@ class SpinModel(NativeOP):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         do_atomic_virial: bool = False,
         comm_dict: dict | None = None,
@@ -889,6 +902,8 @@ class SpinModel(NativeOP):
             maps the extended indices to local indices. nf x nall.
         fparam
             frame parameter. nf x ndf
+        uparam
+            DFT+U parameter. nf x 1
         aparam
             atomic parameter. nf x nloc x nda
         do_atomic_virial
@@ -922,6 +937,7 @@ class SpinModel(NativeOP):
             nlist_updated,
             mapping=mapping_updated,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
@@ -983,6 +999,7 @@ class SpinModel(NativeOP):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         do_atomic_virial: bool = False,
         charge_spin: Array | None = None,
@@ -1003,6 +1020,8 @@ class SpinModel(NativeOP):
             maps the extended indices to local indices. nf x nall.
         fparam
             frame parameter. nf x ndf
+        uparam
+            DFT+U parameter. nf x 1
         aparam
             atomic parameter. nf x nloc x nda
         do_atomic_virial
@@ -1024,6 +1043,7 @@ class SpinModel(NativeOP):
             nlist,
             mapping=mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,

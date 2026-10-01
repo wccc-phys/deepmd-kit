@@ -407,6 +407,11 @@ class SpinModel(torch.nn.Module):
         return self.backbone_model.get_dim_fparam()
 
     @torch.jit.export
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return self.backbone_model.get_dim_uparam()
+
+    @torch.jit.export
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""
         return self.backbone_model.get_dim_aparam()
@@ -596,6 +601,7 @@ class SpinModel(torch.nn.Module):
         spin: torch.Tensor,
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
@@ -611,6 +617,7 @@ class SpinModel(torch.nn.Module):
             atype_updated,
             box,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
@@ -652,6 +659,7 @@ class SpinModel(torch.nn.Module):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         comm_dict: dict[str, torch.Tensor] | None = None,
@@ -676,6 +684,7 @@ class SpinModel(torch.nn.Module):
             nlist_updated,
             mapping=mapping_updated,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
@@ -775,6 +784,7 @@ class SpinEnergyModel(SpinModel):
         spin: torch.Tensor,
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
@@ -785,6 +795,7 @@ class SpinEnergyModel(SpinModel):
             spin,
             box,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
@@ -813,6 +824,7 @@ class SpinEnergyModel(SpinModel):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         comm_dict: dict[str, torch.Tensor] | None = None,
@@ -825,6 +837,7 @@ class SpinEnergyModel(SpinModel):
             nlist,
             mapping=mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,

@@ -101,6 +101,10 @@ def make_base_atomic_model(
             """Get the number (dimension) of frame parameters of this atomic model."""
 
         @abstractmethod
+        def get_dim_uparam(self) -> int:
+            """Get the number (dimension) of DFT+U parameters of this atomic model."""
+
+        @abstractmethod
         def get_dim_aparam(self) -> int:
             """Get the number (dimension) of atomic parameters of this atomic model."""
 
@@ -149,6 +153,7 @@ def make_base_atomic_model(
             nlist: t_tensor,
             mapping: t_tensor | None = None,
             fparam: t_tensor | None = None,
+            uparam: t_tensor | None = None,
             aparam: t_tensor | None = None,
             charge_spin: t_tensor | None = None,
         ) -> dict[str, t_tensor]:

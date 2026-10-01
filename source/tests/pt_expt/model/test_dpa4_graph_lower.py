@@ -463,7 +463,7 @@ class TestDpa4GraphLower:
             dtype=torch.float64,
             device=torch.device("cpu"),
         )
-        atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, ap, cs = sample
+        atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, up, ap, cs = sample
         traced = model.forward_lower_graph_exportable(
             atype,
             n_node,
@@ -483,7 +483,7 @@ class TestDpa4GraphLower:
             tracing_mode="symbolic",
             _allow_non_fake_inputs=True,
         )
-        out = traced(atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, ap, cs)
+        out = traced(atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, up, ap, cs)
         ref = model.forward_common_lower_graph(
             atype,
             n_node,
@@ -536,7 +536,7 @@ class TestDpa4GraphLower:
             dtype=torch.float64,
             device=torch.device("cpu"),
         )
-        atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, ap, cs = sample
+        atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, up, ap, cs = sample
         traced = model.forward_lower_graph_exportable(
             atype,
             n_node,
@@ -557,11 +557,11 @@ class TestDpa4GraphLower:
             _allow_non_fake_inputs=True,
         )
         dynamic_shapes = _build_graph_dynamic_shapes(
-            atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, ap, cs
+            atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, up, ap, cs
         )
         exported = torch.export.export(
             traced,
-            (atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, ap, cs),
+            (atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, up, ap, cs),
             dynamic_shapes=dynamic_shapes,
             strict=False,
             prefer_deferred_runtime_asserts_over_guards=True,
@@ -591,6 +591,7 @@ class TestDpa4GraphLower:
             s_so,
             s_srp,
             s_fp,
+            s_up,
             s_ap,
             s_cs,
         ) = small
@@ -606,6 +607,7 @@ class TestDpa4GraphLower:
             s_so,
             s_srp,
             s_fp,
+            s_up,
             s_ap,
             s_cs,
         )
@@ -670,7 +672,7 @@ class TestDpa4GraphLower:
             dtype=torch.float64,
             device=torch.device("cpu"),
         )
-        atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, ap, cs = sample
+        atype, n_node, n_local, ei, ev, em, do, drp, so, srp, fp, up, ap, cs = sample
 
         def _run(do_atomic_virial: bool) -> dict[str, torch.Tensor]:
             model_ret = model.forward_common_lower_graph(

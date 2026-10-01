@@ -34,7 +34,14 @@ def serialize_from_file(model_file: str) -> dict:
         saved_model = torch.jit.load(model_file, map_location="cpu")
         model_def_script = json.loads(saved_model.model_def_script)
         model = get_model(model_def_script)
-        model.load_state_dict(saved_model.state_dict())
+        src_state_dict = saved_model.state_dict()
+        # strip compression tensors when the model was not built with compression
+        # (e.g. a dp-compress'd model converted without the original training config).
+        # these tensors are not needed for model serialization (conversion).
+        compress_keys = [k for k in src_state_dict if "compress" in k]
+        for k in compress_keys:
+            src_state_dict.pop(k)
+        model.load_state_dict(src_state_dict, strict=False)
     elif model_file.endswith(".pt"):
         state_dict = torch.load(model_file, map_location="cpu", weights_only=True)
         if "model" in state_dict:

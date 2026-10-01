@@ -52,6 +52,9 @@ class PropertyFittingNet(InvarFitting):
             Number of frame parameter
     numb_aparam
             Number of atomic parameter
+    numb_uparam
+            Number of DFT+U parameters. Automatically set to 1 when
+            `default_uparam` is provided, otherwise 0.
     activation_function
             The activation function :math:`\boldsymbol{\phi}` in the embedding net. Supported options are |ACTIVATION_FN|
     precision
@@ -65,6 +68,8 @@ class PropertyFittingNet(InvarFitting):
     default_fparam: list[float], optional
             The default frame parameter. If set, when `fparam.npy` files are not included in the data system,
             this value will be used as the default value for the frame parameter in the fitting net.
+    default_uparam: float, optional
+            The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams.
     distinguish_types : bool
             Whether to distinguish atom types when computing output statistics.
     """
@@ -82,6 +87,7 @@ class PropertyFittingNet(InvarFitting):
         property_name: str = "property",
         resnet_dt: bool = True,
         numb_fparam: int = 0,
+        numb_uparam: int = 0,
         numb_aparam: int = 0,
         dim_case_embd: int = 0,
         activation_function: str = "tanh",
@@ -91,6 +97,7 @@ class PropertyFittingNet(InvarFitting):
         vacuum_ref: bool = False,
         type_map: list[str] | None = None,
         default_fparam: list | None = None,
+        default_uparam: float | None = None,
         distinguish_types: bool = True,
         # not used
         seed: int | None = None,
@@ -107,6 +114,7 @@ class PropertyFittingNet(InvarFitting):
             bias_atom=bias_atom_p,
             resnet_dt=resnet_dt,
             numb_fparam=numb_fparam,
+            numb_uparam=numb_uparam,
             numb_aparam=numb_aparam,
             dim_case_embd=dim_case_embd,
             rcond=rcond,
@@ -118,6 +126,7 @@ class PropertyFittingNet(InvarFitting):
             vacuum_ref=vacuum_ref,
             type_map=type_map,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
         )
 
     def output_def(self) -> FittingOutputDef:

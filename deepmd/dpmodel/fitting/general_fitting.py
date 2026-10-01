@@ -57,6 +57,10 @@ from .base_fitting import (
 )
 
 
+from deepmd.dpmodel.utils.fitting_params import (  # noqa: E402
+    FittingParams,
+)
+
 class GeneralFitting(NativeOP, BaseFitting):
     r"""General fitting class.
 
@@ -79,6 +83,9 @@ class GeneralFitting(NativeOP, BaseFitting):
             Number of frame parameter
     numb_aparam
             Number of atomic parameter
+    numb_uparam
+            Number of DFT+U parameters. Automatically set to 1 when
+            `default_uparam` is provided, otherwise 0.
     rcond
             The condition number for the regression of atomic energy.
     tot_ener_zero
@@ -121,6 +128,9 @@ class GeneralFitting(NativeOP, BaseFitting):
     default_fparam: list[float], optional
         The default frame parameter. If set, when `fparam.npy` files are not included in the data system,
         this value will be used as the default value for the frame parameter in the fitting net.
+        Analogous to `default_uparam` for DFT+U parameters.
+    default_uparam: float, optional
+        The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams.
     """
 
     # A deployment constant kept out of checkpoints; see
@@ -154,6 +164,9 @@ class GeneralFitting(NativeOP, BaseFitting):
         type_map: list[str] | None = None,
         seed: int | list[int] | None = None,
         default_fparam: list[float] | None = None,
+        default_uparam: float | None = None,
+        uparam_mode: str = "frame",
+        **kwargs: Any,
     ) -> None:
         self.var_name = var_name
         self.ntypes = ntypes
@@ -164,6 +177,18 @@ class GeneralFitting(NativeOP, BaseFitting):
         self.numb_aparam = numb_aparam
         self.dim_case_embd = dim_case_embd
         self.default_fparam = default_fparam
+        self.default_uparam = default_uparam
+        self.numb_uparam = int(self.default_uparam is not None)
+        self.uparam_mode = uparam_mode
+        if self.uparam_mode not in ("frame", "atomic", "orbital"):
+            raise ValueError(
+                f"Unsupported uparam_mode '{self.uparam_mode}'. "
+                "Supported options are: 'frame', 'atomic', 'orbital'."
+            )
+        if self.uparam_mode == "orbital":
+            raise NotImplementedError(
+                "Orbital uparam mode is not yet implemented. Reserved for future use."
+            )
         self.rcond = rcond
         self.tot_ener_zero = tot_ener_zero
         self.trainable = trainable
@@ -210,6 +235,11 @@ class GeneralFitting(NativeOP, BaseFitting):
             self.aparam_inv_std = np.ones(self.numb_aparam, dtype=self.prec)
         else:
             self.aparam_avg, self.aparam_inv_std = None, None
+        if self.numb_uparam > 0:
+            self.uparam_avg = np.zeros(self.numb_uparam, dtype=self.prec)
+            self.uparam_inv_std = np.ones(self.numb_uparam, dtype=self.prec)
+        else:
+            self.uparam_avg, self.uparam_inv_std = None, None
         if self.dim_case_embd > 0:
             self.case_embd = np.zeros(self.dim_case_embd, dtype=self.prec)
         else:
@@ -224,10 +254,18 @@ class GeneralFitting(NativeOP, BaseFitting):
             self.default_fparam_tensor = np.array(self.default_fparam, dtype=self.prec)
         else:
             self.default_fparam_tensor = None
+        if self.default_uparam is not None:
+            # numb_uparam is 1 when default_uparam is specified
+            self.default_uparam_tensor = np.array(
+                self.default_uparam, dtype=self.prec
+            ).reshape([1])
+        else:
+            self.default_uparam_tensor = None
         # init networks
         in_dim = (
             self.dim_descrpt
             + self.numb_fparam
+            + self.numb_uparam
             + (0 if self.use_aparam_as_mask else self.numb_aparam)
             + self.dim_case_embd
         )
@@ -275,10 +313,10 @@ class GeneralFitting(NativeOP, BaseFitting):
             The path to the stat file.
         """
         self._param_stats: dict[str, list[StatItem]] = {}
-        if self.numb_fparam == 0 and self.numb_aparam == 0:
+        if self.numb_fparam == 0 and self.numb_aparam == 0 and self.numb_uparam == 0:
             # skip data statistics
             return
-        # stat fparam
+        # stat fparam (optimized: streaming accumulation, no concat)
         if self.numb_fparam > 0:
             cached = load_required_items(stat_file_path, ["fparam"])
             if cached is not None:
@@ -287,25 +325,33 @@ class GeneralFitting(NativeOP, BaseFitting):
                 )
             else:
                 sampled = merged() if callable(merged) else merged
+                total_sum = None
+                total_sum2 = None
+                total_n = 0
+                xp_fp = None
                 for ii, frame in enumerate(sampled):
-                    if "find_fparam" not in frame:
-                        raise ValueError(
-                            f"numb_fparam > 0 but fparam is not acquired "
-                            f"for system {ii}."
-                        )
-                    if not frame["find_fparam"]:
+                    if not frame.get("find_fparam", False):
                         raise ValueError(
                             f"numb_fparam > 0 but no fparam data is provided "
                             f"for system {ii}."
                         )
-                xp_fp = array_api_compat.array_namespace(sampled[0]["fparam"])
-                cat_data = xp_fp.concat([frame["fparam"] for frame in sampled], axis=0)
-                cat_data = xp_fp.reshape(cat_data, (-1, self.numb_fparam))
+                    if xp_fp is None:
+                        xp_fp = array_api_compat.array_namespace(frame["fparam"])
+                    data = xp_fp.reshape(frame["fparam"], (-1, self.numb_fparam))
+                    frame_sum = xp_fp.sum(data, axis=0)
+                    frame_sum2 = xp_fp.sum(data * data, axis=0)
+                    total_n += data.shape[0]
+                    if total_sum is None:
+                        total_sum = frame_sum
+                        total_sum2 = frame_sum2
+                    else:
+                        total_sum = total_sum + frame_sum
+                        total_sum2 = total_sum2 + frame_sum2
                 fparam_stats = [
                     StatItem(
-                        number=cat_data.shape[0],
-                        sum=float(xp_fp.sum(cat_data[:, ii])),
-                        squared_sum=float(xp_fp.sum(cat_data[:, ii] ** 2)),
+                        number=total_n,
+                        sum=float(total_sum[ii]),
+                        squared_sum=float(total_sum2[ii]),
                     )
                     for ii in range(self.numb_fparam)
                 ]
@@ -333,7 +379,7 @@ class GeneralFitting(NativeOP, BaseFitting):
                 dtype=self.fparam_inv_std.dtype,
                 device=array_api_compat.device(self.fparam_inv_std),
             )
-        # stat aparam
+        # stat aparam (optimized: streaming accumulation, no concat)
         if self.numb_aparam > 0:
             cached = load_required_items(stat_file_path, ["aparam"])
             if cached is not None:
@@ -342,34 +388,33 @@ class GeneralFitting(NativeOP, BaseFitting):
                 )
             else:
                 sampled = merged() if callable(merged) else merged
+                total_sum = None
+                total_sum2 = None
+                total_n = 0
+                xp_ap = None
                 for ii, frame in enumerate(sampled):
-                    if "find_aparam" not in frame:
-                        raise ValueError(
-                            f"numb_aparam > 0 but aparam is not acquired "
-                            f"for system {ii}."
-                        )
-                    if not frame["find_aparam"]:
+                    if not frame.get("find_aparam", False):
                         raise ValueError(
                             f"numb_aparam > 0 but no aparam data is provided "
                             f"for system {ii}."
                         )
-                xp_ap = array_api_compat.array_namespace(sampled[0]["aparam"])
-                sys_sumv = []
-                sys_sumv2 = []
-                sys_sumn = []
-                for ss_ in [frame["aparam"] for frame in sampled]:
-                    ss = xp_ap.reshape(ss_, (-1, self.numb_aparam))
-                    sys_sumv.append(xp_ap.sum(ss, axis=0))
-                    sys_sumv2.append(xp_ap.sum(ss * ss, axis=0))
-                    sys_sumn.append(ss.shape[0])
-                sumv = xp_ap.sum(xp_ap.stack(sys_sumv), axis=0)
-                sumv2 = xp_ap.sum(xp_ap.stack(sys_sumv2), axis=0)
-                sumn = sum(sys_sumn)
+                    if xp_ap is None:
+                        xp_ap = array_api_compat.array_namespace(frame["aparam"])
+                    ss = xp_ap.reshape(frame["aparam"], (-1, self.numb_aparam))
+                    frame_sum = xp_ap.sum(ss, axis=0)
+                    frame_sum2 = xp_ap.sum(ss * ss, axis=0)
+                    total_n += ss.shape[0]
+                    if total_sum is None:
+                        total_sum = frame_sum
+                        total_sum2 = frame_sum2
+                    else:
+                        total_sum = total_sum + frame_sum
+                        total_sum2 = total_sum2 + frame_sum2
                 aparam_stats = [
                     StatItem(
-                        number=sumn,
-                        sum=float(sumv[ii]),
-                        squared_sum=float(sumv2[ii]),
+                        number=total_n,
+                        sum=float(total_sum[ii]),
+                        squared_sum=float(total_sum2[ii]),
                     )
                     for ii in range(self.numb_aparam)
                 ]
@@ -396,6 +441,74 @@ class GeneralFitting(NativeOP, BaseFitting):
                 aparam_inv_std,
                 dtype=self.aparam_inv_std.dtype,
                 device=array_api_compat.device(self.aparam_inv_std),
+            )
+        # stat uparam (optimized: streaming accumulation, no concat)
+        if self.numb_uparam > 0:
+            if (
+                stat_file_path is not None
+                and stat_file_path.is_dir()
+                and (stat_file_path / "uparam").is_file()
+            ):
+                uparam_stats = self._load_param_stats(
+                    (stat_file_path / "uparam").load_numpy(),
+                    "uparam",
+                    self.numb_uparam,
+                )
+            else:
+                sampled = merged() if callable(merged) else merged
+                total_sum = None
+                total_sum2 = None
+                total_n = 0
+                xp_up = None
+                for ii, frame in enumerate(sampled):
+                    if not frame.get("find_uparam", False):
+                        raise ValueError(
+                            f"numb_uparam > 0 but no uparam data is provided "
+                            f"for system {ii}."
+                        )
+                    if xp_up is None:
+                        xp_up = array_api_compat.array_namespace(frame["uparam"])
+                    data = xp_up.reshape(frame["uparam"], (-1, self.numb_uparam))
+                    frame_sum = xp_up.sum(data, axis=0)
+                    frame_sum2 = xp_up.sum(data * data, axis=0)
+                    total_n += data.shape[0]
+                    if total_sum is None:
+                        total_sum = frame_sum
+                        total_sum2 = frame_sum2
+                    else:
+                        total_sum = total_sum + frame_sum
+                        total_sum2 = total_sum2 + frame_sum2
+                uparam_stats = [
+                    StatItem(
+                        number=total_n,
+                        sum=float(total_sum[ii]),
+                        squared_sum=float(total_sum2[ii]),
+                    )
+                    for ii in range(self.numb_uparam)
+                ]
+                if stat_file_path is not None:
+                    self._save_param_stats_to_file(
+                        stat_file_path, "uparam", uparam_stats
+                    )
+            self._param_stats["uparam"] = uparam_stats
+            uparam_avg = np.array(
+                [s.compute_avg() for s in uparam_stats], dtype=np.float64
+            )
+            uparam_std = np.array(
+                [s.compute_std(protection=protection) for s in uparam_stats],
+                dtype=np.float64,
+            )
+            uparam_inv_std = 1.0 / uparam_std
+            xp = array_api_compat.array_namespace(self.uparam_avg)
+            self.uparam_avg = xp.asarray(
+                uparam_avg,
+                dtype=self.uparam_avg.dtype,
+                device=array_api_compat.device(self.uparam_avg),
+            )
+            self.uparam_inv_std = xp.asarray(
+                uparam_inv_std,
+                dtype=self.uparam_inv_std.dtype,
+                device=array_api_compat.device(self.uparam_inv_std),
             )
 
     @staticmethod
@@ -425,7 +538,7 @@ class GeneralFitting(NativeOP, BaseFitting):
         ]
 
     def get_param_stats(self) -> dict[str, list[StatItem]]:
-        """Get the stored fparam/aparam statistics (populated by compute_input_stats)."""
+        """Get the stored fparam/aparam/uparam statistics (populated by compute_input_stats)."""
         return getattr(self, "_param_stats", {})
 
     @abstractmethod
@@ -436,6 +549,14 @@ class GeneralFitting(NativeOP, BaseFitting):
     def get_dim_fparam(self) -> int:
         """Get the number (dimension) of frame parameters of this atomic model."""
         return self.numb_fparam
+
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return self.numb_uparam
+
+    def get_uparam_mode(self) -> str:
+        """Get the mode of DFT+U parameters ('frame', 'atomic', or 'orbital')."""
+        return self.uparam_mode
 
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""
@@ -448,6 +569,14 @@ class GeneralFitting(NativeOP, BaseFitting):
     def get_default_fparam(self) -> list[float] | None:
         """Get the default frame parameters."""
         return self.default_fparam
+
+    def has_default_uparam(self) -> bool:
+        """Check if the fitting has default DFT+U parameters."""
+        return self.default_uparam is not None
+
+    def get_default_uparam(self) -> float | None:
+        """Get the default DFT+U parameters."""
+        return self.default_uparam
 
     def set_return_middle_output(self, enable: bool) -> None:
         """Enable or disable returning the middle (pre-last-layer) output.
@@ -546,6 +675,12 @@ class GeneralFitting(NativeOP, BaseFitting):
             self.scale = value
         elif key in ["default_fparam_tensor"]:
             self.default_fparam_tensor = value
+        elif key in ["uparam_avg"]:
+            self.uparam_avg = value
+        elif key in ["uparam_inv_std"]:
+            self.uparam_inv_std = value
+        elif key in ["default_uparam_tensor"]:
+            self.default_uparam_tensor = value
         else:
             raise KeyError(key)
 
@@ -566,6 +701,12 @@ class GeneralFitting(NativeOP, BaseFitting):
             return self.scale
         elif key in ["default_fparam_tensor"]:
             return self.default_fparam_tensor
+        elif key in ["uparam_avg"]:
+            return self.uparam_avg
+        elif key in ["uparam_inv_std"]:
+            return self.uparam_inv_std
+        elif key in ["default_uparam_tensor"]:
+            return self.default_uparam_tensor
         else:
             raise KeyError(key)
 
@@ -590,6 +731,9 @@ class GeneralFitting(NativeOP, BaseFitting):
             "numb_aparam": self.numb_aparam,
             "dim_case_embd": self.dim_case_embd,
             "default_fparam": self.default_fparam,
+            "numb_uparam": self.numb_uparam,
+            "default_uparam": self.default_uparam,
+            "uparam_mode": self.uparam_mode,
             "rcond": self.rcond,
             "activation_function": self.activation_function,
             "precision": self.precision,
@@ -604,6 +748,8 @@ class GeneralFitting(NativeOP, BaseFitting):
                 "fparam_inv_std": to_numpy_array(self.fparam_inv_std),
                 "aparam_avg": to_numpy_array(self.aparam_avg),
                 "aparam_inv_std": to_numpy_array(self.aparam_inv_std),
+                "uparam_avg": to_numpy_array(self.uparam_avg),
+                "uparam_inv_std": to_numpy_array(self.uparam_inv_std),
             },
             "type_map": self.type_map,
             # not supported
@@ -619,9 +765,26 @@ class GeneralFitting(NativeOP, BaseFitting):
         data = data.copy()
         data.pop("@class")
         data.pop("type")
+        data.pop("numb_uparam", None)
+        # uparam_mode is a DFT+U extension not every GeneralFitting subclass
+        # forwards through its __init__ (e.g. EnergyFittingNet); restore it on
+        # the instance so the serialize/deserialize roundtrip stays lossless
+        # for the subclasses that do accept it.
+        uparam_mode = data.pop("uparam_mode", None)
         variables = data.pop("@variables")
         nets = data.pop("nets")
         obj = cls(**data)
+        if uparam_mode is not None and uparam_mode != obj.uparam_mode:
+            if uparam_mode not in ("frame", "atomic", "orbital"):
+                raise ValueError(
+                    f"Unsupported uparam_mode '{uparam_mode}' in serialized data. "
+                    "Supported values: 'frame', 'atomic', 'orbital'."
+                )
+            if uparam_mode == "orbital":
+                raise NotImplementedError(
+                    "Orbital uparam mode is not yet implemented. Reserved for future use."
+                )
+            obj.uparam_mode = uparam_mode
         for kk in variables.keys():
             obj[kk] = variables[kk]
         obj.nets = NetworkCollection.deserialize(nets)
@@ -649,7 +812,8 @@ class GeneralFitting(NativeOP, BaseFitting):
         self,
         descriptor: Array,
         fparam: Array | None,
-        aparam: Array | None,
+        uparam: Array | None = None,
+        aparam: Array | None = None,
     ) -> Array | None:
         """Normalized conditioning columns appended to the descriptor of every atom.
 
@@ -661,6 +825,10 @@ class GeneralFitting(NativeOP, BaseFitting):
         fparam : Array, optional
             Frame parameters with shape (nf, numb_fparam). The default frame
             parameter is used when omitted.
+        uparam : Array, optional
+            DFT+U parameters with shape (nf, numb_uparam) (frame mode) or
+            (nf, nloc, numb_uparam) (atomic mode). The default uparam is
+            used when omitted.
         aparam : Array, optional
             Atomic parameters with shape (nf, nloc, numb_aparam).
 
@@ -703,6 +871,55 @@ class GeneralFitting(NativeOP, BaseFitting):
             )
             fparam = (fparam - fparam_avg) * fparam_inv_std
             columns.append(xp.broadcast_to(fparam, (nf, nloc, self.numb_fparam)))
+        if self.numb_uparam > 0:
+            if uparam is None:
+                assert self.default_uparam_tensor is not None
+                default_uparam = xp.asarray(
+                    self.default_uparam_tensor, dtype=descriptor.dtype, device=device
+                )
+                if self.uparam_mode == "atomic":
+                    uparam = xp.tile(
+                        xp.reshape(default_uparam, (1, 1, self.numb_uparam)),
+                        (nf, nloc, 1),
+                    )
+                else:
+                    uparam = xp.tile(
+                        xp.reshape(default_uparam, (1, self.numb_uparam)), (nf, 1)
+                    )
+            if self.uparam_mode == "atomic":
+                try:
+                    uparam = xp.reshape(uparam, (nf, nloc, self.numb_uparam))
+                except (ValueError, RuntimeError):
+                    # node-level graph route: descriptor (N, 1, nd) with
+                    # uparam already flattened per node (N, ndu).
+                    uparam = xp.reshape(uparam, (nf, 1, self.numb_uparam))
+                uparam_device = array_api_compat.device(uparam)
+                uparam_avg = xp.asarray(
+                    self.uparam_avg, dtype=uparam.dtype, device=uparam_device
+                )
+                uparam_inv_std = xp.asarray(
+                    self.uparam_inv_std, dtype=uparam.dtype, device=uparam_device
+                )
+                uparam = (uparam - uparam_avg) * uparam_inv_std
+                columns.append(uparam)
+            else:
+                try:
+                    uparam = xp.reshape(uparam, (nf, 1, self.numb_uparam))
+                except (ValueError, RuntimeError) as e:
+                    raise ValueError(
+                        f"input uparam: cannot reshape {uparam.shape} "
+                        f"into ({nf}, 1, {self.numb_uparam}); descriptor "
+                        f"{tuple(descriptor.shape)}."
+                    ) from e
+                uparam_device = array_api_compat.device(uparam)
+                uparam_avg = xp.asarray(
+                    self.uparam_avg, dtype=uparam.dtype, device=uparam_device
+                )
+                uparam_inv_std = xp.asarray(
+                    self.uparam_inv_std, dtype=uparam.dtype, device=uparam_device
+                )
+                uparam = (uparam - uparam_avg) * uparam_inv_std
+                columns.append(xp.broadcast_to(uparam, (nf, nloc, self.numb_uparam)))
         if self.numb_aparam > 0 and not self.use_aparam_as_mask:
             assert aparam is not None, "aparam should not be None"
             try:
@@ -924,9 +1141,17 @@ class GeneralFitting(NativeOP, BaseFitting):
         g2: Array | None = None,
         h2: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         vacuum_descriptor: Array | None = None,
+        cond: "FittingParams | None" = None,
     ) -> dict[str, Array]:
+        # Registry container: fill any missing conditioning parameter
+        # from ``cond`` (explicit arguments win).
+        if cond is not None:
+            fparam = fparam if fparam is not None else cond.fparam
+            uparam = uparam if uparam is not None else cond.uparam
+            aparam = aparam if aparam is not None else cond.aparam
         """Calculate the fitting.
 
         Parameters
@@ -946,6 +1171,8 @@ class GeneralFitting(NativeOP, BaseFitting):
             shape: nf x nloc x nnei x 3
         fparam
             The frame parameter. shape: nf x nfp. nfp being `numb_fparam`
+        uparam
+            The DFT+U parameter. shape: nf x nup. nup being `numb_uparam`
         aparam
             The atomic parameter. shape: nf x nloc x nap. nap being `numb_aparam`
         vacuum_descriptor
@@ -968,7 +1195,7 @@ class GeneralFitting(NativeOP, BaseFitting):
         # references, so that the reference of an atom differs from the atom
         # in its descriptor only.
         xx = descriptor
-        cond = self.conditioning_columns(descriptor, fparam, aparam)
+        cond = self.conditioning_columns(descriptor, fparam, uparam, aparam)
         # ``remove_vaccum_contribution`` subtracts the network output for a zero
         # descriptor under the same conditioning columns.
         xx_zeros = (
@@ -1068,9 +1295,17 @@ class GeneralFitting(NativeOP, BaseFitting):
         g2: Array | None = None,
         h2: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         vacuum_descriptor: Array | None = None,
+        cond: "FittingParams | None" = None,
     ) -> dict[str, Array]:
+        # Registry container: fill any missing conditioning parameter
+        # from ``cond`` (explicit arguments win).
+        if cond is not None:
+            fparam = fparam if fparam is not None else cond.fparam
+            uparam = uparam if uparam is not None else cond.uparam
+            aparam = aparam if aparam is not None else cond.aparam
         """Graph-native (flat node axis) fitting forward.
 
         The node axis is flat ``(N,)``. This reuses the dense forward by treating
@@ -1093,6 +1328,8 @@ class GeneralFitting(NativeOP, BaseFitting):
             unused by this fitting; passed through to the dense call.
         fparam
             NODE-level frame parameter (already gathered by frame_id). N x nfp
+        uparam
+            NODE-level DFT+U parameter (already gathered by frame_id). N x 1
         aparam
             atomic parameter. N x nap
         vacuum_descriptor
@@ -1121,7 +1358,31 @@ class GeneralFitting(NativeOP, BaseFitting):
                 "graph-route aparam must be flat (N, nda) on the node axis; "
                 f"got a rank-{len(aparam.shape)} array of shape {aparam.shape}"
             )
-        ap1 = None if aparam is None else xp.reshape(aparam, (n, 1, aparam.shape[-1]))
+        if aparam is not None:
+            import os
+            if os.environ.get("DP_DBG_AP"):
+                print("DBG ap1: aparam", tuple(aparam.shape), "n", n,
+                      "fparam", tuple(fparam.shape) if fparam is not None else None,
+                      "uparam", tuple(uparam.shape) if uparam is not None else None, flush=True)
+        ap1 = None
+        if aparam is not None:
+            try:
+                ap1 = xp.reshape(aparam, (n, 1, aparam.shape[-1]))
+            except (ValueError, RuntimeError):
+                # per-frame aparam (nframes, nda) with a node-flattened
+                # descriptor: repeat each frame row nloc' times so every
+                # node carries its frame's aparam.
+                nfr = aparam.shape[0]
+                if n % nfr != 0:
+                    raise
+                ap1 = xp.reshape(
+                    xp.tile(aparam, (n // nfr, 1, 1)),
+                    (n, 1, aparam.shape[-1]),
+                )
+        # uparam: forwarded as-is.  __call__/conditioning_columns derives
+        # (nf', nloc') from the descriptor -- on the graph route that is
+        # (N, 1), so both frame ((N, ndu) or (N,1,ndu)) and atomic
+        # ((nf, nloc, ndu) -> (N, 1, ndu)) layouts reshape correctly there.
         # fparam: dense API expects (nf, nfp); here nf'=N single-atom frames, so the
         # node-level (N, nfp) IS the per-(pseudo)frame param -- tiled over nloc'=1.
         # Only referencing fittings take the keyword; it travels with a table.
@@ -1137,6 +1398,7 @@ class GeneralFitting(NativeOP, BaseFitting):
             g2=g2,
             h2=h2,
             fparam=fparam,
+            uparam=uparam,
             aparam=ap1,
             **vacuum_kwargs,
         )

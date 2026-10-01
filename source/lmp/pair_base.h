@@ -44,6 +44,7 @@ class PairDeepBaseModel : public Pair {
   int get_node_rank();
   void cum_sum(std::map<int, int>&, std::map<int, int>&);
   int get_dim_fparam() const { return dim_fparam; }
+  int get_dim_uparam() const { return dim_uparam; }
 
   std::string get_file_content(const std::string& model);
   std::vector<std::string> get_file_content(
@@ -107,6 +108,19 @@ class PairDeepBaseModel : public Pair {
   void make_aparam_from_compute(std::vector<double>& aparam);
   bool do_compute_aparam;
   std::string compute_aparam_id;
+  void make_uparam_from_compute(std::vector<double>& uparam);
+  bool do_compute_uparam;
+  std::string compute_uparam_id;
+  void make_uparam_from_fix(std::vector<double>& uparam);
+  bool do_fix_uparam;
+  std::string fix_uparam_id;
+  int fix_uparam_index;
+  bool do_mlu_model;
+  std::string mlu_model_file;
+  int dim_uparam;
+  std::vector<double> uparam;
+  double mlu_predicted_u;  ///< MLU-predicted Hubbard U (accessible via
+                           ///< extract("u"))
 
   void parse_spin_vector_option(std::vector<double>& values,
                                 const std::string& option,

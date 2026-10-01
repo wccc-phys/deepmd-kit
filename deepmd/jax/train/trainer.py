@@ -267,6 +267,11 @@ class DPTrainer(AbstractTrainer):
             if self.multi_task
             else self.models[DEFAULT_TASK_KEY].get_dim_fparam()
         )
+        self.numb_uparam = (
+            {key: model.get_dim_uparam() for key, model in self.models.items()}
+            if self.multi_task
+            else self.models[DEFAULT_TASK_KEY].get_dim_uparam()
+        )
 
         self.frz_model = None
         self.ckpt_meta = None
@@ -772,10 +777,11 @@ class DPTrainer(AbstractTrainer):
             nlist: jnp.ndarray,
             mapping: jnp.ndarray | None,
             fp: jnp.ndarray | None,
+            up: jnp.ndarray | None,
             ap: jnp.ndarray | None,
         ) -> jnp.ndarray:
             model_dict = _evaluate_model_dict(
-                model, extended_coord, extended_atype, nlist, mapping, fp, ap
+                model, extended_coord, extended_atype, nlist, mapping, fp, up, ap
             )
             loss, _ = loss_obj(
                 learning_rate=lr,
@@ -795,10 +801,11 @@ class DPTrainer(AbstractTrainer):
             nlist: jnp.ndarray,
             mapping: jnp.ndarray | None,
             fp: jnp.ndarray | None,
+            up: jnp.ndarray | None,
             ap: jnp.ndarray | None,
         ) -> dict[str, jnp.ndarray]:
             model_dict = _evaluate_model_dict(
-                model, extended_coord, extended_atype, nlist, mapping, fp, ap
+                model, extended_coord, extended_atype, nlist, mapping, fp, up, ap
             )
             _, more_loss = loss_obj(
                 learning_rate=lr,
@@ -819,6 +826,7 @@ class DPTrainer(AbstractTrainer):
             nlist: jnp.ndarray,
             mapping: jnp.ndarray | None,
             fp: jnp.ndarray | None,
+            up: jnp.ndarray | None,
             ap: jnp.ndarray | None,
         ) -> None:
             grads = nnx.grad(loss_fn)(
@@ -830,6 +838,7 @@ class DPTrainer(AbstractTrainer):
                 nlist,
                 mapping,
                 fp,
+                up,
                 ap,
             )
             if Version(flax_version) >= Version("0.11.0"):
@@ -961,21 +970,23 @@ class DPTrainer(AbstractTrainer):
         jnp.ndarray | None,
         jnp.ndarray | None,
         jnp.ndarray | None,
+        jnp.ndarray | None,
     ]:
         """Convert one data-system batch into JAX model inputs."""
         model = self.models[task_key]
         jax_data = convert_numpy_data_to_jax_data(batch_data)
-        extended_coord, extended_atype, nlist, mapping, fp, ap = prepare_input(
+        extended_coord, extended_atype, nlist, mapping, fp, up, ap = prepare_input(
             rcut=model.get_rcut(),
             sel=model.get_sel(),
             coord=jax_data["coord"],
             atype=jax_data["type"],
             box=jax_data["box"] if jax_data["find_box"] else None,
             fparam=jax_data.get("fparam", None),
+            uparam=jax_data.get("uparam", None),
             aparam=jax_data.get("aparam", None),
             pair_excl=model.atomic_model.pair_excl,
         )
-        return jax_data, extended_coord, extended_atype, nlist, mapping, fp, ap
+        return jax_data, extended_coord, extended_atype, nlist, mapping, fp, up, ap
 
     def _evaluate_prepared_batch(
         self,
@@ -986,6 +997,7 @@ class DPTrainer(AbstractTrainer):
             jnp.ndarray,
             jnp.ndarray,
             jnp.ndarray,
+            jnp.ndarray | None,
             jnp.ndarray | None,
             jnp.ndarray | None,
             jnp.ndarray | None,
@@ -1077,6 +1089,7 @@ def _evaluate_model_dict(
     nlist: jnp.ndarray,
     mapping: jnp.ndarray | None,
     fp: jnp.ndarray | None,
+    up: jnp.ndarray | None,
     ap: jnp.ndarray | None,
 ) -> dict[str, jnp.ndarray]:
     model_dict_lower = model.call_common_lower(
@@ -1085,6 +1098,7 @@ def _evaluate_model_dict(
         nlist,
         mapping,
         fp,
+        up,
         ap,
     )
     model_dict = communicate_extended_output(
@@ -1454,11 +1468,12 @@ def prepare_input(
     np.ndarray,
     np.ndarray | None,
     np.ndarray | None,
+    np.ndarray | None,
 ]:
     """Build extended coordinates and neighbor lists for a training batch."""
     nframes, nloc = atype.shape[:2]
-    cc, bb, fp, ap = coord, box, fparam, aparam
-    del coord, box, fparam, aparam
+    cc, bb, fp, up, ap = coord, box, fparam, uparam, aparam
+    del coord, box, fparam, uparam, aparam
     if bb is not None:
         coord_normalized = normalize_coord(
             cc.reshape(nframes, nloc, 3),
@@ -1483,7 +1498,7 @@ def prepare_input(
         pair_excl=pair_excl,
     )
     extended_coord = extended_coord.reshape(nframes, -1, 3)
-    return extended_coord, extended_atype, nlist, mapping, fp, ap
+    return extended_coord, extended_atype, nlist, mapping, fp, up, ap
 
 
 def convert_numpy_data_to_jax_data(

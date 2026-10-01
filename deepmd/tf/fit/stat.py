@@ -56,6 +56,17 @@ def make_fparam_stats(all_stat: dict[str, Any], dim: int) -> list[StatItem]:
     ]
 
 
+def make_uparam_stats(all_stat: dict[str, Any], dim: int) -> list[StatItem]:
+    cat_data = np.concatenate(all_stat["uparam"], axis=0)
+    cat_data = np.reshape(cat_data, [-1, dim])
+    sumv = np.sum(cat_data, axis=0)
+    sumv2 = np.sum(cat_data * cat_data, axis=0)
+    sumn = cat_data.shape[0]
+    return [
+        StatItem(number=sumn, sum=sumv[ii], squared_sum=sumv2[ii]) for ii in range(dim)
+    ]
+
+
 def make_aparam_stats(all_stat: dict[str, Any], dim: int) -> list[StatItem]:
     sys_sumv = []
     sys_sumv2 = []

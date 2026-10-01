@@ -122,6 +122,7 @@ class DeepEvalBackend(ABC):
         atomic: bool = False,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         **kwargs: Any,
     ) -> dict[str, np.ndarray]:
         """Evaluate the energy, force and virial by using this DP.
@@ -145,6 +146,11 @@ class DeepEvalBackend(ABC):
             The array can be of size :
             - nframes x dim_fparam.
             - dim_fparam. Then all frames are assumed to be provided with the same fparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         aparam
             The atomic parameter
             The array can be of size :
@@ -177,8 +183,20 @@ class DeepEvalBackend(ABC):
     def get_dim_fparam(self) -> int:
         """Get the number (dimension) of frame parameters of this DP."""
 
+    @abstractmethod
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this DP."""
+
+    def get_uparam_mode(self) -> str:
+        """Get the mode of DFT+U parameters ('frame', 'atomic', or 'orbital')."""
+        return "frame"
+
     def has_default_fparam(self) -> bool:
         """Check if the model has default frame parameters."""
+        return False
+
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
         return False
 
     def has_chg_spin_ebd(self) -> bool:
@@ -200,6 +218,7 @@ class DeepEvalBackend(ABC):
         atom_types: np.ndarray,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         efield: np.ndarray | None = None,
         mixed_type: bool = False,
         **kwargs: Any,
@@ -223,6 +242,11 @@ class DeepEvalBackend(ABC):
             The array can be of size :
             - nframes x dim_fparam.
             - dim_fparam. Then all frames are assumed to be provided with the same fparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         aparam
             The atomic parameter
             The array can be of size :
@@ -251,6 +275,7 @@ class DeepEvalBackend(ABC):
         atom_types: np.ndarray,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         **kwargs: Any,
     ) -> np.ndarray:
         """Evaluate fitting before last layer by using this DP.
@@ -272,6 +297,11 @@ class DeepEvalBackend(ABC):
             The array can be of size :
             - nframes x dim_fparam.
             - dim_fparam. Then all frames are assumed to be provided with the same fparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         aparam
             The atomic parameter
             The array can be of size :
@@ -292,6 +322,7 @@ class DeepEvalBackend(ABC):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         dtype: str = "fp32",
         **kwargs: Any,
@@ -318,6 +349,11 @@ class DeepEvalBackend(ABC):
             The array can be of size :
             - nframes x dim_fparam.
             - dim_fparam. Then all frames are assumed to be provided with the same fparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         aparam
             The atomic parameter
             The array can be of size :
@@ -639,9 +675,21 @@ class DeepEval(ABC):
         """Get the number (dimension) of frame parameters of this DP."""
         return self.deep_eval.get_dim_fparam()
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this DP."""
+        return self.deep_eval.get_dim_uparam()
+
+    def get_uparam_mode(self) -> str:
+        """Get the mode of DFT+U parameters ('frame', 'atomic', or 'orbital')."""
+        return self.deep_eval.get_uparam_mode()
+
     def has_default_fparam(self) -> bool:
         """Check if the model has default frame parameters."""
         return self.deep_eval.has_default_fparam()
+
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
+        return self.deep_eval.has_default_uparam()
 
     def has_chg_spin_ebd(self) -> bool:
         """Check if the model has charge spin embedding."""
@@ -686,6 +734,7 @@ class DeepEval(ABC):
         atom_types: np.ndarray,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         mixed_type: bool = False,
         dtype: str = "native",
         **kwargs: Any,
@@ -715,6 +764,11 @@ class DeepEval(ABC):
             - nframes x natoms x dim_aparam.
             - natoms x dim_aparam. Then all frames are assumed to be provided with the same aparam.
             - dim_aparam. Then all frames and atoms are provided with the same aparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         efield
             The external field on atoms.
             The array should be of size nframes x natoms x 3
@@ -736,11 +790,20 @@ class DeepEval(ABC):
             atom_types,
             fparam,
             aparam,
+            uparam,
             nframes,
             natoms,
-        ) = self._standard_input(coords, cells, atom_types, fparam, aparam, mixed_type)
+        ) = self._standard_input(
+            coords, cells, atom_types, fparam, aparam, uparam, mixed_type
+        )
         descriptor = self.deep_eval.eval_descriptor(
-            coords, cells, atom_types, fparam=fparam, aparam=aparam, **kwargs
+            coords,
+            cells,
+            atom_types,
+            fparam=fparam,
+            uparam=uparam,
+            aparam=aparam,
+            **kwargs,
         )
         return _cast_output_dtype(descriptor, dtype)
 
@@ -751,6 +814,7 @@ class DeepEval(ABC):
         atom_types: np.ndarray,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         mixed_type: bool = False,
         dtype: str = "native",
         **kwargs: Any,
@@ -780,6 +844,11 @@ class DeepEval(ABC):
             - nframes x natoms x dim_aparam.
             - natoms x dim_aparam. Then all frames are assumed to be provided with the same aparam.
             - dim_aparam. Then all frames and atoms are provided with the same aparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         efield
             The external field on atoms.
             The array should be of size nframes x natoms x 3
@@ -801,11 +870,20 @@ class DeepEval(ABC):
             atom_types,
             fparam,
             aparam,
+            uparam,
             nframes,
             natoms,
-        ) = self._standard_input(coords, cells, atom_types, fparam, aparam, mixed_type)
+        ) = self._standard_input(
+            coords, cells, atom_types, fparam, aparam, uparam, mixed_type
+        )
         fitting = self.deep_eval.eval_fitting_last_layer(
-            coords, cells, atom_types, fparam=fparam, aparam=aparam, **kwargs
+            coords,
+            cells,
+            atom_types,
+            fparam=fparam,
+            uparam=uparam,
+            aparam=aparam,
+            **kwargs,
         )
         return _cast_output_dtype(fitting, dtype)
 
@@ -815,6 +893,7 @@ class DeepEval(ABC):
         cells: np.ndarray | None,
         atom_types: np.ndarray,
         fparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
         mixed_type: bool = False,
         dtype: str = "fp32",
@@ -848,6 +927,11 @@ class DeepEval(ABC):
             The array can be of size :
             - nframes x dim_fparam.
             - dim_fparam. Then all frames are assumed to be provided with the same fparam.
+        uparam
+            The DFT+U parameter.
+            The array can be of size :
+            - nframes x dim_uparam.
+            - dim_uparam. Then all frames are assumed to be provided with the same uparam.
         aparam
             The atomic parameter
             The array can be of size :
@@ -881,15 +965,19 @@ class DeepEval(ABC):
             cells,
             atom_types,
             fparam,
+            uparam,
             aparam,
             nframes,
             natoms,
-        ) = self._standard_input(coords, cells, atom_types, fparam, aparam, mixed_type)
+        ) = self._standard_input(
+            coords, cells, atom_types, fparam, uparam, aparam, mixed_type
+        )
         return self.deep_eval.eval_embedding(
             coords,
             cells,
             atom_types,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             dtype=dtype,
             **kwargs,
@@ -931,6 +1019,7 @@ class DeepEval(ABC):
         atom_types: np.ndarray | list,
         fparam: np.ndarray | list | None,
         aparam: np.ndarray | list | None,
+        uparam: np.ndarray | list | None,
         mixed_type: bool,
     ) -> tuple[
         np.ndarray,
@@ -938,6 +1027,9 @@ class DeepEval(ABC):
         np.ndarray,
         np.ndarray | None,
         np.ndarray | None,
+        np.ndarray | None,
+        int,
+        int,
     ]:
         coords = np.array(coords)
         if cells is not None:
@@ -947,6 +1039,8 @@ class DeepEval(ABC):
             fparam = np.array(fparam)
         if aparam is not None:
             aparam = np.array(aparam)
+        if uparam is not None:
+            uparam = np.array(uparam)
         natoms, nframes = self._get_natoms_and_nframes(coords, atom_types, mixed_type)
         atom_types = self._expande_atype(atom_types, nframes, mixed_type)
         coords = coords.reshape(nframes, natoms, 3)
@@ -974,7 +1068,33 @@ class DeepEval(ABC):
                 raise RuntimeError(
                     f"got wrong size of frame param, should be either {nframes} x {natoms} x {fdim} or {natoms} x {fdim} or {fdim}"
                 )
-        return coords, cells, atom_types, fparam, aparam, nframes, natoms
+        if uparam is not None:
+            fdim = self.get_dim_uparam()
+            uparam_mode = self.get_uparam_mode()
+            if uparam_mode == "atomic":
+                if uparam.size == nframes * natoms * fdim:
+                    uparam = np.reshape(uparam, [nframes, natoms, fdim])
+                elif uparam.size == natoms * fdim:
+                    uparam = np.tile(uparam.reshape([1, natoms, fdim]), [nframes, 1, 1])
+                elif uparam.size == fdim:
+                    uparam = np.tile(uparam.reshape([1, 1, fdim]), [nframes, natoms, 1])
+                else:
+                    raise RuntimeError(
+                        f"got wrong size of frame param, should be either "
+                        f"{nframes} x {natoms} x {fdim} or "
+                        f"{natoms} x {fdim} or {fdim}"
+                    )
+            else:
+                if uparam.size == nframes * fdim:
+                    uparam = np.reshape(uparam, [nframes, fdim])
+                elif uparam.size == fdim:
+                    uparam = np.tile(uparam.reshape([-1]), [nframes, 1])
+                else:
+                    raise RuntimeError(
+                        f"got wrong size of frame param, should be either "
+                        f"{nframes} x {fdim} or {fdim}"
+                    )
+        return coords, cells, atom_types, fparam, aparam, uparam, nframes, natoms
 
     def get_sel_type(self) -> list[int]:
         """Get the selected atom types of this model.

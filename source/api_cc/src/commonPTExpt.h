@@ -978,3 +978,46 @@ class ChargeStateFold {
 
 }  // namespace ptexpt
 }  // namespace deepmd
+
+// ---------------------------------------------------------------------------
+// Fitting-conditioning parameter assembly (fparam / uparam / aparam /
+// charge_spin).
+//
+// The ORDER below is the exported-ABI contract -- it mirrors the python
+// ``FittingParams.SPEC`` registry (deepmd/dpmodel/utils/fitting_params.py)
+// and the .pt2 tail-slot order.  A NEW conditioning parameter is added by
+// appending one entry here + one Python ParamSpec there; every
+// ``run_model*`` input assembly picks it up through
+// ``append_conditioning_inputs``.
+// ---------------------------------------------------------------------------
+
+/// The conditioning tensors of one compute call, already built (each may be
+/// an empty tensor when the parameter is absent), together with their
+/// dimensions (>0 = the ABI has a slot for it).
+struct ConditioningInputs {
+  std::int64_t dfparam = 0;
+  at::Tensor fparam;
+  std::int64_t duparam = 0;
+  at::Tensor uparam;
+  std::int64_t daparam = 0;
+  at::Tensor aparam;
+  std::int64_t dchgspin = 0;
+  at::Tensor charge_spin;
+
+  /// Append the conditioning inputs to ``inputs`` in ABI slot order.
+  /// Mirrors python ``FittingParams.export_tail_slots``.
+  void append_to(std::vector<torch::Tensor>& inputs) const {
+    if (dfparam > 0) {
+      inputs.push_back(fparam);
+    }
+    if (duparam > 0) {
+      inputs.push_back(uparam);
+    }
+    if (daparam > 0) {
+      inputs.push_back(aparam);
+    }
+    if (dchgspin > 0) {
+      inputs.push_back(charge_spin);
+    }
+  }
+};

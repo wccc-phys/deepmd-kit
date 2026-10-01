@@ -46,6 +46,7 @@ class DOSFittingNet(InvarFitting):
         neuron: list[int] = [120, 120, 120],
         resnet_dt: bool = True,
         numb_fparam: int = 0,
+        numb_uparam: int = 0,
         numb_aparam: int = 0,
         dim_case_embd: int = 0,
         bias_dos: Array | None = None,
@@ -59,6 +60,7 @@ class DOSFittingNet(InvarFitting):
         type_map: list[str] | None = None,
         seed: int | list[int] | None = None,
         default_fparam: list | None = None,
+        default_uparam: float | None = None,
     ) -> None:
         if bias_dos is not None:
             self.bias_dos = bias_dos
@@ -73,6 +75,7 @@ class DOSFittingNet(InvarFitting):
             resnet_dt=resnet_dt,
             bias_atom=bias_dos,
             numb_fparam=numb_fparam,
+            numb_uparam=numb_uparam,
             numb_aparam=numb_aparam,
             dim_case_embd=dim_case_embd,
             rcond=rcond,
@@ -85,6 +88,7 @@ class DOSFittingNet(InvarFitting):
             type_map=type_map,
             seed=seed,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
         )
 
     def output_def(self) -> FittingOutputDef:

@@ -34,6 +34,7 @@ class DPZBLLinearEnergyAtomicModel(DPZBLLinearEnergyAtomicModelDP):
         nlist: xp.ndarray,
         mapping: xp.ndarray | None = None,
         fparam: xp.ndarray | None = None,
+        uparam: xp.ndarray | None = None,
         aparam: xp.ndarray | None = None,
         comm_dict: dict | None = None,
         charge_spin: xp.ndarray | None = None,
@@ -45,6 +46,7 @@ class DPZBLLinearEnergyAtomicModel(DPZBLLinearEnergyAtomicModelDP):
             stop_gradient(nlist),
             mapping=mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
         )

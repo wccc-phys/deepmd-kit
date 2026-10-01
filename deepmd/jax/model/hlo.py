@@ -67,6 +67,7 @@ class HLO(BaseModel):
         type_map: list[str],
         rcut: float,
         dim_fparam: int,
+        dim_uparam: int,
         dim_aparam: int,
         sel_type: list[int],
         is_aparam_nall: bool,
@@ -82,6 +83,9 @@ class HLO(BaseModel):
         var_name: str | None = None,
         task_dim: int | None = None,
         intensive: bool = False,
+
+        has_default_uparam: bool = False,
+        default_uparam: list[float] | None = None,
     ) -> None:
         self._call_lower = jax_export.deserialize(stablehlo).call
         self._call_lower_atomic_virial = jax_export.deserialize(
@@ -95,6 +99,7 @@ class HLO(BaseModel):
         self.type_map = type_map
         self.rcut = rcut
         self.dim_fparam = dim_fparam
+        self.dim_uparam = dim_uparam
         self.dim_aparam = dim_aparam
         self.sel_type = sel_type
         self._is_aparam_nall = is_aparam_nall
@@ -129,6 +134,9 @@ class HLO(BaseModel):
             PairExcludeMask(len(type_map), [tuple(p) for p in pet]) if pet else None
         )
 
+        self._has_default_uparam = has_default_uparam
+        self.default_uparam = default_uparam
+
     def __call__(
         self,
         coord: jnp.ndarray,
@@ -151,6 +159,8 @@ class HLO(BaseModel):
             The simulation box. shape: nf x 9
         fparam
             frame parameter. nf x ndf
+        uparam
+            DFT+U parameter. nf x ndu
         aparam
             atomic parameter. nf x nloc x nda
         do_atomic_virial
@@ -163,7 +173,7 @@ class HLO(BaseModel):
             The keys are defined by the `ModelOutputDef`.
 
         """
-        return self.call(coord, atype, box, fparam, aparam, do_atomic_virial)
+        return self.call(coord, atype, box, fparam, uparam, aparam, do_atomic_virial)
 
     def call(
         self,
@@ -187,6 +197,8 @@ class HLO(BaseModel):
             The simulation box. shape: nf x 9
         fparam
             frame parameter. nf x ndf
+        uparam
+            DFT+U parameter. nf x ndu
         aparam
             atomic parameter. nf x nloc x nda
         do_atomic_virial
@@ -270,6 +282,7 @@ class HLO(BaseModel):
             nlist,
             mapping,
             fparam,
+            uparam,
             aparam,
         )
 
@@ -288,6 +301,10 @@ class HLO(BaseModel):
     def get_dim_fparam(self) -> int:
         """Get the number (dimension) of frame parameters of this atomic model."""
         return self.dim_fparam
+
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return self.dim_uparam
 
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model."""
@@ -410,6 +427,10 @@ class HLO(BaseModel):
 
     @classmethod
     def get_model(cls, model_params: dict) -> "BaseModel":
+        if (model_params.get("fitting_net", {}) or {}).get("default_uparam") is not None:
+            raise NotImplementedError(
+                "uparam (DFT+U) is not supported by the JAX backend."
+            )
         """Get the model by the parameters.
 
         By default, all the parameters are directly passed to the constructor.
@@ -434,3 +455,11 @@ class HLO(BaseModel):
     def get_default_fparam(self) -> list[float] | None:
         """Get the default frame parameters."""
         return self.default_fparam
+
+    def has_default_uparam(self) -> bool:
+        """Check whether the model has default DFT+U parameters."""
+        return self._has_default_uparam
+
+    def get_default_uparam(self) -> list[float] | None:
+        """Get the default DFT+U parameters."""
+        return self.default_uparam

@@ -47,6 +47,7 @@ class TestInferNativeSpinDpa4cPtExpt : public ::testing::Test {
   std::vector<int> atype = {0, 0, 0, 1, 1, 1};
   std::vector<VALUETYPE> box = {6., 0., 0., 0., 6., 0., 0., 0., 6.};
   std::vector<VALUETYPE> fparam = {0.3, -0.2};
+  std::vector<VALUETYPE> uparam;  // dim_uparam == 0 for this model
   std::vector<VALUETYPE> aparam = {0.1, -0.4, 0.7, -0.3, 0.5, 0.2};
   std::vector<double> charge_spin_default = {0.0, 1.0};
   std::vector<double> charge_spin_other = {1.0, 2.0};
@@ -118,7 +119,7 @@ TYPED_TEST(TestInferNativeSpinDpa4cPtExpt, one_frame) {
   double ener;
   std::vector<VALUETYPE> force, force_mag, virial;
   this->dp.compute(ener, force, force_mag, virial, this->coord, this->spin,
-                   this->atype, this->box, this->fparam, this->aparam,
+                   this->atype, this->box, {}, this->uparam, this->aparam,
                    this->charge_spin_default);
 
   EXPECT_EQ(force.size(), static_cast<std::size_t>(this->natoms * 3));
@@ -141,6 +142,7 @@ TYPED_TEST(TestInferNativeSpinDpa4cPtExpt, frames_are_answered_independently) {
       ener, force, force_mag, virial, this->two(this->coord, this->coord_alt),
       this->two(this->spin, this->spin), this->atype,
       this->two(this->box, this->box), this->two(this->fparam, this->fparam),
+      this->two(this->uparam, this->uparam),
       this->two(this->aparam, this->aparam),
       this->two(this->charge_spin_default, this->charge_spin_default));
 
@@ -170,13 +172,14 @@ TYPED_TEST(TestInferNativeSpinDpa4cPtExpt, parameters_may_be_shared_by_frames) {
   this->dp.compute(shared, force, force_mag, virial,
                    this->two(this->coord, this->coord_alt),
                    this->two(this->spin, this->spin), this->atype,
-                   this->two(this->box, this->box), this->fparam, this->aparam,
-                   this->charge_spin_default);
+                   this->two(this->box, this->box), {}, this->uparam,
+                   this->aparam, this->charge_spin_default);
   this->dp.compute(
       per_frame, force, force_mag, virial,
       this->two(this->coord, this->coord_alt),
       this->two(this->spin, this->spin), this->atype,
       this->two(this->box, this->box), this->two(this->fparam, this->fparam),
+      this->two(this->uparam, this->uparam),
       this->two(this->aparam, this->aparam),
       this->two(this->charge_spin_default, this->charge_spin_default));
 
@@ -196,10 +199,10 @@ TYPED_TEST(TestInferNativeSpinDpa4cPtExpt, a_call_may_name_its_own_state) {
 
   this->dp.compute(served_default, force, force_mag, virial, this->coord,
                    this->spin, this->atype, this->box, this->fparam,
-                   this->aparam, this->charge_spin_default);
+                   this->uparam, this->aparam, this->charge_spin_default);
   this->dp.compute(served_other, force, force_mag, virial, this->coord,
                    this->spin, this->atype, this->box, this->fparam,
-                   this->aparam, this->charge_spin_other);
+                   this->uparam, this->aparam, this->charge_spin_other);
 
   EXPECT_LT(fabs(served_default - this->expected_e_frame0), EPSILON);
   EXPECT_LT(fabs(served_other - this->expected_e_other_state), EPSILON);
@@ -217,6 +220,7 @@ TYPED_TEST(TestInferNativeSpinDpa4cPtExpt, a_named_state_reaches_every_frame) {
       ener, force, force_mag, virial, this->two(this->coord, this->coord),
       this->two(this->spin, this->spin), this->atype,
       this->two(this->box, this->box), this->two(this->fparam, this->fparam),
+      this->two(this->uparam, this->uparam),
       this->two(this->aparam, this->aparam),
       this->two(this->charge_spin_other, this->charge_spin_other));
 

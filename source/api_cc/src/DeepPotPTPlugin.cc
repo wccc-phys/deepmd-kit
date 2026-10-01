@@ -2,6 +2,7 @@
 #ifdef BUILD_PYTORCH
 
 #include "BackendPluginFactory.h"
+#include "DeepMLUPT.h"
 #include "DeepPotPT.h"
 #include "DeepSpinPT.h"
 #include "DeepTensorPT.h"
@@ -43,6 +44,19 @@ extern "C" void* deepmd_create_deeptensor_backend_v1(const char* model,
 
 extern "C" void deepmd_delete_deeptensor_backend_v1(void* backend) {
   deepmd::plugin::delete_deeptensor_backend(backend);
+}
+
+extern "C" void* deepmd_create_deepmlu_backend_v1(const char* model,
+                                                  int gpu_rank,
+                                                  const char* file_content,
+                                                  std::size_t file_content_size,
+                                                  char** error_message) {
+  return deepmd::plugin::create_deepmlu_backend<deepmd::DeepMLUPT>(
+      model, gpu_rank, file_content, file_content_size, error_message);
+}
+
+extern "C" void deepmd_delete_deepmlu_backend_v1(void* backend) {
+  deepmd::plugin::delete_deepmlu_backend(backend);
 }
 
 extern "C" void deepmd_free_backend_error_v1(char* error_message) {

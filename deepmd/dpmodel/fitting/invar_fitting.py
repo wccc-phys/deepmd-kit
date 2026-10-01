@@ -81,6 +81,9 @@ class InvarFitting(GeneralFitting):
             Number of frame parameter
     numb_aparam
             Number of atomic parameter
+    numb_uparam
+            Number of DFT+U parameters. Automatically set to 1 when
+            `default_uparam` is provided, otherwise 0.
     rcond
             The condition number for the regression of atomic energy.
     bias_atom
@@ -117,6 +120,8 @@ class InvarFitting(GeneralFitting):
     default_fparam: list[float], optional
         The default frame parameter. If set, when `fparam.npy` files are not included in the data system,
         this value will be used as the default value for the frame parameter in the fitting net.
+    default_uparam: float, optional
+        The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams.
 
     """
 
@@ -129,6 +134,7 @@ class InvarFitting(GeneralFitting):
         neuron: list[int] = [120, 120, 120],
         resnet_dt: bool = True,
         numb_fparam: int = 0,
+        numb_uparam: int = 0,
         numb_aparam: int = 0,
         dim_case_embd: int = 0,
         bias_atom: Array | None = None,
@@ -147,6 +153,8 @@ class InvarFitting(GeneralFitting):
         type_map: list[str] | None = None,
         seed: int | list[int] | None = None,
         default_fparam: list[float] | None = None,
+        default_uparam: float | None = None,
+        uparam_mode: str = "frame",
     ) -> None:
         if tot_ener_zero:
             raise NotImplementedError("tot_ener_zero is not implemented")
@@ -173,6 +181,7 @@ class InvarFitting(GeneralFitting):
             neuron=neuron,
             resnet_dt=resnet_dt,
             numb_fparam=numb_fparam,
+            numb_uparam=numb_uparam,
             numb_aparam=numb_aparam,
             dim_case_embd=dim_case_embd,
             rcond=rcond,
@@ -193,6 +202,8 @@ class InvarFitting(GeneralFitting):
             type_map=type_map,
             seed=seed,
             default_fparam=default_fparam,
+            default_uparam=default_uparam,
+            uparam_mode=uparam_mode,
         )
 
     def serialize(self) -> dict:
@@ -239,6 +250,7 @@ class InvarFitting(GeneralFitting):
         g2: Array | None = None,
         h2: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         vacuum_descriptor: Array | None = None,
     ) -> dict[str, Array]:
@@ -261,6 +273,8 @@ class InvarFitting(GeneralFitting):
             shape: nf x nloc x nnei x 3
         fparam
             The frame parameter. shape: nf x nfp. nfp being `numb_fparam`
+        uparam
+            The DFT+U parameter. shape: nf x nup. nup being `numb_uparam`
         aparam
             The atomic parameter. shape: nf x nloc x nap. nap being `numb_aparam`
         vacuum_descriptor
@@ -275,6 +289,7 @@ class InvarFitting(GeneralFitting):
             g2,
             h2,
             fparam,
+            uparam,
             aparam,
             vacuum_descriptor=vacuum_descriptor,
         )

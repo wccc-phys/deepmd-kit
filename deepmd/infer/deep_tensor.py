@@ -42,6 +42,7 @@ class DeepTensor(DeepEval):
         atomic: bool = True,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         mixed_type: bool = False,
         **kwargs: dict,
     ) -> np.ndarray:
@@ -66,6 +67,8 @@ class DeepTensor(DeepEval):
             Not used in this model
         aparam
             Not used in this model
+        uparam
+            Not used in this model
         efield
             Not used in this model
         mixed_type
@@ -86,9 +89,12 @@ class DeepTensor(DeepEval):
             atom_types,
             fparam,
             aparam,
+            uparam,
             nframes,
             natoms,
-        ) = self._standard_input(coords, cells, atom_types, fparam, aparam, mixed_type)
+        ) = self._standard_input(
+            coords, cells, atom_types, fparam, aparam, uparam, mixed_type
+        )
         results = self.deep_eval.eval(
             coords,
             cells,
@@ -96,6 +102,7 @@ class DeepTensor(DeepEval):
             atomic,
             fparam=fparam,
             aparam=aparam,
+            uparam=uparam,
             **kwargs,
         )
         if atomic:
@@ -111,6 +118,7 @@ class DeepTensor(DeepEval):
         atomic: bool = False,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         mixed_type: bool = False,
         **kwargs: dict,
     ) -> tuple[np.ndarray, ...]:
@@ -135,6 +143,8 @@ class DeepTensor(DeepEval):
         fparam
             Not used in this model
         aparam
+            Not used in this model
+        uparam
             Not used in this model
         mixed_type
             Whether to perform the mixed_type mode.
@@ -165,9 +175,12 @@ class DeepTensor(DeepEval):
             atom_types,
             fparam,
             aparam,
+            uparam,
             nframes,
             natoms,
-        ) = self._standard_input(coords, cells, atom_types, fparam, aparam, mixed_type)
+        ) = self._standard_input(
+            coords, cells, atom_types, fparam, aparam, uparam, mixed_type
+        )
         results = self.deep_eval.eval(
             coords,
             cells,
@@ -175,6 +188,7 @@ class DeepTensor(DeepEval):
             atomic,
             fparam=fparam,
             aparam=aparam,
+            uparam=uparam,
             **kwargs,
         )
 
@@ -242,6 +256,7 @@ class OldDeepTensor(DeepTensor):
         atomic: bool = False,
         fparam: np.ndarray | None = None,
         aparam: np.ndarray | None = None,
+        uparam: np.ndarray | None = None,
         mixed_type: bool = False,
         **kwargs: dict,
     ) -> tuple[np.ndarray, ...]:

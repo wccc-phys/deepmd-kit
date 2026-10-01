@@ -27,6 +27,7 @@ from deepmd.infer.deep_eval import (
 from deepmd.infer.model_test import (
     build_tester,
 )
+from deepmd.infer.deep_property import DeepProperty
 from deepmd.utils import random as dp_random
 from deepmd.utils.compat import (
     update_deepmd_input,
@@ -144,6 +145,12 @@ def test(
 
     # init model
     dp = DeepEval(model, head=head)
+
+    # Auto-detect atomic mode for property models (e.g. MLU).
+    # When the model has per-atom outputs (intensive=False),
+    # enable per-atom label testing regardless of --atomic CLI flag.
+    if isinstance(dp, DeepProperty) and not dp.get_intensive():
+        atomic = True
     tester = build_tester(dp, atomic=atomic)
 
     for cc, system in enumerate(all_sys):

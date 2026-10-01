@@ -850,6 +850,10 @@ class DeepmdData:
             alt = set_name / ("atomic_" + key[5:] + ".npy")
             if alt.is_file():
                 return alt
+            # Fall back to plain name: atom_uparam.npy -> uparam.npy
+            alt2 = set_name / (key[5:] + ".npy")
+            if alt2.is_file():
+                return alt2
         return path
 
     def _load_data(

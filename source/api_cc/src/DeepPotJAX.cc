@@ -707,6 +707,13 @@ void deepmd::DeepPotJAX::init(const std::string& model,
         get_scalar<int64_t>(ctx, "get_dim_fparam", func_vector, device, status);
     daparam =
         get_scalar<int64_t>(ctx, "get_dim_aparam", func_vector, device, status);
+    duparam =
+        get_scalar<int64_t>(ctx, "get_dim_uparam", func_vector, device, status);
+    if (duparam > 0) {
+      throw deepmd::deepmd_exception(
+          "uparam (DFT+U) is not supported by the JAX backend");
+    }
+    duparam = 0;
     try {
       dchgspin = get_scalar<int64_t>(ctx, "get_dim_chg_spin", func_vector,
                                      device, status);
@@ -850,6 +857,7 @@ void deepmd::DeepPotJAX::compute(std::vector<ENERGYTYPE>& ener,
                                  const std::vector<int>& datype,
                                  const std::vector<VALUETYPE>& box,
                                  const std::vector<VALUETYPE>& fparam,
+               const std::vector<VALUETYPE>& uparam,
                                  const std::vector<VALUETYPE>& aparam_,
                                  const std::vector<double>& charge_spin,
                                  const bool atomic) {
@@ -888,6 +896,7 @@ void deepmd::DeepPotJAX::compute(std::vector<ENERGYTYPE>& ener,
   std::vector<double> aparam_double(aparam.begin(), aparam.end());
   std::vector<double> charge_spin_double =
       make_charge_spin_input(charge_spin, dchgspin, nframes, default_chg_spin_);
+  std::vector<double> uparam_double(uparam.begin(), uparam.end());
 
   TFE_Op* op;
   if (atomic) {
@@ -897,7 +906,8 @@ void deepmd::DeepPotJAX::compute(std::vector<ENERGYTYPE>& ener,
     op = get_func_op(ctx, "call_without_atomic_virial", func_vector, device,
                      status);
   }
-  const size_t num_inputs = 5 + (dchgspin > 0 ? 1 : 0);
+  const size_t num_inputs = 5 + (duparam > 0 ? 1 : 0) +
+                             (dchgspin > 0 ? 1 : 0);
   std::vector<TFE_TensorHandle*> input_list(num_inputs);
   std::vector<TF_Tensor*> data_tensor(num_inputs);
   // coord
@@ -921,14 +931,21 @@ void deepmd::DeepPotJAX::compute(std::vector<ENERGYTYPE>& ener,
   std::vector<int64_t> fparam_shape = {nframes, dfparam};
   input_list[3] =
       add_input(op, fparam_double, fparam_shape, data_tensor[3], status);
+  // uparam
+  if (duparam > 0) {
+    std::vector<int64_t> uparam_shape = {
+        1, static_cast<std::int64_t>(uparam_double.size())};
+    input_list[4] =
+        add_input(op, uparam_double, uparam_shape, data_tensor[4], status);
+  }
   // aparam
   std::vector<int64_t> aparam_shape = {nframes, nloc_real, daparam};
-  input_list[4] =
-      add_input(op, aparam_double, aparam_shape, data_tensor[4], status);
+  input_list[5] =
+      add_input(op, aparam_double, aparam_shape, data_tensor[5], status);
   if (dchgspin > 0) {
     std::vector<int64_t> charge_spin_shape = {nframes, dchgspin};
-    input_list[5] = add_input(op, charge_spin_double, charge_spin_shape,
-                              data_tensor[5], status);
+    input_list[6] = add_input(op, charge_spin_double, charge_spin_shape,
+                              data_tensor[6], status);
   }
   // execute the function
   int nretvals = 6;
@@ -1017,6 +1034,7 @@ void deepmd::DeepPotJAX::compute(std::vector<ENERGYTYPE>& ener,
                                  const InputNlist& lmp_list,
                                  const int& ago,
                                  const std::vector<VALUETYPE>& fparam,
+               const std::vector<VALUETYPE>& uparam,
                                  const std::vector<VALUETYPE>& aparam_,
                                  const std::vector<double>& charge_spin,
                                  const bool atomic) {
@@ -1053,6 +1071,7 @@ void deepmd::DeepPotJAX::compute(std::vector<ENERGYTYPE>& ener,
   std::vector<double> aparam_double(aparam.begin(), aparam.end());
   std::vector<double> charge_spin_double =
       make_charge_spin_input(charge_spin, dchgspin, nframes, default_chg_spin_);
+  std::vector<double> uparam_double(uparam.begin(), uparam.end());
 
   int nall_model = nall_real;
   if (uses_xla_compilation_) {
@@ -1078,7 +1097,8 @@ void deepmd::DeepPotJAX::compute(std::vector<ENERGYTYPE>& ener,
     op = get_func_op(ctx, "call_lower_without_atomic_virial", func_vector,
                      device, status);
   }
-  const size_t num_inputs = 6 + (dchgspin > 0 ? 1 : 0);
+  const size_t num_inputs = 6 + (duparam > 0 ? 1 : 0) +
+                             (dchgspin > 0 ? 1 : 0);
   std::vector<TFE_TensorHandle*> input_list(num_inputs);
   std::vector<TF_Tensor*> data_tensor(num_inputs);
   // coord
@@ -1142,14 +1162,21 @@ void deepmd::DeepPotJAX::compute(std::vector<ENERGYTYPE>& ener,
   std::vector<int64_t> fparam_shape = {nframes, dfparam};
   input_list[4] =
       add_input(op, fparam_double, fparam_shape, data_tensor[4], status);
+  // uparam
+  if (duparam > 0) {
+    std::vector<int64_t> uparam_shape = {
+        1, static_cast<std::int64_t>(uparam_double.size())};
+    input_list[5] =
+        add_input(op, uparam_double, uparam_shape, data_tensor[5], status);
+  }
   // aparam
   std::vector<int64_t> aparam_shape = {nframes, nloc_real, daparam};
-  input_list[5] =
-      add_input(op, aparam_double, aparam_shape, data_tensor[5], status);
+  input_list[6] =
+      add_input(op, aparam_double, aparam_shape, data_tensor[6], status);
   if (dchgspin > 0) {
     std::vector<int64_t> charge_spin_shape = {nframes, dchgspin};
-    input_list[6] = add_input(op, charge_spin_double, charge_spin_shape,
-                              data_tensor[6], status);
+    input_list[7] = add_input(op, charge_spin_double, charge_spin_shape,
+                              data_tensor[7], status);
   }
   // execute the function
   int nretvals = 6;
@@ -1223,6 +1250,7 @@ template void deepmd::DeepPotJAX::compute<double>(
     const InputNlist& lmp_list,
     const int& ago,
     const std::vector<double>& fparam,
+    const std::vector<double>& uparam,
     const std::vector<double>& aparam_,
     const std::vector<double>& charge_spin,
     const bool atomic);
@@ -1240,6 +1268,7 @@ template void deepmd::DeepPotJAX::compute<float>(
     const InputNlist& lmp_list,
     const int& ago,
     const std::vector<float>& fparam,
+    const std::vector<float>& uparam,
     const std::vector<float>& aparam_,
     const std::vector<double>& charge_spin,
     const bool atomic);
@@ -1258,10 +1287,11 @@ void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
                                   const std::vector<int>& atype,
                                   const std::vector<double>& box,
                                   const std::vector<double>& fparam,
+                                  const std::vector<double>& uparam,
                                   const std::vector<double>& aparam,
                                   const bool atomic) {
   compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-          fparam, aparam, std::vector<double>(), atomic);
+          fparam, uparam, aparam, std::vector<double>(), atomic);
 }
 void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
                                   std::vector<double>& force,
@@ -1272,11 +1302,12 @@ void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
                                   const std::vector<int>& atype,
                                   const std::vector<double>& box,
                                   const std::vector<double>& fparam,
+                                  const std::vector<double>& uparam,
                                   const std::vector<double>& aparam,
                                   const std::vector<double>& charge_spin,
                                   const bool atomic) {
   compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-          fparam, aparam, charge_spin, atomic);
+          fparam, uparam, aparam, charge_spin, atomic);
 }
 void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
                                   std::vector<float>& force,
@@ -1287,10 +1318,11 @@ void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
                                   const std::vector<int>& atype,
                                   const std::vector<float>& box,
                                   const std::vector<float>& fparam,
+                                  const std::vector<float>& uparam,
                                   const std::vector<float>& aparam,
                                   const bool atomic) {
   compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-          fparam, aparam, std::vector<double>(), atomic);
+          fparam, uparam, aparam, std::vector<double>(), atomic);
 }
 void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
                                   std::vector<float>& force,
@@ -1301,28 +1333,12 @@ void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
                                   const std::vector<int>& atype,
                                   const std::vector<float>& box,
                                   const std::vector<float>& fparam,
+                                  const std::vector<float>& uparam,
                                   const std::vector<float>& aparam,
                                   const std::vector<double>& charge_spin,
                                   const bool atomic) {
   compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-          fparam, aparam, charge_spin, atomic);
-}
-void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
-                                  std::vector<double>& force,
-                                  std::vector<double>& virial,
-                                  std::vector<double>& atom_energy,
-                                  std::vector<double>& atom_virial,
-                                  const std::vector<double>& coord,
-                                  const std::vector<int>& atype,
-                                  const std::vector<double>& box,
-                                  const int nghost,
-                                  const InputNlist& inlist,
-                                  const int& ago,
-                                  const std::vector<double>& fparam,
-                                  const std::vector<double>& aparam,
-                                  const bool atomic) {
-  compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-          nghost, inlist, ago, fparam, aparam, std::vector<double>(), atomic);
+          fparam, uparam, aparam, charge_spin, atomic);
 }
 void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
                                   std::vector<double>& force,
@@ -1336,11 +1352,30 @@ void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
                                   const InputNlist& inlist,
                                   const int& ago,
                                   const std::vector<double>& fparam,
+                                  const std::vector<double>& uparam,
+                                  const std::vector<double>& aparam,
+                                  const bool atomic) {
+  compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
+          nghost, inlist, ago, fparam, uparam, aparam, std::vector<double>(), atomic);
+}
+void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
+                                  std::vector<double>& force,
+                                  std::vector<double>& virial,
+                                  std::vector<double>& atom_energy,
+                                  std::vector<double>& atom_virial,
+                                  const std::vector<double>& coord,
+                                  const std::vector<int>& atype,
+                                  const std::vector<double>& box,
+                                  const int nghost,
+                                  const InputNlist& inlist,
+                                  const int& ago,
+                                  const std::vector<double>& fparam,
+                                  const std::vector<double>& uparam,
                                   const std::vector<double>& aparam,
                                   const std::vector<double>& charge_spin,
                                   const bool atomic) {
   compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-          nghost, inlist, ago, fparam, aparam, charge_spin, atomic);
+          nghost, inlist, ago, fparam, uparam, aparam, charge_spin, atomic);
 }
 void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
                                   std::vector<float>& force,
@@ -1354,10 +1389,11 @@ void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
                                   const InputNlist& inlist,
                                   const int& ago,
                                   const std::vector<float>& fparam,
+                                  const std::vector<float>& uparam,
                                   const std::vector<float>& aparam,
                                   const bool atomic) {
   compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-          nghost, inlist, ago, fparam, aparam, std::vector<double>(), atomic);
+          nghost, inlist, ago, fparam, uparam, aparam, std::vector<double>(), atomic);
 }
 void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
                                   std::vector<float>& force,
@@ -1371,11 +1407,12 @@ void deepmd::DeepPotJAX::computew(std::vector<double>& ener,
                                   const InputNlist& inlist,
                                   const int& ago,
                                   const std::vector<float>& fparam,
+                                  const std::vector<float>& uparam,
                                   const std::vector<float>& aparam,
                                   const std::vector<double>& charge_spin,
                                   const bool atomic) {
   compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
-          nghost, inlist, ago, fparam, aparam, charge_spin, atomic);
+          nghost, inlist, ago, fparam, uparam, aparam, charge_spin, atomic);
 }
 void deepmd::DeepPotJAX::computew_mixed_type(std::vector<double>& ener,
                                              std::vector<double>& force,
@@ -1387,6 +1424,7 @@ void deepmd::DeepPotJAX::computew_mixed_type(std::vector<double>& ener,
                                              const std::vector<int>& atype,
                                              const std::vector<double>& box,
                                              const std::vector<double>& fparam,
+                                  const std::vector<double>& uparam,
                                              const std::vector<double>& aparam,
                                              const bool atomic) {
   throw deepmd::deepmd_exception("not implemented");
@@ -1401,6 +1439,7 @@ void deepmd::DeepPotJAX::computew_mixed_type(std::vector<double>& ener,
                                              const std::vector<int>& atype,
                                              const std::vector<float>& box,
                                              const std::vector<float>& fparam,
+                                  const std::vector<float>& uparam,
                                              const std::vector<float>& aparam,
                                              const bool atomic) {
   throw deepmd::deepmd_exception("not implemented");

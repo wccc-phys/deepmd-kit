@@ -71,6 +71,12 @@ struct CanonicalGraphTensorPack;
  * descriptor that exchanges them is confined to a single rank.
  **/
 class NativeSpinPTExpt : public DeepSpinBackend {
+  // DFT+U is not applicable to native-spin models; satisfy the base ABI.
+  int dim_uparam() const override { return 0; };
+  bool has_default_uparam() const override { return false; };
+  std::vector<double> get_default_uparam() const {
+    return std::vector<double>();
+  };
  public:
   NativeSpinPTExpt();
   ~NativeSpinPTExpt() override;
@@ -160,6 +166,7 @@ class NativeSpinPTExpt : public DeepSpinBackend {
                 const std::vector<int>& atype,
                 const std::vector<double>& box,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const bool atomic) override;
   void computew(std::vector<double>& ener,
@@ -173,6 +180,7 @@ class NativeSpinPTExpt : public DeepSpinBackend {
                 const std::vector<int>& atype,
                 const std::vector<float>& box,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const bool atomic) override;
   void computew(std::vector<double>& ener,
@@ -189,6 +197,7 @@ class NativeSpinPTExpt : public DeepSpinBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const bool atomic) override;
   void computew(std::vector<double>& ener,
@@ -205,6 +214,7 @@ class NativeSpinPTExpt : public DeepSpinBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const bool atomic) override;
 
@@ -224,6 +234,7 @@ class NativeSpinPTExpt : public DeepSpinBackend {
                 const std::vector<int>& atype,
                 const std::vector<double>& box,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const std::vector<double>& charge_spin,
                 const bool atomic) override;
@@ -238,6 +249,7 @@ class NativeSpinPTExpt : public DeepSpinBackend {
                 const std::vector<int>& atype,
                 const std::vector<float>& box,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const std::vector<double>& charge_spin,
                 const bool atomic) override;
@@ -255,6 +267,7 @@ class NativeSpinPTExpt : public DeepSpinBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<double>& fparam,
+                const std::vector<double>& uparam,
                 const std::vector<double>& aparam,
                 const std::vector<double>& charge_spin,
                 const bool atomic) override;
@@ -272,6 +285,7 @@ class NativeSpinPTExpt : public DeepSpinBackend {
                 const InputNlist& inlist,
                 const int& ago,
                 const std::vector<float>& fparam,
+                const std::vector<float>& uparam,
                 const std::vector<float>& aparam,
                 const std::vector<double>& charge_spin,
                 const bool atomic) override;

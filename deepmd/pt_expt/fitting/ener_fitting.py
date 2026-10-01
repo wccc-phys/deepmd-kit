@@ -41,6 +41,7 @@ class EnergyFittingNet(EnergyFittingNetDP):
         g2: torch.Tensor | None = None,
         h2: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         vacuum_descriptor: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
@@ -58,6 +59,7 @@ class EnergyFittingNet(EnergyFittingNetDP):
         if (
             not self.training
             and fparam is None
+            and uparam is None
             and aparam is None
             and fused_operators_enabled()
             and fused_fitting_available()
@@ -77,6 +79,7 @@ class EnergyFittingNet(EnergyFittingNetDP):
             g2=g2,
             h2=h2,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             vacuum_descriptor=vacuum_descriptor,
         )

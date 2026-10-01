@@ -17,6 +17,9 @@ from .ener_fitting import (
 from .invar_fitting import (
     InvarFitting,
 )
+from .mlu_fitting import (
+    MLUFitting,
+)
 from .polarizability_fitting import (
     PolarFitting,
 )
@@ -30,6 +33,7 @@ __all__ = [
     "DipoleFitting",
     "EnergyFittingNet",
     "InvarFitting",
+    "MLUFitting",
     "PolarFitting",
     "PropertyFittingNet",
     "SeZMEnergyFittingNet",

@@ -138,6 +138,7 @@ class DP(Calculator):
         atype = [self.type_dict[k] for k in symbols]
 
         fparam = self.atoms.info.get("fparam", None)
+        uparam = self.atoms.info.get("uparam", None)
         aparam = self.atoms.info.get("aparam", None)
         charge_spin = self.atoms.info.get("charge_spin", None)
         e, f, v = self.dp.eval(
@@ -145,6 +146,7 @@ class DP(Calculator):
             cells=cell,
             atom_types=atype,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
         )[:3]

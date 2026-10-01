@@ -35,6 +35,9 @@ from deepmd.dpmodel.train import (
     change_model_out_bias,
     resolve_step_schedule,
 )
+from deepmd.dpmodel.utils.fitting_params import (
+    FittingParams,
+)
 from deepmd.dpmodel.utils import (
     compute_total_numb_batch,
 )
@@ -51,6 +54,7 @@ from deepmd.pt.loss import (
     DOSLoss,
     EnergySpinLoss,
     EnergyStdLoss,
+    MLULoss,
     PopulationLoss,
     PropertyLoss,
     TaskLoss,
@@ -2246,26 +2250,21 @@ class Trainer:
                 batch_data[key] = [
                     item.to(DEVICE, non_blocking=True) for item in batch_data[key]
                 ]
-        # we may need a better way to classify which are inputs and which are labels
-        # now wrapper only supports the following inputs:
-        input_keys = [
-            "coord",
-            "atype",
-            "spin",
-            "box",
-            "fparam",
-            "aparam",
-            "charge_spin",
-        ]
+        # Registry-driven: conditioning membership, the MLU uparam->label
+        # rule and the find_* optional pruning all live in FittingParams.
+        cond_keys = FittingParams.cond_input_keys()
+        optional_keys = set(FittingParams.optional_keys())
+        model_for_task = self.model[task_key] if self.multi_task else self.model
+        if FittingParams.uparam_is_label(model_for_task):
+            cond_keys = tuple(k for k in cond_keys if k != "uparam")
+        input_keys = ["coord", "atype", "spin", "box", *cond_keys]
         input_dict = dict.fromkeys(input_keys)
         label_dict = {}
         for item_key in batch_data:
             if item_key in input_keys:
-                if item_key == "fparam" and batch_data.get("find_fparam", 1.0) == 0.0:
-                    continue
                 if (
-                    item_key == "charge_spin"
-                    and batch_data.get("find_charge_spin", 1.0) == 0.0
+                    item_key in optional_keys
+                    and batch_data.get(f"find_{item_key}", 1.0) == 0.0
                 ):
                     continue
                 input_dict[item_key] = batch_data[item_key]
@@ -2373,31 +2372,12 @@ def all_ranks_have_valid_frames(local_has_valid: bool) -> bool:
 
 
 def get_additional_data_requirement(_model: Any) -> list[DataRequirementItem]:
-    additional_data_requirement = []
-    if _model.get_dim_fparam() > 0:
-        _fparam_default = (
-            _model.get_default_fparam().cpu().numpy()
-            if _model.has_default_fparam()
-            else 0.0
-        )
-        fparam_requirement_items = [
-            DataRequirementItem(
-                "fparam",
-                _model.get_dim_fparam(),
-                atomic=False,
-                must=not _model.has_default_fparam(),
-                default=_fparam_default,
-                source_policy=("default" if _model.has_default_fparam() else "tracked"),
-            )
-        ]
-        additional_data_requirement += fparam_requirement_items
-    if _model.get_dim_aparam() > 0:
-        aparam_requirement_items = [
-            DataRequirementItem(
-                "aparam", _model.get_dim_aparam(), atomic=True, must=True
-            )
-        ]
-        additional_data_requirement += aparam_requirement_items
+    # Conditioning parameters (fparam/uparam/aparam/charge_spin) come from
+    # the FittingParams registry -- one place to add a new parameter. This
+    # also unifies the uparam source_policy with the pt_expt trainer.
+    additional_data_requirement: list[DataRequirementItem] = (
+        FittingParams.requirement_items(_model, DataRequirementItem)
+    )
     has_spin = getattr(_model, "has_spin", False)
     if callable(has_spin):
         has_spin = has_spin()
@@ -2409,7 +2389,7 @@ def get_additional_data_requirement(_model: Any) -> list[DataRequirementItem]:
         allow_missing_spin = getattr(
             getattr(_model, "spin", None), "allow_missing_label", False
         )
-        spin_requirement_items = [
+        additional_data_requirement.append(
             DataRequirementItem(
                 "spin",
                 ndof=3,
@@ -2417,22 +2397,6 @@ def get_additional_data_requirement(_model: Any) -> list[DataRequirementItem]:
                 must=not allow_missing_spin,
                 default=0.0,
                 source_policy="default" if allow_missing_spin else "tracked",
-            )
-        ]
-        additional_data_requirement += spin_requirement_items
-    if _model.has_chg_spin_ebd():
-        has_default_cs = _model.has_default_chg_spin()
-        cs_default = (
-            _model.get_default_chg_spin().cpu().numpy() if has_default_cs else 0.0
-        )
-        additional_data_requirement.append(
-            DataRequirementItem(
-                "charge_spin",
-                ndof=2,
-                atomic=False,
-                must=not has_default_cs,
-                default=cs_default,
-                source_policy="default" if has_default_cs else "tracked",
             )
         )
     return additional_data_requirement
@@ -2531,6 +2495,12 @@ def get_loss(
         loss_params["var_name"] = var_name
         loss_params["intensive"] = intensive
         return PropertyLoss(**loss_params)
+    elif loss_type == "mlu":
+        task_dim = _model.get_task_dim()
+        intensive = _model.get_intensive()
+        loss_params["task_dim"] = task_dim
+        loss_params["intensive"] = intensive
+        return MLULoss(**loss_params)
     elif loss_type == "population":
         loss_params["starter_learning_rate"] = start_lr
         return PopulationLoss(**loss_params)

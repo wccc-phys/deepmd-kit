@@ -81,6 +81,7 @@ class BaseModifier(torch.nn.Module, make_base_modifier()):
         atype: torch.Tensor,
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
@@ -100,6 +101,7 @@ class BaseModifier(torch.nn.Module, make_base_modifier()):
             - box           simulation box (9,)
             - atype         atom types (nat,)
             - fparam        frame parameter (nfp,)
+            - uparam        DFT+U parameter (nup,)
             - aparam        atom parameter (nat, nap)
             - find_energy   tells if data has energy
             - find_force    tells if data has force
@@ -143,6 +145,10 @@ class BaseModifier(torch.nn.Module, make_base_modifier()):
             fparam_input = to_torch_tensor(data["fparam"].reshape(nframes, -1))
         else:
             fparam_input = None
+        if "uparam" in data:
+            uparam_input = to_torch_tensor(data["uparam"].reshape(nframes, -1))
+        else:
+            uparam_input = None
         if "aparam" in data:
             aparam_input = to_torch_tensor(data["aparam"].reshape(nframes, natoms, -1))
         else:
@@ -155,6 +161,7 @@ class BaseModifier(torch.nn.Module, make_base_modifier()):
             type_input,
             box_input,
             fparam_input,
+            uparam_input,
             aparam_input,
             do_atomic_virial,
         )

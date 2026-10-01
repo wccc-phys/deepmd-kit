@@ -180,6 +180,7 @@ def _compute_model_predict(
         atype = to_numpy_array(system["atype"])
         box = to_numpy_array(system["box"])
         fparam = to_numpy_array(system.get("fparam", None))
+        uparam = to_numpy_array(system.get("uparam", None))
         aparam = to_numpy_array(system.get("aparam", None))
         charge_spin = to_numpy_array(system.get("charge_spin", None))
         # A native-spin model conditions on the per-atom moment, so the bias it
@@ -193,6 +194,7 @@ def _compute_model_predict(
             atype,
             box,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             charge_spin=charge_spin,
             spin=spin,

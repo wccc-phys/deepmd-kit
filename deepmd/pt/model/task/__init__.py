@@ -15,6 +15,9 @@ from .ener import (
 from .fitting import (
     Fitting,
 )
+from .mlu import (
+    MLUFitting,
+)
 from .polarizability import (
     PolarFittingNet,
 )
@@ -35,6 +38,7 @@ __all__ = [
     "EnergyFittingNet",
     "EnergyFittingNetDirect",
     "Fitting",
+    "MLUFitting",
     "PolarFittingNet",
     "PopulationFittingNet",
     "PropertyFittingNet",

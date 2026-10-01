@@ -411,6 +411,15 @@ class EnerTester(ModelTester):
                 must=not dp.has_default_fparam(),
                 high_prec=False,
             )
+        if dp.get_dim_uparam() > 0:
+            uparam_atomic = dp.get_uparam_mode() == "atomic"
+            data.add(
+                "uparam",
+                dp.get_dim_uparam(),
+                atomic=uparam_atomic,
+                must=not dp.has_default_uparam(),
+                high_prec=False,
+            )
         if dp.get_dim_aparam() > 0:
             data.add(
                 "aparam", dp.get_dim_aparam(), atomic=True, must=True, high_prec=False
@@ -459,6 +468,11 @@ class EnerTester(ModelTester):
             if dp.get_dim_fparam() > 0 and test_data["find_fparam"] != 0.0
             else None
         )
+        uparam = (
+            test_data["uparam"]
+            if dp.get_dim_uparam() > 0 and test_data["find_uparam"] != 0.0
+            else None
+        )
         aparam = test_data["aparam"] if dp.get_dim_aparam() > 0 else None
         charge_spin = (
             test_data["charge_spin"]
@@ -471,6 +485,7 @@ class EnerTester(ModelTester):
             box,
             atype,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             atomic=self.atomic,
             efield=efield,

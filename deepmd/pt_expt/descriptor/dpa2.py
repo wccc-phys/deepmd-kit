@@ -295,6 +295,7 @@ class DescrptDPA2(DescrptDPA2DP):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         comm_dict: dict | None = None,
         charge_spin: torch.Tensor | None = None,
     ) -> Any:
@@ -306,6 +307,7 @@ class DescrptDPA2(DescrptDPA2DP):
                 nlist,
                 mapping,
                 fparam,
+                uparam,
                 comm_dict=comm_dict,
             )
         # Compressed path is local-only (no message passing during compress).

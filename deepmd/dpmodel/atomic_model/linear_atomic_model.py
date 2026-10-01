@@ -2,6 +2,7 @@
 from collections.abc import (
     Callable,
 )
+import inspect
 from typing import (
     Any,
 )
@@ -352,6 +353,7 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
         graph: Any,
         atype: Array,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         charge_spin: Array | None = None,
         spin: Array | None = None,
@@ -422,15 +424,19 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
         xp = array_api_compat.array_namespace(graph.edge_vec)
         energy = None
         for model, ww in zip(self.models, weights, strict=True):
-            ret = model.forward_common_atomic_graph(
-                graph,
-                atype,
-                fparam=fparam,
-                aparam=aparam,
-                charge_spin=charge_spin,
-                spin=spin,
-                comm_dict=comm_dict,
-            )
+            # ZBL/tabular children (e.g. inner_potential) take no uparam;
+            # pass it only to learned children whose graph forward accepts it.
+            params = inspect.signature(model.forward_common_atomic_graph).parameters
+            child_kwargs = {
+                "fparam": fparam,
+                "aparam": aparam,
+                "charge_spin": charge_spin,
+                "spin": spin,
+                "comm_dict": comm_dict,
+            }
+            if "uparam" in params:
+                child_kwargs["uparam"] = uparam
+            ret = model.forward_common_atomic_graph(graph, atype, **child_kwargs)
             contrib = ret["energy"] * ww
             energy = contrib if energy is None else energy + contrib
         return {"energy": xp.astype(energy, graph.edge_vec.dtype)}
@@ -442,6 +448,7 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
         nlist: Array,
         mapping: Array | None = None,
         fparam: Array | None = None,
+        uparam: Array | None = None,
         aparam: Array | None = None,
         comm_dict: dict | None = None,
         charge_spin: Array | None = None,
@@ -460,6 +467,8 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
             mapps the extended indices to local indices.
         fparam
             frame parameter. (nframes, ndf)
+        uparam
+            DFT+U parameter. (nframes, ndu)
         aparam
             atomic parameter. (nframes, nloc, nda)
         comm_dict
@@ -504,6 +513,7 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
                     nlists_[i],
                     mapping,
                     fparam,
+                    uparam,
                     aparam,
                     comm_dict,
                     charge_spin=charge_spin,
@@ -673,6 +683,27 @@ class LinearEnergyAtomicModel(BaseAtomicModel):
         non-consumer.
         """
         return max([model.get_dim_fparam() for model in self.models])
+
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return max([model.get_dim_uparam() for model in self.models])
+
+    def get_uparam_mode(self) -> str:
+        """Forward the DFT+U mode of the consuming (DP) child.
+
+        The tabular/analytic children report the BaseAtomicModel default;
+        the DP child owns the actual conditioning semantics.
+        """
+        return self.models[0].get_uparam_mode()
+
+    def has_default_uparam(self) -> bool:
+        return any(model.has_default_uparam() for model in self.models)
+
+    def get_default_uparam(self):
+        for model in self.models:
+            if model.has_default_uparam():
+                return model.get_default_uparam()
+        return None
 
     def get_dim_aparam(self) -> int:
         """Get the number (dimension) of atomic parameters of this atomic model.

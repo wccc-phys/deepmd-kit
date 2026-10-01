@@ -209,10 +209,10 @@ TYPED_TEST(TestInferDeepSpinDpa4ChgSpinPtExpt,
   std::vector<VALUETYPE> force_exp, force_mag_exp, virial_exp;
 
   dp.compute(ener_def, force_def, force_mag_def, virial_def, this->coord,
-             this->spin, this->atype, this->box, {}, {},
+             this->spin, this->atype, this->box, {}, {}, {},
              this->charge_spin_default);
   dp.compute(ener_exp, force_exp, force_mag_exp, virial_exp, this->coord,
-             this->spin, this->atype, this->box, {}, {},
+             this->spin, this->atype, this->box, {}, {}, {},
              this->charge_spin_explicit);
 
   // The runtime argument reaches the model at all ...
@@ -248,7 +248,7 @@ TYPED_TEST(TestInferDeepSpinDpa4ChgSpinPtExpt,
 
   // Passing the stored default explicitly must select the same behaviour.
   dp.compute(ener_default_value, f_val, fm_val, v_val, this->coord, this->spin,
-             this->atype, this->box, {}, {}, this->charge_spin_default);
+             this->atype, this->box, {}, {}, {}, this->charge_spin_default);
   EXPECT_LT(fabs(ener_empty - ener_default_value), EPSILON)
       << "an empty charge_spin and an explicit default_chg_spin disagree";
   for (int ii = 0; ii < this->pbc_default.natoms * 3; ++ii) {
@@ -271,7 +271,7 @@ TYPED_TEST(TestInferDeepSpinDpa4ChgSpinPtExpt,
   double ener;
   std::vector<VALUETYPE> force, force_mag, virial, atom_ener, atom_vir;
   dp.compute(ener, force, force_mag, virial, atom_ener, atom_vir, this->coord,
-             this->spin, this->atype, this->box, {}, {},
+             this->spin, this->atype, this->box, {}, {}, {},
              this->charge_spin_explicit);
 
   expect_matches(ref, ener, force, force_mag, virial, EPSILON);
@@ -300,7 +300,7 @@ TYPED_TEST(TestInferDeepSpinDpa4ChgSpinPtExpt,
   std::vector<VALUETYPE> force, force_mag, virial;
   EXPECT_THROW(
       dp.compute(ener, force, force_mag, virial, this->coord, this->spin,
-                 this->atype, this->box, {}, {}, invalid_charge_spin),
+                 this->atype, this->box, {}, {}, {}, invalid_charge_spin),
       deepmd::deepmd_exception);
 }
 
@@ -329,9 +329,9 @@ TYPED_TEST(TestInferDeepSpinDpa4ChgSpinPtExpt, cpu_lmp_nlist_two_charge_spin) {
 
   // Empty charge_spin -> stored default_chg_spin.
   dp.compute(ener_def, f_def, fm_def, v_def, this->coord, this->spin,
-             this->atype, this->nobox, 0, inlist, 0);
+             this->atype, this->nobox, 0, inlist, 0, {}, {}, {});
   dp.compute(ener_exp, f_exp, fm_exp, v_exp, this->coord, this->spin,
-             this->atype, this->nobox, 0, inlist, 0, {}, {},
+             this->atype, this->nobox, 0, inlist, 0, {}, {}, {},
              this->charge_spin_explicit);
 
   EXPECT_GT(fabs(ener_exp - ener_def), kMinChgSpinGap)
@@ -357,7 +357,7 @@ TYPED_TEST(TestInferDeepSpinDpa4ChgSpinPtExpt, cpu_lmp_nlist_atomic_explicit) {
   double ener;
   std::vector<VALUETYPE> force, force_mag, virial, atom_ener, atom_vir;
   dp.compute(ener, force, force_mag, virial, atom_ener, atom_vir, this->coord,
-             this->spin, this->atype, this->nobox, 0, inlist, 0, {}, {},
+             this->spin, this->atype, this->nobox, 0, inlist, 0, {}, {}, {},
              this->charge_spin_explicit);
 
   expect_matches(ref, ener, force, force_mag, virial, EPSILON);

@@ -14,6 +14,9 @@ from typing import (
 import numpy as np
 import torch
 
+from deepmd.dpmodel.utils.fitting_params import (
+    FittingParams,
+)
 from deepmd.dpmodel.utils.nlist import (
     build_neighbor_list,
     extend_coord_with_ghosts,
@@ -385,15 +388,17 @@ def _make_sample_inputs(
     Returns
     -------
     tuple
-        (ext_coord, ext_atype, nlist, mapping, fparam, aparam, charge_spin) or
-        (ext_coord, ext_atype, ext_spin, nlist, mapping, fparam, aparam,
-        charge_spin) when has_spin.
+        (ext_coord, ext_atype, nlist, mapping, fparam, uparam, aparam,
+        charge_spin) or
+        (ext_coord, ext_atype, ext_spin, nlist, mapping, fparam, uparam,
+        aparam, charge_spin) when has_spin.
     """
     rcut = model.get_rcut()
     sel = model.get_sel()
     ntypes = len(model.get_type_map())
     dim_fparam = model.get_dim_fparam()
     dim_aparam = model.get_dim_aparam()
+    dim_uparam = model.get_dim_uparam()
     mixed_types = model.mixed_types()
 
     # Create a simple box large enough to avoid PBC issues
@@ -447,6 +452,20 @@ def _make_sample_inputs(
     else:
         fparam = None
 
+    if dim_uparam > 0:
+        # Atomic mode is per-atom (nf, nloc, ndu) — the dense lower consumes
+        # per-atom conditioning; frame mode stays (nf, ndu).
+        if hasattr(model, "get_uparam_mode") and model.get_uparam_mode() == "atomic":
+            uparam = torch.zeros(
+                nframes, nloc, dim_uparam, dtype=torch.float64, device=_env.DEVICE
+            )
+        else:
+            uparam = torch.zeros(
+                nframes, dim_uparam, dtype=torch.float64, device=_env.DEVICE
+            )
+    else:
+        uparam = None
+
     if dim_aparam > 0:
         aparam = torch.zeros(
             nframes, nloc, dim_aparam, dtype=torch.float64, device=_env.DEVICE
@@ -474,11 +493,21 @@ def _make_sample_inputs(
             nlist_t,
             mapping_t,
             fparam,
+            uparam,
             aparam,
             charge_spin,
         )
 
-    return ext_coord, ext_atype, nlist_t, mapping_t, fparam, aparam, charge_spin
+    return (
+        ext_coord,
+        ext_atype,
+        nlist_t,
+        mapping_t,
+        fparam,
+        uparam,
+        aparam,
+        charge_spin,
+    )
 
 
 def build_synthetic_graph_inputs(
@@ -492,6 +521,7 @@ def build_synthetic_graph_inputs(
     device: torch.device | None = None,
     want_fparam: bool = True,
     want_aparam: bool = True,
+    want_uparam: bool = True,
     want_charge_spin: bool = True,
     want_spin: bool = False,
     canonicalize: bool = True,
@@ -547,7 +577,7 @@ def build_synthetic_graph_inputs(
     device : torch.device, optional
         Target device.  Defaults to ``deepmd.pt_expt.utils.env.DEVICE``; the
         export path passes ``cpu`` explicitly (make_fx traces on CPU).
-    want_fparam, want_aparam, want_charge_spin : bool
+    want_fparam, want_aparam, want_uparam, want_charge_spin : bool
         Whether to emit the optional conditioning tensor when its ``dim > 0``.
         Export passes the defaults (``True`` = include if present); training
         passes ``x is not None`` so the traced branch matches the run-time call.
@@ -579,6 +609,7 @@ def build_synthetic_graph_inputs(
     rcut = model.get_rcut()
     ntypes = len(model.get_type_map())
     dim_fparam = model.get_dim_fparam()
+    dim_uparam = model.get_dim_uparam()
     dim_aparam = model.get_dim_aparam()
     dim_chg_spin = model.get_dim_chg_spin()
 
@@ -617,6 +648,19 @@ def build_synthetic_graph_inputs(
         if (want_aparam and dim_aparam > 0)
         else None
     )
+    # uparam follows the model's uparam_mode: frame mode is frame-level
+    # ``(nf, ndu)``; atomic mode is NODE-level ``(N, ndu)`` -- the same flat
+    # axis as ``aparam``, matching what the runtime inference ABI
+    # (DeepEval) hands the graph lower for atomic-mode models.
+    _uparam_atomic = (
+        hasattr(model, "get_uparam_mode") and model.get_uparam_mode() == "atomic"
+    )
+    _uparam_shape = (nframes * nloc, dim_uparam) if _uparam_atomic else (nframes, dim_uparam)
+    uparam = (
+        torch.zeros(_uparam_shape, dtype=dtype, device=device)
+        if (want_uparam and dim_uparam > 0)
+        else None
+    )
     # Keep total and owned counts value-distinct during tracing so export does
     # not specialize the multi-rank ownership relation to ``n_local == n_node``.
     n_local = torch.clamp(graph.n_node - 1, min=1)
@@ -648,6 +692,7 @@ def build_synthetic_graph_inputs(
             graph.source_row_ptr,
             spin,
             fparam,
+            uparam,
             aparam,
             charge_spin,
         )
@@ -669,6 +714,7 @@ def build_synthetic_graph_inputs(
         graph.source_order,
         graph.source_row_ptr,
         fparam,
+        uparam,
         aparam,
         charge_spin,
     )
@@ -846,12 +892,13 @@ def _build_graph_dynamic_shapes(
     *sample_inputs : torch.Tensor | None
         Regular (energy) ABI: ``(atype, n_node, n_local, edge_index,
         edge_vec, edge_mask, destination_order, destination_row_ptr,
-        source_order, source_row_ptr, fparam, aparam, charge_spin)`` — 13
+        source_order, source_row_ptr, fparam, uparam, aparam,
+        charge_spin)`` — 14
         entries matching ``forward_lower_graph_exportable``. Native-spin ABI
         (``is_native_spin=True``): same shared CSR block (slots 0-9), but
         slot 10 is ``spin`` (mandatory, node-axis-shaped), slot 11
-        ``fparam``, slot 12 ``aparam``, slot 13 the conditional
-        ``charge_spin`` tail (see
+        ``fparam``, slot 12 ``uparam``, slot 13 ``aparam``, slot 14 the
+        conditional ``charge_spin`` tail (see
         ``NativeSpinEnergyModel.forward_lower_graph_exportable``).
     is_native_spin : bool
         Whether ``sample_inputs`` follows the native-spin positional ABI
@@ -876,23 +923,38 @@ def _build_graph_dynamic_shapes(
     if is_native_spin:
         spin = sample_inputs[10]
         fparam = sample_inputs[11]
-        aparam = sample_inputs[12]
-        charge_spin = sample_inputs[13]
+        uparam = sample_inputs[12]
+        aparam = sample_inputs[13]
+        charge_spin = sample_inputs[14]
         return (
             *base,
             # spin: (N, 3) — shares atype's node-axis symbol, same pattern
             # as aparam below.
             {0: n_node_total_dim} if spin is not None else None,  # spin
             {0: nframes_dim} if fparam is not None else None,  # fparam
+            {0: nframes_dim} if uparam is not None else None,  # uparam: (nf, ndu)
             {0: n_node_total_dim} if aparam is not None else None,  # aparam
             {0: nframes_dim} if charge_spin is not None else None,  # charge_spin
         )
     fparam = sample_inputs[10]
-    aparam = sample_inputs[11]
-    charge_spin = sample_inputs[12]
+    uparam = sample_inputs[11]
+    aparam = sample_inputs[12]
+    charge_spin = sample_inputs[13]
+    # uparam: frame mode is (nf, ndu) — frame-axis symbol, same as fparam;
+    # atomic mode is (N, ndu) — flat on the node axis like aparam. Which one
+    # is read off the SAMPLE's leading extent: matching the node-axis sample
+    # size means the runtime tensor is node-level and must share atype's
+    # symbol (an independent dim would make torch.export prove/reject the
+    # equality N == uparam rows).
+    node_sample = int(sample_inputs[0].shape[0])
+    if uparam is not None and int(uparam.shape[0]) == node_sample:
+        uparam_map = {0: n_node_total_dim}
+    else:
+        uparam_map = {0: nframes_dim}
     return (
         *base,
         {0: nframes_dim} if fparam is not None else None,  # fparam: (nf, ndf)
+        uparam_map if uparam is not None else None,  # uparam
         # aparam: (N, nda) — flat on the node axis, SHARING atype's ``N``
         # symbol (the graph fitting consumes aparam per node; an independent
         # dim would make torch.export prove/reject the equality).
@@ -921,12 +983,12 @@ def _build_graph_dynamic_shapes_with_comm(
     *sample_inputs : torch.Tensor | None
         ``(atype, n_node, n_local, edge_index, edge_vec, edge_mask,
         destination_order, destination_row_ptr, source_order,
-        source_row_ptr, fparam, aparam, charge_spin, send_list, send_proc,
+        source_row_ptr, fparam, uparam, aparam, charge_spin, send_list, send_proc,
         recv_proc, send_num, recv_num, communicator, nlocal, nghost)`` --
         21 entries matching ``forward_lower_graph_exportable_with_comm``.
-        Native-spin ABI (``is_native_spin=True``): 22 entries, with ``spin``
-        inserted at slot 10 and the conditional tail shifted to 11-13, so
-        the comm block starts at 14.
+        Native-spin ABI (``is_native_spin=True``): 23 entries, with ``spin``
+        inserted at slot 10 and the conditional tail shifted to 11-14, so
+        the comm block starts at 15.
     is_native_spin : bool
         Whether ``sample_inputs`` follows the native-spin positional ABI.
 
@@ -939,8 +1001,9 @@ def _build_graph_dynamic_shapes_with_comm(
     tail_start = 11 if is_native_spin else 10
     spin = sample_inputs[10] if is_native_spin else None
     fparam = sample_inputs[tail_start]
-    aparam = sample_inputs[tail_start + 1]
-    charge_spin = sample_inputs[tail_start + 2]
+    uparam = sample_inputs[tail_start + 1]
+    aparam = sample_inputs[tail_start + 2]
+    charge_spin = sample_inputs[tail_start + 3]
     nframes_val = 1
     n_node_total_dim = torch.export.Dim("n_node_total", min=1)
     nedge_dim = torch.export.Dim("nedge", min=2)
@@ -963,6 +1026,7 @@ def _build_graph_dynamic_shapes_with_comm(
             else ()
         ),
         {0: nframes_val} if fparam is not None else None,  # fparam
+        {0: nframes_val} if uparam is not None else None,  # uparam: (nf, ndu)
         # aparam: (N, nda) — flat on the SAME extended node axis as atype
         # (owned prefix + ghost rows).
         {0: n_node_total_dim} if aparam is not None else None,  # aparam
@@ -998,7 +1062,7 @@ def _build_dynamic_shapes(
     Parameters
     ----------
     *sample_inputs : torch.Tensor | None
-        Sample inputs: 6 tensors (non-spin) or 7 (spin), optionally
+        Sample inputs: 7 tensors (non-spin) or 8 (spin), optionally
         followed by 8 comm tensors when ``with_comm_dict``.
     has_spin : bool
         Whether the inputs include an extended_spin tensor.
@@ -1037,10 +1101,11 @@ def _build_dynamic_shapes(
     nnei_dim = torch.export.Dim("nnei", min=max(1, model_nnei))
 
     if has_spin:
-        # (ext_coord, ext_atype, ext_spin, nlist, mapping, fparam, aparam, charge_spin)
+        # (ext_coord, ext_atype, ext_spin, nlist, mapping, fparam, aparam, uparam, charge_spin)
         fparam = sample_inputs[5]
         aparam = sample_inputs[6]
-        charge_spin = sample_inputs[7]
+        uparam = sample_inputs[7]
+        charge_spin = sample_inputs[8]
         base = (
             {0: nframes_dim, 1: nall_dim},  # extended_coord: (nframes, nall, 3)
             {0: nframes_dim, 1: nall_dim},  # extended_atype: (nframes, nall)
@@ -1053,13 +1118,15 @@ def _build_dynamic_shapes(
             {0: nframes_dim, 1: nall_dim},  # mapping: (nframes, nall)
             {0: nframes_dim} if fparam is not None else None,  # fparam
             {0: nframes_dim, 1: nloc_dim} if aparam is not None else None,  # aparam
+            {0: nframes_dim} if uparam is not None else None,  # uparam
             {0: nframes_dim} if charge_spin is not None else None,  # charge_spin
         )
     else:
-        # (ext_coord, ext_atype, nlist, mapping, fparam, aparam, charge_spin)
+        # (ext_coord, ext_atype, nlist, mapping, fparam, aparam, uparam, charge_spin)
         fparam = sample_inputs[4]
         aparam = sample_inputs[5]
-        charge_spin = sample_inputs[6]
+        uparam = sample_inputs[6]
+        charge_spin = sample_inputs[7]
         base = (
             {0: nframes_dim, 1: nall_dim},  # extended_coord: (nframes, nall, 3)
             {0: nframes_dim, 1: nall_dim},  # extended_atype: (nframes, nall)
@@ -1071,6 +1138,7 @@ def _build_dynamic_shapes(
             {0: nframes_dim, 1: nall_dim},  # mapping: (nframes, nall)
             {0: nframes_dim} if fparam is not None else None,  # fparam
             {0: nframes_dim, 1: nloc_dim} if aparam is not None else None,  # aparam
+            {0: nframes_dim} if uparam is not None else None,  # uparam
             {0: nframes_dim} if charge_spin is not None else None,  # charge_spin
         )
 
@@ -1172,15 +1240,11 @@ def _collect_metadata(
         "rcut": model.get_rcut(),
         "sel": model.get_sel(),
         "nnei": sum(model.get_sel()),
-        "dim_fparam": model.get_dim_fparam(),
-        "dim_aparam": model.get_dim_aparam(),
-        "dim_chg_spin": model.get_dim_chg_spin(),
+        # Conditioning parameters come from the FittingParams registry:
+        # dim_/has_default_/default_ keys per parameter, in registry order
+        # (byte-identical to the previous hand-written block).
+        **FittingParams.metadata_dict(model),
         "mixed_types": model.mixed_types(),
-        "has_default_fparam": model.has_default_fparam(),
-        "default_fparam": model.get_default_fparam(),
-        "has_chg_spin_ebd": model.has_chg_spin_ebd(),
-        "has_default_chg_spin": model.get_default_chg_spin() is not None,
-        "default_chg_spin": _metadata_value_to_json(model.get_default_chg_spin()),
         # The condition indexes embedding tables, so the archive carries their
         # row ranges and a deployment rejects an unaddressable state without a
         # Python model. Absent when the model reads no condition.
@@ -2106,9 +2170,10 @@ def _trace_and_export_impl(
                 traced = model.forward_lower_graph_exportable(
                     *sample_inputs[:10],
                     fparam=sample_inputs[10],
-                    aparam=sample_inputs[11],
+                    uparam=sample_inputs[11],
+                    aparam=sample_inputs[12],
                     do_atomic_virial=do_atomic_virial,
-                    charge_spin=sample_inputs[12],
+                    charge_spin=sample_inputs[13],
                     destination_sorted=True,
                     tracing_mode="symbolic",
                     _allow_non_fake_inputs=True,
@@ -2210,6 +2275,7 @@ def _trace_and_export_impl(
             nlist_t,
             mapping_t,
             fparam,
+            uparam,
             aparam,
             charge_spin,
         ) = sample_inputs
@@ -2220,6 +2286,7 @@ def _trace_and_export_impl(
             nlist_t,
             mapping_t,
             fparam,
+            uparam,
             aparam,
             charge_spin,
         ) = sample_inputs
@@ -2268,6 +2335,7 @@ def _trace_and_export_impl(
                 mapping_t,
                 fparam,
                 aparam,
+                uparam,
                 charge_spin,
                 *comm_inputs,
                 do_atomic_virial=do_atomic_virial,
@@ -2283,6 +2351,7 @@ def _trace_and_export_impl(
                 mapping_t,
                 fparam=fparam,
                 aparam=aparam,
+                uparam=uparam,
                 do_atomic_virial=do_atomic_virial,
                 charge_spin=charge_spin,
                 tracing_mode="symbolic",
@@ -2297,6 +2366,7 @@ def _trace_and_export_impl(
                 mapping_t,
                 fparam,
                 aparam,
+                uparam,
                 charge_spin,
                 *comm_inputs,
                 do_atomic_virial=do_atomic_virial,
@@ -2311,6 +2381,7 @@ def _trace_and_export_impl(
                 mapping_t,
                 fparam=fparam,
                 aparam=aparam,
+                uparam=uparam,
                 do_atomic_virial=do_atomic_virial,
                 charge_spin=charge_spin,
                 tracing_mode="symbolic",

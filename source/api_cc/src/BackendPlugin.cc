@@ -453,6 +453,42 @@ deepmd::create_deeptensor_backend_from_plugin(DPBackend backend,
       });
 }
 
+std::shared_ptr<deepmd::DeepMLUBackend>
+deepmd::create_deepmlu_backend_from_plugin(DPBackend backend,
+                                           const std::string& model,
+                                           const int& gpu_rank,
+                                           const std::string& file_content) {
+  std::shared_ptr<PluginHandle> plugin =
+      load_plugin_with_symbols(backend, {DEEPMD_DEEPMLU_PLUGIN_CREATE_SYMBOL,
+                                         DEEPMD_DEEPMLU_PLUGIN_DELETE_SYMBOL});
+  deepmd_create_deepmlu_backend_fn create_deepmlu =
+      load_typed_symbol<deepmd_create_deepmlu_backend_fn>(
+          plugin, DEEPMD_DEEPMLU_PLUGIN_CREATE_SYMBOL);
+  deepmd_delete_deepmlu_backend_fn delete_deepmlu =
+      load_typed_symbol<deepmd_delete_deepmlu_backend_fn>(
+          plugin, DEEPMD_DEEPMLU_PLUGIN_DELETE_SYMBOL);
+
+  char* error_message = nullptr;
+  const std::string action =
+      "Failed to create " + backend_name(backend) + " DeepMLU backend";
+  void* backend_handle =
+      call_backend_create(plugin, error_message, action, [&]() {
+        return create_deepmlu(model.c_str(), gpu_rank, file_content.data(),
+                              file_content.size(), &error_message);
+      });
+  if (backend_handle == nullptr) {
+    std::string message = take_plugin_error(plugin, error_message);
+    throw deepmd::deepmd_exception(action + " from " + plugin->path +
+                                   (message.empty() ? "" : ": " + message));
+  }
+  if (error_message != nullptr) {
+    plugin->free_error(error_message);
+  }
+  return std::shared_ptr<DeepMLUBackend>(
+      static_cast<DeepMLUBackend*>(backend_handle),
+      [plugin, delete_deepmlu](DeepMLUBackend* ptr) { delete_deepmlu(ptr); });
+}
+
 std::shared_ptr<deepmd::DipoleChargeModifierBase>
 deepmd::create_dipole_charge_modifier_backend_from_plugin(
     DPBackend backend,

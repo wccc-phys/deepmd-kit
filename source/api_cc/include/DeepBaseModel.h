@@ -80,6 +80,21 @@ class DeepBaseModelBackend {
    * @return true if the model has default frame parameters.
    **/
   virtual bool has_default_fparam() const = 0;
+  /**
+   * @brief Get the dimension of the DFT+U parameter.
+   * @return The dimension of the DFT+U parameter.
+   **/
+  virtual int dim_uparam() const = 0;
+  /**
+   * @brief Check if the model has default DFT+U parameters.
+   * @return true if the model has default DFT+U parameters.
+   **/
+  virtual bool has_default_uparam() const = 0;
+  /**
+   * @brief Set the DFT+U parameter.
+   * @param[in] uparam The DFT+U parameter.
+   **/
+  virtual void set_uparam(const std::vector<double>& uparam) {};
 };
 
 /**
@@ -151,6 +166,21 @@ class DeepBaseModel {
    * @return true if the model has default frame parameters.
    **/
   bool has_default_fparam() const;
+  /**
+   * @brief Get the dimension of the DFT+U parameter.
+   * @return The dimension of the DFT+U parameter.
+   **/
+  int dim_uparam() const;
+  /**
+   * @brief Check if the model has default DFT+U parameters.
+   * @return true if the model has default DFT+U parameters.
+   **/
+  bool has_default_uparam() const;
+  /**
+   * @brief Set the DFT+U parameter.
+   * @param[in] uparam The DFT+U parameter.
+   **/
+  void set_uparam(const std::vector<double>& uparam);
 
  protected:
   bool inited;
@@ -290,6 +320,31 @@ class DeepBaseModelDevi {
   bool has_default_fparam() const {
     assert(inited);
     return dpbases[0]->has_default_fparam();
+  };
+  /**
+   * @brief Get the dimension of the DFT+U parameter.
+   * @return The dimension of the DFT+U parameter.
+   **/
+  int dim_uparam() const {
+    assert(inited);
+    return dpbases[0]->dim_uparam();
+  };
+  /**
+   * @brief Check if the model has default DFT+U parameters.
+   * @return true if the model has default DFT+U parameters.
+   **/
+  bool has_default_uparam() const {
+    assert(inited);
+    return dpbases[0]->has_default_uparam();
+  };
+  /**
+   * @brief Set the DFT+U parameter.
+   * @param[in] uparam The DFT+U parameter.
+   **/
+  void set_uparam(const std::vector<double>& uparam) {
+    for (auto& dpbase : dpbases) {
+      dpbase->set_uparam(uparam);
+    }
   };
 
  protected:

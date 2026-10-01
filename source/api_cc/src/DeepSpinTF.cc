@@ -506,11 +506,19 @@ void DeepSpinTF::init(const std::string& model,
   ntypes_spin = get_scalar<int>("spin_attr/ntypes_spin");
   dfparam = get_scalar<int>("fitting_attr/dfparam");
   daparam = get_scalar<int>("fitting_attr/daparam");
+  try {
+    duparam = get_scalar<int>("fitting_attr/duparam");
+  } catch (const deepmd::deepmd_exception&) {
+    duparam = 0;
+  }
   if (dfparam < 0) {
     dfparam = 0;
   }
   if (daparam < 0) {
     daparam = 0;
+  }
+  if (duparam < 0) {
+    duparam = 0;
   }
   if (daparam > 0) {
     try {
@@ -615,6 +623,7 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
                          const std::vector<int>& datype_,
                          const std::vector<VALUETYPE>& dbox,
                          const std::vector<VALUETYPE>& fparam_,
+                         const std::vector<VALUETYPE>& uparam,
                          const std::vector<VALUETYPE>& aparam_,
                          const bool atomic) {
   // if datype.size is 0, not clear nframes; but 1 is just ok
@@ -625,6 +634,19 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
   validate_fparam_aparam(nframes, nloc, fparam_, aparam_);
   tile_fparam_aparam(fparam, nframes, dfparam, fparam_);
   tile_fparam_aparam(aparam, nframes, nloc * daparam, aparam_);
+
+  std::vector<VALUETYPE> uparam_tiled;
+  if (duparam > 0) {
+    if (uparam.size() > 0) {
+      tile_fparam_aparam(uparam_tiled, nframes, duparam, uparam);
+    } else if (this->uparam_.size() > 0) {
+      std::vector<VALUETYPE> uparam_v(this->uparam_.begin(),
+                                      this->uparam_.end());
+      tile_fparam_aparam(uparam_tiled, nframes, duparam, uparam_v);
+    } else {
+      uparam_tiled.assign(nframes * duparam, VALUETYPE(0));
+    }
+  }
 
   std::vector<VALUETYPE> extend_dcoord;
   std::vector<int> extend_atype;
@@ -638,7 +660,7 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
   if (dtype == tensorflow::DT_DOUBLE) {
     int ret = session_input_tensors<double>(
         input_tensors, extend_dcoord, ntypes, extend_atype, dbox, cell_size,
-        fparam, aparam, atommap, "", aparam_nall);
+        fparam, aparam, atommap, "", aparam_nall, uparam_tiled);
     if (atomic) {
       run_model<double>(dener, dforce_tmp, dvirial, datom_energy_,
                         datom_virial_, session, input_tensors, atommap,
@@ -650,7 +672,7 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
   } else {
     int ret = session_input_tensors<float>(
         input_tensors, extend_dcoord, ntypes, extend_atype, dbox, cell_size,
-        fparam, aparam, atommap, "", aparam_nall);
+        fparam, aparam, atommap, "", aparam_nall, uparam_tiled);
     if (atomic) {
       run_model<float>(dener, dforce_tmp, dvirial, datom_energy_, datom_virial_,
                        session, input_tensors, atommap, nframes);
@@ -713,6 +735,7 @@ template void DeepSpinTF::compute<double, ENERGYTYPE>(
     const std::vector<int>& datype_,
     const std::vector<double>& dbox,
     const std::vector<double>& fparam,
+    const std::vector<double>& uparam,
     const std::vector<double>& aparam,
     const bool atomic);
 
@@ -728,6 +751,7 @@ template void DeepSpinTF::compute<float, ENERGYTYPE>(
     const std::vector<int>& datype_,
     const std::vector<float>& dbox,
     const std::vector<float>& fparam,
+    const std::vector<float>& uparam,
     const std::vector<float>& aparam,
     const bool atomic);
 
@@ -743,6 +767,7 @@ template void DeepSpinTF::compute<double, std::vector<ENERGYTYPE>>(
     const std::vector<int>& datype_,
     const std::vector<double>& dbox,
     const std::vector<double>& fparam,
+    const std::vector<double>& uparam,
     const std::vector<double>& aparam,
     const bool atomic);
 
@@ -758,6 +783,7 @@ template void DeepSpinTF::compute<float, std::vector<ENERGYTYPE>>(
     const std::vector<int>& datype_,
     const std::vector<float>& dbox,
     const std::vector<float>& fparam,
+    const std::vector<float>& uparam,
     const std::vector<float>& aparam,
     const bool atomic);
 
@@ -777,6 +803,7 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
                          const InputNlist& lmp_list,
                          const int& ago,
                          const std::vector<VALUETYPE>& fparam_,
+                         const std::vector<VALUETYPE>& uparam,
                          const std::vector<VALUETYPE>& aparam__,
                          const bool atomic) {
   int nall = datype_.size();
@@ -799,6 +826,20 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
   tile_fparam_aparam(fparam, nframes, dfparam, fparam_);
   tile_fparam_aparam(aparam_, nframes, (aparam_nall ? nall : nloc) * daparam,
                      aparam__);
+
+  std::vector<VALUETYPE> uparam_tiled;
+  if (duparam > 0) {
+    if (uparam.size() > 0) {
+      tile_fparam_aparam(uparam_tiled, nframes, duparam, uparam);
+    } else if (this->uparam_.size() > 0) {
+      std::vector<VALUETYPE> uparam_v(this->uparam_.begin(),
+                                      this->uparam_.end());
+      tile_fparam_aparam(uparam_tiled, nframes, duparam, uparam_v);
+    } else {
+      uparam_tiled.assign(nframes * duparam, VALUETYPE(0));
+    }
+  }
+
   std::vector<std::pair<std::string, Tensor>> input_tensors;
   // select real atoms
   std::vector<VALUETYPE> dcoord, dforce, aparam, datom_energy, datom_virial;
@@ -822,7 +863,7 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
   if (dtype == tensorflow::DT_DOUBLE) {
     int ret = session_input_tensors<double>(
         input_tensors, dcoord, ntypes, datype, dbox, nlist, fparam, aparam,
-        atommap, nghost_real, ago, "", aparam_nall);
+        atommap, nghost_real, ago, "", aparam_nall, uparam_tiled);
     assert(nloc_real == ret);
     if (atomic) {
       run_model<double>(dener, dforce, dvirial, datom_energy, datom_virial,
@@ -834,7 +875,7 @@ void DeepSpinTF::compute(ENERGYVTYPE& dener,
   } else {
     int ret = session_input_tensors<float>(
         input_tensors, dcoord, ntypes, datype, dbox, nlist, fparam, aparam,
-        atommap, nghost_real, ago, "", aparam_nall);
+        atommap, nghost_real, ago, "", aparam_nall, uparam_tiled);
     assert(nloc_real == ret);
     if (atomic) {
       run_model<float>(dener, dforce, dvirial, datom_energy, datom_virial,
@@ -904,6 +945,7 @@ template void DeepSpinTF::compute<double, ENERGYTYPE>(
     const InputNlist& lmp_list,
     const int& ago,
     const std::vector<double>& fparam,
+    const std::vector<double>& uparam,
     const std::vector<double>& aparam_,
     const bool atomic);
 
@@ -922,6 +964,7 @@ template void DeepSpinTF::compute<float, ENERGYTYPE>(
     const InputNlist& lmp_list,
     const int& ago,
     const std::vector<float>& fparam,
+    const std::vector<float>& uparam,
     const std::vector<float>& aparam_,
     const bool atomic);
 
@@ -940,6 +983,7 @@ template void DeepSpinTF::compute<double, std::vector<ENERGYTYPE>>(
     const InputNlist& lmp_list,
     const int& ago,
     const std::vector<double>& fparam,
+    const std::vector<double>& uparam,
     const std::vector<double>& aparam_,
     const bool atomic);
 
@@ -958,6 +1002,7 @@ template void DeepSpinTF::compute<float, std::vector<ENERGYTYPE>>(
     const InputNlist& lmp_list,
     const int& ago,
     const std::vector<float>& fparam,
+    const std::vector<float>& uparam,
     const std::vector<float>& aparam_,
     const bool atomic);
 
@@ -980,10 +1025,11 @@ void DeepSpinTF::computew(std::vector<double>& ener,
                           const std::vector<int>& atype,
                           const std::vector<double>& box,
                           const std::vector<double>& fparam,
+                          const std::vector<double>& uparam,
                           const std::vector<double>& aparam,
                           const bool atomic) {
   compute(ener, force, force_mag, virial, atom_energy, atom_virial, coord, spin,
-          atype, box, fparam, aparam, atomic);
+          atype, box, fparam, uparam, aparam, atomic);
 }
 void DeepSpinTF::computew(std::vector<double>& ener,
                           std::vector<float>& force,
@@ -996,10 +1042,11 @@ void DeepSpinTF::computew(std::vector<double>& ener,
                           const std::vector<int>& atype,
                           const std::vector<float>& box,
                           const std::vector<float>& fparam,
+                          const std::vector<float>& uparam,
                           const std::vector<float>& aparam,
                           const bool atomic) {
   compute(ener, force, force_mag, virial, atom_energy, atom_virial, coord, spin,
-          atype, box, fparam, aparam, atomic);
+          atype, box, fparam, uparam, aparam, atomic);
 }
 // support spin
 void DeepSpinTF::computew(std::vector<double>& ener,
@@ -1016,10 +1063,11 @@ void DeepSpinTF::computew(std::vector<double>& ener,
                           const InputNlist& inlist,
                           const int& ago,
                           const std::vector<double>& fparam,
+                          const std::vector<double>& uparam,
                           const std::vector<double>& aparam,
                           const bool atomic) {
   compute(ener, force, force_mag, virial, atom_energy, atom_virial, coord, spin,
-          atype, box, nghost, inlist, ago, fparam, aparam, atomic);
+          atype, box, nghost, inlist, ago, fparam, uparam, aparam, atomic);
 }
 void DeepSpinTF::computew(std::vector<double>& ener,
                           std::vector<float>& force,
@@ -1035,10 +1083,11 @@ void DeepSpinTF::computew(std::vector<double>& ener,
                           const InputNlist& inlist,
                           const int& ago,
                           const std::vector<float>& fparam,
+                          const std::vector<float>& uparam,
                           const std::vector<float>& aparam,
                           const bool atomic) {
   compute(ener, force, force_mag, virial, atom_energy, atom_virial, coord, spin,
-          atype, box, nghost, inlist, ago, fparam, aparam, atomic);
+          atype, box, nghost, inlist, ago, fparam, uparam, aparam, atomic);
 }
 
 void DeepSpinTF::cum_sum(std::map<int, int>& sum, std::map<int, int>& vec) {

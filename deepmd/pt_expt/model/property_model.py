@@ -9,6 +9,9 @@ from torch.fx.experimental.proxy_tensor import (
     make_fx,
 )
 
+from deepmd.dpmodel.utils.fitting_params import (
+    FittingParams,
+)
 from deepmd.dpmodel.atomic_model import (
     DPPropertyAtomicModel,
 )
@@ -56,17 +59,27 @@ class PropertyModel(DPModelCommon, DPPropertyModel_):
         box: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
+        neighbor_graph_method: str | None = "ase",
     ) -> dict[str, torch.Tensor]:
+        # The eager graph lower is output-agnostic, and sel-free descriptors
+        # (DPA4C) have no dense-nlist representation -- so the property model
+        # opts EXPLICITLY into the carry-all graph (the "ase" alias forces the
+        # graph builder in _resolve_graph_method). The energy-only default-flip
+        # gate exists because the COMPILED-training trace is energy-specific;
+        # eager training/inference of a property model on the graph is fine.
         model_ret = self.call_common(
             coord,
             atype,
             box,
             fparam=fparam,
             aparam=aparam,
+            uparam=uparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
+            neighbor_graph_method=neighbor_graph_method,
         )
         var_name = self.get_var_name()
         model_predict = {}
@@ -84,6 +97,7 @@ class PropertyModel(DPModelCommon, DPPropertyModel_):
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
@@ -94,6 +108,7 @@ class PropertyModel(DPModelCommon, DPPropertyModel_):
             mapping,
             fparam=fparam,
             aparam=aparam,
+            uparam=uparam,
             charge_spin=charge_spin,
             do_atomic_virial=do_atomic_virial,
         )
@@ -124,6 +139,7 @@ class PropertyModel(DPModelCommon, DPPropertyModel_):
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         do_atomic_virial: bool = False,
         charge_spin: torch.Tensor | None = None,
         **make_fx_kwargs: Any,
@@ -137,6 +153,7 @@ class PropertyModel(DPModelCommon, DPPropertyModel_):
             mapping: torch.Tensor | None,
             fparam: torch.Tensor | None,
             aparam: torch.Tensor | None,
+            uparam: torch.Tensor | None,
             charge_spin: torch.Tensor | None,
         ) -> dict[str, torch.Tensor]:
             extended_coord = extended_coord.detach().requires_grad_(True)
@@ -148,6 +165,7 @@ class PropertyModel(DPModelCommon, DPPropertyModel_):
                 mapping,
                 fparam=fparam,
                 aparam=aparam,
+                uparam=uparam,
                 charge_spin=charge_spin,
                 do_atomic_virial=do_atomic_virial,
             )
@@ -163,8 +181,19 @@ class PropertyModel(DPModelCommon, DPPropertyModel_):
                 mapping,
                 fparam,
                 aparam,
+                uparam,
                 charge_spin,
             )
         finally:
             model.need_sorted_nlist_for_lower = _orig_need_sort
         return traced
+
+
+@BaseModel.register("mlu")
+class MLUModel(PropertyModel):
+    """Hubbard-U predictor: the property model over an ``MLUFitting``
+    (``var_name="uparam"``). Registered under its own key so
+    ``fitting_net.type: "mlu"`` resolves through the model registry
+    (mirrors deepmd/pt/model/model/__init__.py routing MLU to the
+    property model).
+    """

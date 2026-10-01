@@ -11,6 +11,7 @@ namespace deepmd {
 class DeepPotBackend;
 class DeepSpinBackend;
 class DeepTensorBase;
+class DeepMLUBackend;
 class DipoleChargeModifierBase;
 
 /**
@@ -32,6 +33,10 @@ constexpr const char* DEEPMD_DIPOLE_CHARGE_MODIFIER_PLUGIN_CREATE_SYMBOL =
     "deepmd_create_dipole_charge_modifier_backend_v1";
 constexpr const char* DEEPMD_DIPOLE_CHARGE_MODIFIER_PLUGIN_DELETE_SYMBOL =
     "deepmd_delete_dipole_charge_modifier_backend_v1";
+constexpr const char* DEEPMD_DEEPMLU_PLUGIN_CREATE_SYMBOL =
+    "deepmd_create_deepmlu_backend_v1";
+constexpr const char* DEEPMD_DEEPMLU_PLUGIN_DELETE_SYMBOL =
+    "deepmd_delete_deepmlu_backend_v1";
 constexpr const char* DEEPMD_CONVERT_PBTXT_TO_PB_PLUGIN_SYMBOL =
     "deepmd_convert_pbtxt_to_pb_v1";
 constexpr const char* DEEPMD_BACKEND_PLUGIN_FREE_ERROR_SYMBOL =
@@ -65,6 +70,12 @@ typedef void* (*deepmd_create_dipole_charge_modifier_backend_fn)(
     const char* name_scope,
     char** error_message);
 typedef void (*deepmd_delete_dipole_charge_modifier_backend_fn)(void* backend);
+typedef void* (*deepmd_create_deepmlu_backend_fn)(const char* model,
+                                                  int gpu_rank,
+                                                  const char* file_content,
+                                                  std::size_t file_content_size,
+                                                  char** error_message);
+typedef void (*deepmd_delete_deepmlu_backend_fn)(void* backend);
 typedef int (*deepmd_convert_pbtxt_to_pb_fn)(const char* pbtxt,
                                              const char* pb,
                                              char** error_message);
@@ -114,6 +125,20 @@ std::shared_ptr<DeepTensorBase> create_deeptensor_backend_from_plugin(
     const std::string& model,
     const int& gpu_rank,
     const std::string& name_scope);
+
+/**
+ * @brief Create a DeepMLU backend through a runtime backend plugin.
+ * @param[in] backend The backend plugin to load.
+ * @param[in] model The name of the frozen model file.
+ * @param[in] gpu_rank The GPU rank.
+ * @param[in] file_content The content of the model file.
+ * @return The DeepMLU backend instance.
+ **/
+std::shared_ptr<DeepMLUBackend> create_deepmlu_backend_from_plugin(
+    DPBackend backend,
+    const std::string& model,
+    const int& gpu_rank,
+    const std::string& file_content);
 
 /**
  * @brief Create a DipoleChargeModifier backend through a runtime backend

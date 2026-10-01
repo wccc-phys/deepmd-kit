@@ -352,10 +352,14 @@ inline GraphTensorPack assembleGraph(const SkinTopology& topology,
   pack.edge_vec = edge_vec.to(device);
   pack.edge_mask = edge_mask.to(device);
   // Destination grouping is structural here, so the permutation is the
-  // identity and is left empty: the consumers read the rows directly, and
-  // materializing it would cost eight bytes per edge -- 157 MB on a
-  // 125,000-atom system -- of pure redundancy, allocated and filled every step.
-  pack.destination_order = torch::empty({0}, index_options).to(device);
+  // identity. It is MATERIALIZED UNCONDITIONALLY: a traced graph whose
+  // kernels consume the permutation (e.g. the DPA4C compress operator reads
+  // it as an E-length index array) turns an empty tensor into an
+  // out-of-bounds read -- a host SIGSEGV on the CPU artifact and a CUDA
+  // illegal memory access on the GPU one. Consumers that never touch it only
+  // pay one redundant 8-byte-per-edge load.
+  pack.destination_order =
+      torch::arange(edge_count, index_options).to(device);
   pack.destination_row_ptr =
       torch::from_blob(row_ptr, {node_count + 1}, index_options)
           .clone()

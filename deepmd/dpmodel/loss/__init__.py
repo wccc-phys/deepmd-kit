@@ -8,6 +8,9 @@ from deepmd.dpmodel.loss.ener import (
 from deepmd.dpmodel.loss.ener_spin import (
     EnergySpinLoss,
 )
+from deepmd.dpmodel.loss.mlu import (
+    MLULoss,
+)
 from deepmd.dpmodel.loss.property import (
     PropertyLoss,
 )
@@ -19,6 +22,7 @@ __all__ = [
     "DOSLoss",
     "EnergyLoss",
     "EnergySpinLoss",
+    "MLULoss",
     "PropertyLoss",
     "TensorLoss",
 ]

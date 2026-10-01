@@ -109,6 +109,13 @@ void DeepSpinPTExpt::init(const std::string& model,
   dchgspin = metadata.obj_val.count("dim_chg_spin")
                  ? metadata["dim_chg_spin"].as_int()
                  : 0;
+
+  duparam = metadata.obj_val.count("dim_uparam")
+                ? metadata["dim_uparam"].as_int()
+                : 0;
+  dchgspin = metadata.obj_val.count("dim_chg_spin")
+                 ? metadata["dim_chg_spin"].as_int()
+                 : 0;
   aparam_nall = false;
 
   // Spin-specific metadata
@@ -150,6 +157,25 @@ void DeepSpinPTExpt::init(const std::string& model,
   default_chg_spin_ = read_default_chg_spin(metadata, dchgspin);
   chg_spin_table_ranges_ = read_chg_spin_table_ranges(metadata, dchgspin);
   check_charge_spin_domain(default_chg_spin_, chg_spin_table_ranges_);
+
+  if (metadata.obj_val.count("has_default_uparam")) {
+    has_default_uparam_ = metadata["has_default_uparam"].as_bool();
+  } else {
+    has_default_uparam_ = false;
+  }
+  if (has_default_uparam_) {
+    if (metadata.obj_val.count("default_uparam")) {
+      default_uparam_.clear();
+      for (const auto& v : metadata["default_uparam"].as_array()) {
+        default_uparam_.push_back(v.as_double());
+      }
+      if (static_cast<int>(default_uparam_.size()) != duparam) {
+        throw deepmd::deepmd_exception(
+            "default_uparam length (" + std::to_string(default_uparam_.size()) +
+            ") does not match dim_uparam (" + std::to_string(duparam) + ").");
+      }
+    }
+  }
 
   if (metadata.obj_val.count("do_atomic_virial")) {
     do_atomic_virial = metadata["do_atomic_virial"].as_bool();
@@ -318,6 +344,7 @@ std::vector<torch::Tensor> DeepSpinPTExpt::run_model(
     const torch::Tensor& nlist,
     const torch::Tensor& mapping,
     const torch::Tensor& fparam,
+    const torch::Tensor& uparam,
     const torch::Tensor& aparam,
     const torch::Tensor& charge_spin) {
   // Spin model has 7 positional args: coord, atype, spin, nlist, mapping,
@@ -326,6 +353,12 @@ std::vector<torch::Tensor> DeepSpinPTExpt::run_model(
   std::vector<torch::Tensor> inputs = {coord, atype, spin, nlist, mapping};
   if (dfparam > 0) {
     inputs.push_back(fparam);
+  }
+  if (duparam > 0) {
+    inputs.push_back(uparam);
+  }
+  if (duparam > 0) {
+    inputs.push_back(uparam);
   }
   if (daparam > 0) {
     inputs.push_back(aparam);
@@ -345,6 +378,7 @@ std::vector<torch::Tensor> DeepSpinPTExpt::run_model_edges(
     const torch::Tensor& edge_mask,
     const torch::Tensor& spin,
     const torch::Tensor& fparam,
+    const torch::Tensor& uparam,
     const torch::Tensor& aparam,
     const torch::Tensor& charge_spin) {
   // Native-spin edge ABI: the energy edge inputs followed by the
@@ -353,6 +387,9 @@ std::vector<torch::Tensor> DeepSpinPTExpt::run_model_edges(
       coord, atype, edge_index, edge_vec, edge_scatter_index, edge_mask, spin};
   if (dfparam > 0) {
     inputs.push_back(fparam);
+  }
+  if (duparam > 0) {
+    inputs.push_back(uparam);
   }
   if (daparam > 0) {
     inputs.push_back(aparam);
@@ -376,6 +413,7 @@ std::vector<torch::Tensor> DeepSpinPTExpt::run_model_graph(
     const torch::Tensor& source_row_ptr,
     const torch::Tensor& spin,
     const torch::Tensor& fparam,
+    const torch::Tensor& uparam,
     const torch::Tensor& aparam,
     const torch::Tensor& charge_spin) {
   // Native-spin graph ABI: the 10 base NeighborGraph tensors, the per-node
@@ -399,6 +437,9 @@ std::vector<torch::Tensor> DeepSpinPTExpt::run_model_graph(
   if (dfparam > 0) {
     inputs.push_back(fparam);
   }
+  if (duparam > 0) {
+    inputs.push_back(uparam);
+  }
   if (daparam > 0) {
     inputs.push_back(aparam);
   }
@@ -421,6 +462,7 @@ std::vector<torch::Tensor> DeepSpinPTExpt::run_model_graph_with_comm(
     const torch::Tensor& source_row_ptr,
     const torch::Tensor& spin,
     const torch::Tensor& fparam,
+    const torch::Tensor& uparam,
     const torch::Tensor& aparam,
     const torch::Tensor& charge_spin,
     const std::vector<at::Tensor>& comm_tensors) {
@@ -470,6 +512,9 @@ std::vector<torch::Tensor> DeepSpinPTExpt::run_model_graph_with_comm(
   if (dfparam > 0) {
     inputs.push_back(fparam);
   }
+  if (duparam > 0) {
+    inputs.push_back(uparam);
+  }
   if (daparam > 0) {
     inputs.push_back(aparam);
   }
@@ -492,6 +537,7 @@ std::vector<torch::Tensor> DeepSpinPTExpt::run_model_edges_with_comm(
     const torch::Tensor& edge_mask,
     const torch::Tensor& spin,
     const torch::Tensor& fparam,
+    const torch::Tensor& uparam,
     const torch::Tensor& aparam,
     const torch::Tensor& charge_spin,
     const std::vector<at::Tensor>& comm_tensors) {
@@ -519,6 +565,9 @@ std::vector<torch::Tensor> DeepSpinPTExpt::run_model_edges_with_comm(
   if (dfparam > 0) {
     inputs.push_back(fparam);
   }
+  if (duparam > 0) {
+    inputs.push_back(uparam);
+  }
   if (daparam > 0) {
     inputs.push_back(aparam);
   }
@@ -538,6 +587,7 @@ std::vector<torch::Tensor> DeepSpinPTExpt::run_model_with_comm(
     const torch::Tensor& nlist,
     const torch::Tensor& mapping,
     const torch::Tensor& fparam,
+    const torch::Tensor& uparam,
     const torch::Tensor& aparam,
     const torch::Tensor& charge_spin,
     const std::vector<at::Tensor>& comm_tensors) {
@@ -558,6 +608,12 @@ std::vector<torch::Tensor> DeepSpinPTExpt::run_model_with_comm(
   std::vector<torch::Tensor> inputs = {coord, atype, spin, nlist, mapping};
   if (dfparam > 0) {
     inputs.push_back(fparam);
+  }
+  if (duparam > 0) {
+    inputs.push_back(uparam);
+  }
+  if (duparam > 0) {
+    inputs.push_back(uparam);
   }
   if (daparam > 0) {
     inputs.push_back(aparam);
@@ -604,6 +660,7 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
                              const InputNlist& lmp_list,
                              const int& ago,
                              const std::vector<VALUETYPE>& fparam,
+                             const std::vector<VALUETYPE>& uparam,
                              const std::vector<VALUETYPE>& aparam,
                              const std::vector<double>& charge_spin,
                              const bool atomic) {
@@ -895,6 +952,29 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
     fparam_tensor = torch::zeros({0}, options).to(device);
   }
 
+  at::Tensor uparam_tensor;
+  if (!uparam.empty()) {
+    uparam_tensor =
+        torch::from_blob(const_cast<VALUETYPE*>(uparam.data()),
+                         {1, static_cast<std::int64_t>(uparam.size())},
+                         valuetype_options)
+            .to(torch::kFloat64)
+            .to(device);
+  } else if (has_default_uparam_ && !default_uparam_.empty()) {
+    uparam_tensor =
+        torch::from_blob(const_cast<double*>(default_uparam_.data()),
+                         {1, static_cast<std::int64_t>(default_uparam_.size())},
+                         options)
+            .clone()
+            .to(device);
+  } else if (has_default_uparam_) {
+    throw deepmd::deepmd_exception(
+        "uparam is empty and default_uparam values are missing from the .pt2 "
+        "metadata. Please regenerate the model or provide uparam explicitly.");
+  } else {
+    uparam_tensor = torch::zeros({0}, options).to(device);
+  }
+
   at::Tensor aparam_tensor;
   if (!aparam_.empty()) {
     aparam_tensor =
@@ -1068,6 +1148,7 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
           graph_pack.source_order, graph_pack.source_row_ptr,
           spin_Tensor.slice(1, 0, n_node_count).reshape({n_node_count, 3}),
           fparam_tensor,
+          uparam_tensor,
           deepmd::extend_graph_aparam(aparam_tensor, n_node_count, nloc,
                                       daparam),
           charge_spin_tensor, comm_tensors);
@@ -1092,6 +1173,7 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
             coord_Tensor, atype_Tensor.slice(1, 0, nloc), atype_Tensor,
             ph_edge_index, ph_edge_vec, ph_edge_index, ph_edge_mask,
             spin_Tensor, fparam_tensor, aparam_tensor, charge_spin_tensor,
+            uparam_tensor,
             comm_tensors);
       } else {
         const auto edge_tensors =
@@ -1101,7 +1183,7 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
             coord_Tensor, atype_Tensor.slice(1, 0, nloc), atype_Tensor,
             edge_tensors.edge_index, edge_tensors.edge_vec,
             edge_tensors.edge_index_ext, edge_tensors.edge_mask, spin_Tensor,
-            fparam_tensor, aparam_tensor, charge_spin_tensor, comm_tensors);
+            fparam_tensor, uparam_tensor, aparam_tensor, charge_spin_tensor, comm_tensors);
       }
     } else {
       // Model-level pair exclusion is a BUILD-time transform (decision
@@ -1121,7 +1203,7 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
           firstneigh_tensor, atype_Tensor, pair_exclude_table_, ntypes);
       flat_outputs = run_model_with_comm(
           coord_Tensor, atype_Tensor, spin_Tensor, excl_nlist, mapping_tensor,
-          fparam_tensor, aparam_tensor, charge_spin_tensor, comm_tensors);
+          fparam_tensor, uparam_tensor, aparam_tensor, charge_spin_tensor, comm_tensors);
     }
   } else if (lower_input_is_graph_) {
     if (nall_real == 0) {
@@ -1181,6 +1263,7 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
         graph_pack.destination_row_ptr, graph_pack.source_order,
         graph_pack.source_row_ptr,
         spin_Tensor.slice(1, 0, nloc).reshape({nloc, 3}), fparam_tensor,
+        uparam_tensor,
         deepmd::extend_graph_aparam(aparam_tensor, nloc, nloc, daparam),
         charge_spin_tensor);
   } else if (lower_input_is_edge_) {
@@ -1196,6 +1279,7 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
         coord_Tensor, atype_Tensor.slice(1, 0, nloc), edge_tensors.edge_index,
         edge_tensors.edge_vec, edge_tensors.edge_index_ext,
         edge_tensors.edge_mask, spin_Tensor.slice(1, 0, nloc), fparam_tensor,
+        uparam_tensor,
         aparam_tensor, charge_spin_tensor);
   } else {
     // Model-level pair exclusion is a BUILD-time transform (decision #18/A4):
@@ -1206,6 +1290,7 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
         firstneigh_tensor, atype_Tensor, pair_exclude_table_, ntypes);
     flat_outputs = run_model(coord_Tensor, atype_Tensor, spin_Tensor,
                              excl_nlist, mapping_tensor, fparam_tensor,
+                             uparam_tensor,
                              aparam_tensor, charge_spin_tensor);
   }
 
@@ -1346,6 +1431,7 @@ template void DeepSpinPTExpt::compute<double, std::vector<ENERGYTYPE>>(
     const InputNlist& lmp_list,
     const int& ago,
     const std::vector<double>& fparam,
+    const std::vector<double>& uparam,
     const std::vector<double>& aparam,
     const std::vector<double>& charge_spin,
     const bool atomic);
@@ -1364,6 +1450,7 @@ template void DeepSpinPTExpt::compute<float, std::vector<ENERGYTYPE>>(
     const InputNlist& lmp_list,
     const int& ago,
     const std::vector<float>& fparam,
+    const std::vector<float>& uparam,
     const std::vector<float>& aparam,
     const std::vector<double>& charge_spin,
     const bool atomic);
@@ -1384,6 +1471,7 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
                              const std::vector<int>& atype,
                              const std::vector<VALUETYPE>& box,
                              const std::vector<VALUETYPE>& fparam,
+                             const std::vector<VALUETYPE>& uparam,
                              const std::vector<VALUETYPE>& aparam,
                              const std::vector<double>& charge_spin,
                              const bool atomic) {
@@ -1559,6 +1647,29 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
     fparam_tensor = torch::zeros({0}, options).to(device);
   }
 
+  at::Tensor uparam_tensor;
+  if (!uparam.empty()) {
+    uparam_tensor =
+        torch::from_blob(const_cast<VALUETYPE*>(uparam.data()),
+                         {1, static_cast<std::int64_t>(uparam.size())},
+                         valuetype_options)
+            .to(torch::kFloat64)
+            .to(device);
+  } else if (has_default_uparam_ && !default_uparam_.empty()) {
+    uparam_tensor =
+        torch::from_blob(const_cast<double*>(default_uparam_.data()),
+                         {1, static_cast<std::int64_t>(default_uparam_.size())},
+                         options)
+            .clone()
+            .to(device);
+  } else if (has_default_uparam_) {
+    throw deepmd::deepmd_exception(
+        "uparam is empty and default_uparam values are missing from the .pt2 "
+        "metadata. Please regenerate the model or provide uparam explicitly.");
+  } else {
+    uparam_tensor = torch::zeros({0}, options).to(device);
+  }
+
   at::Tensor aparam_tensor;
   if (!aparam.empty()) {
     aparam_tensor =
@@ -1601,6 +1712,7 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
         coord_Tensor, atype_Tensor.slice(1, 0, nloc), edge_tensors.edge_index,
         edge_tensors.edge_vec, edge_tensors.edge_index_ext,
         edge_tensors.edge_mask, spin_Tensor.slice(1, 0, nloc), fparam_tensor,
+        uparam_tensor,
         aparam_tensor, charge_spin_tensor);
   } else if (lower_input_is_graph_) {
     // Same build-time seam as the cached-nlist branch above.
@@ -1618,6 +1730,7 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
         graph_tensors.destination_row_ptr, graph_tensors.source_order,
         graph_tensors.source_row_ptr,
         spin_Tensor.slice(1, 0, nloc).reshape({nloc, 3}), fparam_tensor,
+        uparam_tensor,
         deepmd::extend_graph_aparam(aparam_tensor, natoms, natoms, daparam),
         charge_spin_tensor);
   } else {
@@ -1629,6 +1742,7 @@ void DeepSpinPTExpt::compute(ENERGYVTYPE& ener,
         nlist_tensor, atype_Tensor, pair_exclude_table_, ntypes);
     flat_outputs = run_model(coord_Tensor, atype_Tensor, spin_Tensor,
                              excl_nlist, mapping_tensor, fparam_tensor,
+                             uparam_tensor,
                              aparam_tensor, charge_spin_tensor);
   }
 
@@ -1709,6 +1823,7 @@ template void DeepSpinPTExpt::compute<double, std::vector<ENERGYTYPE>>(
     const std::vector<int>& atype,
     const std::vector<double>& box,
     const std::vector<double>& fparam,
+    const std::vector<double>& uparam,
     const std::vector<double>& aparam,
     const std::vector<double>& charge_spin,
     const bool atomic);
@@ -1724,6 +1839,7 @@ template void DeepSpinPTExpt::compute<float, std::vector<ENERGYTYPE>>(
     const std::vector<int>& atype,
     const std::vector<float>& box,
     const std::vector<float>& fparam,
+    const std::vector<float>& uparam,
     const std::vector<float>& aparam,
     const std::vector<double>& charge_spin,
     const bool atomic);
@@ -1750,11 +1866,12 @@ void DeepSpinPTExpt::computew(std::vector<double>& ener,
                               const std::vector<int>& atype,
                               const std::vector<double>& box,
                               const std::vector<double>& fparam,
+                              const std::vector<double>& uparam,
                               const std::vector<double>& aparam,
                               const bool atomic) {
   translate_error([&] {
     compute(ener, force, force_mag, virial, atom_energy, atom_virial, coord,
-            spin, atype, box, fparam, aparam, {}, atomic);
+            spin, atype, box, fparam, uparam, aparam, {}, atomic);
   });
 }
 void DeepSpinPTExpt::computew(std::vector<double>& ener,
@@ -1768,11 +1885,12 @@ void DeepSpinPTExpt::computew(std::vector<double>& ener,
                               const std::vector<int>& atype,
                               const std::vector<float>& box,
                               const std::vector<float>& fparam,
+                              const std::vector<float>& uparam,
                               const std::vector<float>& aparam,
                               const bool atomic) {
   translate_error([&] {
     compute(ener, force, force_mag, virial, atom_energy, atom_virial, coord,
-            spin, atype, box, fparam, aparam, {}, atomic);
+            spin, atype, box, fparam, uparam, aparam, {}, atomic);
   });
 }
 void DeepSpinPTExpt::computew(std::vector<double>& ener,
@@ -1789,11 +1907,12 @@ void DeepSpinPTExpt::computew(std::vector<double>& ener,
                               const InputNlist& inlist,
                               const int& ago,
                               const std::vector<double>& fparam,
+                              const std::vector<double>& uparam,
                               const std::vector<double>& aparam,
                               const bool atomic) {
   translate_error([&] {
     compute(ener, force, force_mag, virial, atom_energy, atom_virial, coord,
-            spin, atype, box, nghost, inlist, ago, fparam, aparam, {}, atomic);
+            spin, atype, box, nghost, inlist, ago, fparam, uparam, aparam, {}, atomic);
   });
 }
 void DeepSpinPTExpt::computew(std::vector<double>& ener,
@@ -1810,11 +1929,12 @@ void DeepSpinPTExpt::computew(std::vector<double>& ener,
                               const InputNlist& inlist,
                               const int& ago,
                               const std::vector<float>& fparam,
+                              const std::vector<float>& uparam,
                               const std::vector<float>& aparam,
                               const bool atomic) {
   translate_error([&] {
     compute(ener, force, force_mag, virial, atom_energy, atom_virial, coord,
-            spin, atype, box, nghost, inlist, ago, fparam, aparam, {}, atomic);
+            spin, atype, box, nghost, inlist, ago, fparam, uparam, aparam, {}, atomic);
   });
 }
 
@@ -1830,12 +1950,13 @@ void DeepSpinPTExpt::computew(std::vector<double>& ener,
                               const std::vector<int>& atype,
                               const std::vector<double>& box,
                               const std::vector<double>& fparam,
+                              const std::vector<double>& uparam,
                               const std::vector<double>& aparam,
                               const std::vector<double>& charge_spin,
                               const bool atomic) {
   translate_error([&] {
     compute(ener, force, force_mag, virial, atom_energy, atom_virial, coord,
-            spin, atype, box, fparam, aparam, charge_spin, atomic);
+            spin, atype, box, fparam, uparam, aparam, charge_spin, atomic);
   });
 }
 void DeepSpinPTExpt::computew(std::vector<double>& ener,
@@ -1852,12 +1973,13 @@ void DeepSpinPTExpt::computew(std::vector<double>& ener,
                               const InputNlist& inlist,
                               const int& ago,
                               const std::vector<double>& fparam,
+                              const std::vector<double>& uparam,
                               const std::vector<double>& aparam,
                               const std::vector<double>& charge_spin,
                               const bool atomic) {
   translate_error([&] {
     compute(ener, force, force_mag, virial, atom_energy, atom_virial, coord,
-            spin, atype, box, nghost, inlist, ago, fparam, aparam, charge_spin,
+            spin, atype, box, nghost, inlist, ago, fparam, uparam, aparam, charge_spin,
             atomic);
   });
 }
@@ -1874,12 +1996,13 @@ void DeepSpinPTExpt::computew(std::vector<double>& ener,
                               const std::vector<int>& atype,
                               const std::vector<float>& box,
                               const std::vector<float>& fparam,
+                              const std::vector<float>& uparam,
                               const std::vector<float>& aparam,
                               const std::vector<double>& charge_spin,
                               const bool atomic) {
   translate_error([&] {
     compute(ener, force, force_mag, virial, atom_energy, atom_virial, coord,
-            spin, atype, box, fparam, aparam, charge_spin, atomic);
+            spin, atype, box, fparam, uparam, aparam, charge_spin, atomic);
   });
 }
 void DeepSpinPTExpt::computew(std::vector<double>& ener,
@@ -1896,12 +2019,13 @@ void DeepSpinPTExpt::computew(std::vector<double>& ener,
                               const InputNlist& inlist,
                               const int& ago,
                               const std::vector<float>& fparam,
+                              const std::vector<float>& uparam,
                               const std::vector<float>& aparam,
                               const std::vector<double>& charge_spin,
                               const bool atomic) {
   translate_error([&] {
     compute(ener, force, force_mag, virial, atom_energy, atom_virial, coord,
-            spin, atype, box, nghost, inlist, ago, fparam, aparam, charge_spin,
+            spin, atype, box, nghost, inlist, ago, fparam, uparam, aparam, charge_spin,
             atomic);
   });
 }

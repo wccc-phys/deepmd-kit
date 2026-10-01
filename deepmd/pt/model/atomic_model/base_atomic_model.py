@@ -62,6 +62,10 @@ device = env.DEVICE
 BaseAtomicModel_ = make_base_atomic_model(torch.Tensor)
 
 
+from deepmd.dpmodel.utils.fitting_params import (  # noqa: E402
+    FittingParams,
+)
+
 class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
     """The base of atomic model.
 
@@ -213,6 +217,18 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
         """Get the default frame parameters."""
         return None
 
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default DFT+U parameters."""
+        return False
+
+    def get_default_uparam(self) -> torch.Tensor | None:
+        """Get the default DFT+U parameters."""
+        return None
+
+    def get_uparam_mode(self) -> str:
+        """Get the mode of DFT+U parameters ('frame', 'atomic', or 'orbital')."""
+        return "frame"
+
     def has_chg_spin_ebd(self) -> bool:
         """Check if the model has charge spin embedding."""
         return False
@@ -234,7 +250,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
         self,
         sampled_func: Callable[[], list[dict]],
     ) -> Callable[[], list[dict]]:
-        """Wrap the sampled function with exclusion types and default fparam.
+        """Wrap the sampled function with exclusion types and default fparam/uparam.
 
         The returned callable is cached so that the sampling (which may be
         expensive) is performed at most once.
@@ -250,7 +266,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
         Callable[[], list[dict]]
             A cached wrapper around *sampled_func* that additionally sets
             ``pair_exclude_types``, ``atom_exclude_types`` and default
-            ``fparam`` on every sample dict when applicable.
+            ``fparam`` / ``uparam`` on every sample dict when applicable.
         """
 
         @functools.lru_cache
@@ -276,6 +292,16 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
                     for sample in sampled:
                         nframe = sample["atype"].shape[0]
                         sample["fparam"] = default_fparam.repeat(nframe, 1)
+            if (
+                "find_uparam" not in sampled[0]
+                and "uparam" not in sampled[0]
+                and self.has_default_uparam()
+            ):
+                default_uparam = self.get_default_uparam()
+                if default_uparam is not None:
+                    for sample in sampled:
+                        nframe = sample["atype"].shape[0]
+                        sample["uparam"] = default_uparam.repeat(nframe, 1)
             return sampled
 
         # the full-data scanner, when the trainer attached one, is part of the
@@ -349,10 +375,18 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         comm_dict: dict[str, torch.Tensor] | None = None,
         charge_spin: torch.Tensor | None = None,
+        cond: "FittingParams | None" = None,
     ) -> dict[str, torch.Tensor]:
+        # Registry container: fill any missing conditioning parameter
+        # from ``cond`` (explicit arguments win).
+        if cond is not None:
+            fparam = fparam if fparam is not None else cond.fparam
+            uparam = uparam if uparam is not None else cond.uparam
+            aparam = aparam if aparam is not None else cond.aparam
         """Common interface for atomic inference.
 
         This method accept extended coordinates, extended atom typs, neighbor list,
@@ -371,6 +405,8 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
             extended to local index mapping, shape: nf x nall
         fparam
             frame parameters, shape: nf x dim_fparam
+        uparam
+            DFT+U parameters, shape: nf x dim_uparam
         aparam
             atomic parameter, shape: nf x nloc x dim_aparam
         comm_dict
@@ -401,6 +437,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
             nlist,
             mapping=mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             comm_dict=comm_dict,
             charge_spin=charge_spin,
@@ -432,6 +469,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         comm_dict: dict[str, torch.Tensor] | None = None,
         charge_spin: torch.Tensor | None = None,
@@ -442,6 +480,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
             nlist,
             mapping=mapping,
             fparam=fparam,
+            uparam=uparam,
             aparam=aparam,
             comm_dict=comm_dict,
             charge_spin=charge_spin,
@@ -463,6 +502,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
         nlist: torch.Tensor,
         mapping: torch.Tensor | None = None,
         fparam: torch.Tensor | None = None,
+        uparam: torch.Tensor | None = None,
         aparam: torch.Tensor | None = None,
         charge_spin: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
@@ -738,6 +778,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
             atype: torch.Tensor,
             box: torch.Tensor | None,
             fparam: torch.Tensor | None = None,
+            uparam: torch.Tensor | None = None,
             aparam: torch.Tensor | None = None,
             charge_spin: torch.Tensor | None = None,
             spin: torch.Tensor | None = None,
@@ -769,6 +810,7 @@ class BaseAtomicModel(torch.nn.Module, BaseAtomicModel_):
                     nlist,
                     mapping=mapping,
                     fparam=fparam,
+                    uparam=uparam,
                     aparam=aparam,
                     charge_spin=charge_spin,
                 )

@@ -80,7 +80,7 @@ TEST_F(TestInferDeepSpinA, double_infer) {
   double* atomic_virial_ = new double[natoms * 9];
 
   DP_DeepSpinCompute2(dp, 1, natoms, coord, spin, atype, box, nullptr, nullptr,
-                      ener_, force_, force_mag_, virial_, atomic_ener_,
+                      nullptr, ener_, force_, force_mag_, virial_, atomic_ener_,
                       atomic_virial_);
 
   double ener = *ener_;
@@ -125,7 +125,7 @@ TEST_F(TestInferDeepSpinA, float_infer) {
   float* atomic_virial_ = new float[natoms * 9];
 
   DP_DeepSpinComputef2(dp, 1, natoms, coordf, spinf, atype, boxf, nullptr,
-                       nullptr, ener_, force_, force_mag_, virial_,
+                       nullptr, nullptr, ener_, force_, force_mag_, virial_,
                        atomic_ener_, atomic_virial_);
 
   double ener = *ener_;
@@ -255,8 +255,8 @@ TEST_F(TestInferDeepSpinANoPBC, double_infer) {
   double* atomic_virial_ = new double[natoms * 9];
 
   DP_DeepSpinCompute2(dp, 1, natoms, coord, spin, atype, nullptr, nullptr,
-                      nullptr, ener_, force_, force_mag_, virial_, atomic_ener_,
-                      atomic_virial_);
+                      nullptr, nullptr, ener_, force_, force_mag_, virial_,
+                      atomic_ener_, atomic_virial_);
 
   double ener = *ener_;
   std::vector<double> force(force_, force_ + natoms * 3);
@@ -300,7 +300,7 @@ TEST_F(TestInferDeepSpinANoPBC, float_infer) {
   float* atomic_virial_ = new float[natoms * 9];
 
   DP_DeepSpinComputef2(dp, 1, natoms, coordf, spinf, atype, nullptr, nullptr,
-                       nullptr, ener_, force_, force_mag_, virial_,
+                       nullptr, nullptr, ener_, force_, force_mag_, virial_,
                        atomic_ener_, atomic_virial_);
 
   double ener = *ener_;

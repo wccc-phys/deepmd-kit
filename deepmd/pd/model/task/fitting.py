@@ -104,7 +104,7 @@ class Fitting(paddle.nn.Layer, BaseFitting):
         stat_file_path : Optional[DPPath]
             The path to the stat file.
         """
-        if self.numb_fparam == 0 and self.numb_aparam == 0:
+        if self.numb_fparam == 0 and self.numb_aparam == 0 and self.numb_uparam == 0:
             # skip data statistics
             return
         if callable(merged):
@@ -170,6 +170,30 @@ class Fitting(paddle.nn.Layer, BaseFitting):
                 ),
                 self.aparam_inv_std,
             )
+        # stat uparam
+        if self.numb_uparam > 0:
+            cat_data = paddle.concat([frame["uparam"] for frame in sampled], axis=0)
+            cat_data = paddle.reshape(cat_data, [-1, self.numb_uparam])
+            uparam_avg = paddle.mean(cat_data, axis=0)
+            uparam_std = paddle.std(cat_data, axis=0, unbiased=False)
+            uparam_std = paddle.where(
+                uparam_std < protection,
+                paddle.to_tensor(protection, dtype=uparam_std.dtype),
+                uparam_std,
+            )
+            uparam_inv_std = 1.0 / uparam_std
+            paddle.assign(
+                paddle.to_tensor(
+                    uparam_avg, place=env.DEVICE, dtype=self.uparam_avg.dtype
+                ),
+                self.uparam_avg,
+            )
+            paddle.assign(
+                paddle.to_tensor(
+                    uparam_inv_std, place=env.DEVICE, dtype=self.uparam_inv_std.dtype
+                ),
+                self.uparam_inv_std,
+            )
 
 
 class GeneralFitting(Fitting):
@@ -199,6 +223,8 @@ class GeneralFitting(Fitting):
         The default frame parameter. If set, when `fparam.npy` files are not included in the data system,
         this value will be used as the default value for the frame parameter in the fitting net.
         This parameter is not supported in PaddlePaddle.
+    default_uparam: float, optional
+        The default DFT+U parameter. If set, file `uparam.npy` should be included to provide the input uparams.
     dim_case_embd : int
         Dimension of case specific embedding.
     activation_function : str
@@ -250,6 +276,7 @@ class GeneralFitting(Fitting):
         type_map: list[str] | None = None,
         use_aparam_as_mask: bool = False,
         default_fparam: list[float] | None = None,
+        default_uparam: float | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -269,6 +296,12 @@ class GeneralFitting(Fitting):
         )
         self.dim_case_embd = dim_case_embd
         self.default_fparam = default_fparam
+        self.default_uparam = default_uparam
+        self.numb_uparam = int(self.default_uparam is not None)
+        self.register_buffer(
+            "buffer_numb_uparam",
+            paddle.to_tensor([self.numb_uparam], dtype=paddle.int64),
+        )
         self.activation_function = activation_function
         self.precision = precision
         self.prec = PRECISION_DICT[self.precision]
@@ -313,6 +346,26 @@ class GeneralFitting(Fitting):
             )
         else:
             self.fparam_avg, self.fparam_inv_std = None, None
+        if self.numb_uparam > 0:
+            self.register_buffer(
+                "uparam_avg",
+                paddle.zeros([self.numb_uparam], dtype=self.prec).to(device=device),
+            )
+            self.register_buffer(
+                "uparam_inv_std",
+                paddle.ones([self.numb_uparam], dtype=self.prec).to(device=device),
+            )
+        else:
+            self.uparam_avg, self.uparam_inv_std = None, None
+        if self.default_uparam is not None:
+            self.register_buffer(
+                "default_uparam_tensor",
+                paddle.to_tensor(self.default_uparam, dtype=self.prec).to(
+                    device=device
+                ),
+            )
+        else:
+            self.default_uparam_tensor = None
         if self.numb_aparam > 0:
             self.register_buffer(
                 "aparam_avg",
@@ -337,6 +390,7 @@ class GeneralFitting(Fitting):
         in_dim = (
             self.dim_descrpt
             + self.numb_fparam
+            + self.numb_uparam
             + (0 if self.use_aparam_as_mask else self.numb_aparam)
             + self.dim_case_embd
         )
@@ -412,6 +466,7 @@ class GeneralFitting(Fitting):
             "dim_case_embd": self.dim_case_embd,
             "vacuum_ref": False,
             "default_fparam": self.default_fparam,
+            "default_uparam": self.default_uparam,
             "activation_function": self.activation_function,
             "precision": self.precision,
             "mixed_types": self.mixed_types,
@@ -423,6 +478,8 @@ class GeneralFitting(Fitting):
                 "case_embd": to_numpy_array(self.case_embd),
                 "fparam_avg": to_numpy_array(self.fparam_avg),
                 "fparam_inv_std": to_numpy_array(self.fparam_inv_std),
+                "uparam_avg": to_numpy_array(self.uparam_avg),
+                "uparam_inv_std": to_numpy_array(self.uparam_inv_std),
                 "aparam_avg": to_numpy_array(self.aparam_avg),
                 "aparam_inv_std": to_numpy_array(self.aparam_inv_std),
             },
@@ -459,6 +516,18 @@ class GeneralFitting(Fitting):
         """Get the number (dimension) of atomic parameters of this atomic model."""
         return self.numb_aparam
 
+    def get_dim_uparam(self) -> int:
+        """Get the number (dimension) of DFT+U parameters of this atomic model."""
+        return self.numb_uparam
+
+    def has_default_uparam(self) -> bool:
+        """Check if the model has default uparam."""
+        return self.default_uparam is not None
+
+    def get_default_uparam(self) -> paddle.Tensor | None:
+        """Get the default uparam tensor."""
+        return self.default_uparam_tensor
+
     def get_buffer_dim_fparam(self) -> paddle.Tensor:
         """Get the number (dimension) of frame parameters of this atomic model as a buffer-style Tensor."""
         return self.buffer_numb_fparam
@@ -466,6 +535,10 @@ class GeneralFitting(Fitting):
     def get_buffer_dim_aparam(self) -> paddle.Tensor:
         """Get the number (dimension) of atomic parameters of this atomic model as a buffer-style Tensor."""
         return self.buffer_numb_aparam
+
+    def get_buffer_dim_uparam(self) -> paddle.Tensor:
+        """Get the number (dimension) of DFT+U parameters of this atomic model as a buffer-style Tensor."""
+        return self.buffer_numb_uparam
 
     # make jit happy
     exclude_types: list[int]
@@ -520,6 +593,10 @@ class GeneralFitting(Fitting):
             self.fparam_avg = value
         elif key in ["fparam_inv_std"]:
             self.fparam_inv_std = value
+        elif key in ["uparam_avg"]:
+            self.uparam_avg = value
+        elif key in ["uparam_inv_std"]:
+            self.uparam_inv_std = value
         elif key in ["aparam_avg"]:
             self.aparam_avg = value
         elif key in ["aparam_inv_std"]:
@@ -538,6 +615,10 @@ class GeneralFitting(Fitting):
             return self.fparam_avg
         elif key in ["fparam_inv_std"]:
             return self.fparam_inv_std
+        elif key in ["uparam_avg"]:
+            return self.uparam_avg
+        elif key in ["uparam_inv_std"]:
+            return self.uparam_inv_std
         elif key in ["aparam_avg"]:
             return self.aparam_avg
         elif key in ["aparam_inv_std"]:
@@ -560,6 +641,9 @@ class GeneralFitting(Fitting):
     def _extend_a_avg_std(self, xx: paddle.Tensor, nb: int, nloc: int) -> paddle.Tensor:
         return paddle.tile(xx.reshape([1, 1, self.numb_aparam]), [nb, nloc, 1])
 
+    def _extend_u_avg_std(self, xx: paddle.Tensor, nb: int) -> paddle.Tensor:
+        return paddle.tile(xx.reshape([1, self.numb_uparam]), [nb, 1])
+
     def _forward_common(
         self,
         descriptor: paddle.Tensor,
@@ -574,6 +658,7 @@ class GeneralFitting(Fitting):
         xx = descriptor.astype(self.prec)
         fparam = fparam.astype(self.prec) if fparam is not None else None
         aparam = aparam.astype(self.prec) if aparam is not None else None
+        uparam = uparam.astype(self.prec) if uparam is not None else None
 
         if self.remove_vaccum_contribution is not None:
             # TODO: compute the input for vaccm when remove_vaccum_contribution is set
@@ -615,6 +700,31 @@ class GeneralFitting(Fitting):
             if xx_zeros is not None:
                 xx_zeros = paddle.concat(
                     [xx_zeros, fparam],
+                    axis=-1,
+                )
+        # check uparam dim, concate to input descriptor
+        if self.numb_uparam > 0:
+            assert uparam is not None, "uparam should not be None"
+            assert self.uparam_avg is not None
+            assert self.uparam_inv_std is not None
+            if uparam.shape[-1] != self.numb_uparam:
+                raise ValueError(
+                    f"get an input uparam of dim {uparam.shape[-1]}, "
+                    f"which is not consistent with {self.numb_uparam}.",
+                )
+            uparam = uparam.reshape([nf, self.numb_uparam])
+            nb, _ = uparam.shape
+            t_uparam_avg = self._extend_u_avg_std(self.uparam_avg, nb)
+            t_uparam_inv_std = self._extend_u_avg_std(self.uparam_inv_std, nb)
+            uparam = (uparam - t_uparam_avg) * t_uparam_inv_std
+            uparam = paddle.tile(uparam.reshape([nf, 1, -1]), [1, nloc, 1])
+            xx = paddle.concat(
+                [xx, uparam],
+                axis=-1,
+            )
+            if xx_zeros is not None:
+                xx_zeros = paddle.concat(
+                    [xx_zeros, uparam],
                     axis=-1,
                 )
         # check aparam dim, concate to input descriptor
